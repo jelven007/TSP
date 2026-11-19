@@ -13,7 +13,7 @@ from pathlib import Path
 
 import polars as pl
 
-from app.market_time import cn_now, cn_today
+from app.market_time import as_cn_datetime, cn_now, cn_today
 from app.services.ext_data import ExtConfig, ExtConfigStore, ExtField, PullConfig, write_ext_parquet
 from app.services.fs_utils import atomic_write_parquet, atomic_write_text
 from app.services.st_history_backfill import parse_special_treatment_events
@@ -411,26 +411,45 @@ class RelatedMarketDataScheduler:
             self.task = None
 
     async def _loop(self, data_dir):
-        from app.services import preferences
-
         while True:
-            await asyncio.sleep(60)
-            if not preferences.get_data_sync_auto_enabled():
-                continue
-            # An early startup must not consume the day's post-close refresh.
-            if cn_now().hour < 18:
-                continue
+            stamp = cn_now()
+            until_due = (stamp.replace(hour=21, minute=0, second=0, microsecond=0) - stamp).total_seconds()
+            await asyncio.sleep(min(60, until_due) if until_due > 0 else 60)
             try:
-                state = _load_state(data_dir)
-                attempted = state.get("maintenance_date")
-                if attempted == str(cn_today()):
-                    continue
-                result = await asyncio.to_thread(sync_related_data, data_dir)
-                if "skipped" not in result:
-                    result["maintenance_date"] = str(cn_today())
-                    _save_state(data_dir, result)
+                await asyncio.to_thread(self._run_scheduled, data_dir, cn_now())
             except Exception:
                 logger.exception("related market data maintenance failed")
+
+    def _run_scheduled(self, data_dir, stamp):
+        from app.services import preferences
+
+        stamp = as_cn_datetime(stamp)
+        if stamp.hour < 21 or not preferences.get_data_sync_auto_enabled():
+            return
+        state = _load_state(data_dir)
+        day = stamp.date().isoformat()
+        if state.get("maintenance_date", "") >= day:
+            return
+        previous = {key: state[key] for key in ("maintenance_date", "maintenance_status",
+                                                "maintenance_time") if key in state}
+        state.update(maintenance_date=day, maintenance_time="21:00", maintenance_status="running")
+        _save_state(data_dir, state)
+        try:
+            result = sync_related_data(data_dir, end=stamp.date())
+            if "skipped" in result:
+                current = _load_state(data_dir)
+                for key in ("maintenance_date", "maintenance_status", "maintenance_time"):
+                    current.pop(key, None)
+                current.update(previous)
+                _save_state(data_dir, current)
+                return
+            result.update(maintenance_date=day, maintenance_time="21:00", maintenance_status="completed")
+            _save_state(data_dir, result)
+        except Exception:
+            current = _load_state(data_dir)
+            current.update(maintenance_date=day, maintenance_time="21:00", maintenance_status="failed")
+            _save_state(data_dir, current)
+            raise
 
 
 related_market_data_scheduler = RelatedMarketDataScheduler()

@@ -18,10 +18,16 @@ export function StrategyEntryProgress({ result, today }: { result: ScreenerResul
       && quality.progress.as_of === result.as_of)
   const historical = result.as_of < today
   const error = result.section_errors?.buy ?? result.execution_status?.reason
+  const buyTask = result.monitor_tasks?.buy
   if (!receipts.length) return <span className="strategy-result-note">
     {result.as_of} · {historical ? '历史保存结果 · 未保存阶段进展'
       : result.as_of > today ? '已保存预选 · 等待该交易日执行'
-      : result.section_statuses?.buy === 'success' && !result.selection_only
+      : buyTask?.published === true && !['success', 'rejected'].includes(String(buyTask.state))
+        ? `部分入场确认完成 · ${result.sections?.buy.length ?? 0}只`
+      : buyTask?.terminal === true && buyTask.state === 'rejected'
+        ? '入场任务结束 · 条件未满足'
+        : result.section_statuses?.buy === 'rejected' ? '入场任务结束 · 条件未满足'
+        : result.section_statuses?.buy === 'success' && !result.selection_only
         ? `买入确认完成 · ${result.sections?.buy.length ?? 0}只`
         : result.section_statuses?.buy === 'expired' ? '今日买入未确认' : '未执行 / 等待状态回执'}
     {error && ` · ${error}`}
@@ -64,6 +70,6 @@ export function StrategyEntryProgress({ result, today }: { result: ScreenerResul
       </div>
     })}
     <span className="strategy-result-note">{result.as_of} · {historical ? '历史保存回执'
-      : result.showing_last_success ? '上次成功回执' : '当前保存回执'}{error && ` · ${error}`}</span>
+      : result.showing_last_success ? '上次成功回执' : '完成结果固定'}{error && ` · ${error}`}</span>
   </div>
 }

@@ -212,8 +212,14 @@ export function useQuoteStream(
 
       es.addEventListener('strategy_results_updated', (event: MessageEvent) => {
         if (!acceptEvent(event)) return
-        // 策略监控完成后只刷新策略结果缓存，不扩散到其他行情页面。
-        qc.invalidateQueries({ queryKey: ['screener-cached'] })
+        let ids: string[] | undefined
+        try { ids = JSON.parse(event.data).strategy_ids } catch { /* legacy event */ }
+        qc.invalidateQueries({
+          predicate: query => query.queryKey[0] === 'screener-cached'
+            && (!ids?.length || !['strategy', 'day-view'].includes(String(query.queryKey[1]))
+              || ids.includes(String(query.queryKey[2]))),
+        }, { cancelRefetch: false })
+        qc.invalidateQueries({ queryKey: ['strategy-monitoring'] }, { cancelRefetch: false })
       })
 
       es.addEventListener('strategy_pool_updated', (event: MessageEvent) => {

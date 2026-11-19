@@ -1,28 +1,13 @@
 # 完整产品单机多租户部署
 
-初始化使用部署者提供的受控配置和数据。自选列默认文件只包含列目录、顺序与显隐，
-不包含具体股票、分组或成员归属，不依赖仓库中的历史导出文件。
-将实际列默认文件放在独立平台配置目录，并设置API环境变量
-`TSP_CELL_BOOTSTRAP_WATCHLIST_COLUMNS_PATH=/platform-config/watchlist-columns-defaults.json`。
-文件采用`format_version=2`及`columns`数组，由
-[`watchlist_defaults.Snapshot`](../../backend/app/multitenancy/watchlist_defaults.py)校验，
-须可由运行UID读取，随受控配置及完整备份保留，不发布到公共行情目录。
-新空间provision在ready前合并缺省列设置；文件无效或缺失保留可重试pending。
-已有个人列设置不重置，未配置路径使用原默认；资料清理不修改用户配置及业务数据。
-其他配置入口见[运维手册](../../docs/operations.md#configuration)。
-
 生产开发与六类文档追踪见[工程规范](../../docs/reference/engineering.md#engineering)、
 [本地变更映射](../../docs/reference/engineering.md#trace)。
 当前单机多角色与目标多节点分别验收，回退保护切流后增量，完整目标见
 [生产验收](../../docs/testing.md#acceptance)。
 
 本目录是完整产品单机多租户部署入口，沿用原 `app.main`、完整前端和原业务引擎。
-一期于 2026-10-14 完成生产切流与 100 用户验收，见
-一期实施记录（历史报告已移出仓库）。
 当前固定源码、镜像与最后已知运行身份见[版本基线](../../docs/version-baseline.md)，
-保存的v0.4.39本地/ECS恢复、切换和重启验收见
-发布记录（历史报告已移出仓库）。
-旧实例inode修复和双库恢复见历史结果（历史报告已移出仓库）。
+每次部署的备份、恢复和重启结果写入[验收交付](../../deliverables/README.md)。
 候选升级继续按下述流程执行，不能与旧实例同时
 写一个行情目录；候选数据、数据库及监听端口必须与生产分离。
 
@@ -33,7 +18,7 @@
 - `gateway`：单进程实时入口，仅开放 `/api/events`、`/api/events/ticket` 和健康端点；本地验签一次性租户票据，监听撤权和私有事件通知，并转发平台行情 marker，不挂载公共行情、平台配置或计算 socket。
 - `research`、`realtime`、`notifications`、`scheduled`：独立任务进程，分别处理受限研究、监控与模拟交易、通知 outbox、租户周度挖掘和每日复盘。
 - 主机计算 Broker：固定计算镜像、每租户一个，全机并发按策略预算及配置限制；仅 Broker 有 Docker 权限。API/Platform/Worker 只挂载 Unix socket。计算容器无网络、无凭据、UID 10001、只读公共文件。
-- PostgreSQL 16：控制库和业务库使用不同无继承关系的非 owner、非超级用户、非 BYPASSRLS 角色，迁移目标均为 schema v8；v7新增当日股票池及每日调度唤醒，v8增加模拟账号删除级联和账号导入原件清理。
+- PostgreSQL 16：控制库和业务库使用不同无继承关系的非 owner、非超级用户、非 BYPASSRLS 角色；当前源码迁移目标均为 schema v9，实际安装schema须从目标环境核对。
 
 ## 小规格单机候选
 
@@ -59,6 +44,10 @@ API 深度就绪使用同一组按类型区分的 freshness，不会在监督器
 `TSP_COMPUTE_CAPACITY`、`TSP_COMPUTE_MEMORY_MB`、`TSP_COMPUTE_CPUS` 和
 `TSP_COMPUTE_QUEUE_SECONDS`；模板默认为 16、4096、2、2。其中 16 是部署并发
 上限，实际默认“自动”按主机内存/CPU各50%的策略预算估算推荐值。
+当前 ECS 的受控 `broker.env` 配置为 `TSP_COMPUTE_MEMORY_MB=24576`、
+`TSP_COMPUTE_CAPACITY=4`、`TSP_COMPUTE_CPUS=4`：每任务 24 GiB / 4 vCPU，
+推荐及生效并发均为 4。后续发布和恢复保留这些已保存值，不以模板默认值覆盖；
+系统设置的“新任务资源上限”实时读取 Broker 的实际额度。
 管理员在“设置 → 系统设置 → 并发策略”保存并发数，所有租户共用；
 单任务额度按原限额与总预算均分值中的较小值施加 Docker 限制。
 并发满最多等待该短窗口，等待者最多16个。健康检查实际启动无网络沙箱并缓存60秒；
@@ -90,6 +79,7 @@ Compose 通过以下变量选择资源，私密值应置于权限 `0600` 的环�
 | `TSP_PLATFORM_ENV_FILE` | 平台环境文件，仅有供应商/系统配置和两个内部网关 Token，无数据库 DSN |
 | `TSP_PLATFORM_DATA_DIR` | 平台可写原行情目录；候选阶段使用独立复制件 |
 | `TSP_PLATFORM_CONFIG_DIR` | 平台配置：`preferences.json`、`secrets.json`、`data_sources/`；不包含旧用户业务文件 |
+| `TSP_CELL_BOOTSTRAP_WATCHLIST_COLUMNS_PATH` | 新账户自选列目录默认文件路径；容器内使用 `/platform-config/watchlist-columns-defaults.json`，宿主运行使用实际绝对路径 |
 | `TSP_PUBLIC_MARKET_DIR` | 独立公共版本目录，包含 `releases/<id>/` 与原子 `current` 链接 |
 | `TSP_COMPUTE_SOCKET_DIR` | 主机 Broker socket 目录，默认 `/run/tsp-full` |
 | `TSP_FULL_API_PORT` | 候选 API 仅监听主机回环，默认 3030 |
@@ -118,8 +108,19 @@ API/Gateway/Worker 文件中设 `TSP_CELL_MARKET_URL=http://platform:3018`、`TS
 `AUTH_REGISTRATION_SECRET` 可在首次自定义，已有 SQL 口令不会被重置。
 多租户初始化依赖下面的双库、schema 与内部服务准备，默认开关不替代这些资源。
 
+2026-11-14用户最新要求只将自选页的列目录、顺序与显示状态保存为初始化默认，
+共58项列设置，不包含具体股票、股票分组或成员归属。
+使用（旧过程附件已清理），
+先将其复制至独立平台配置目录的`watchlist-columns-defaults.json`，再在API环境文件设置
+`TSP_CELL_BOOTSTRAP_WATCHLIST_COLUMNS_PATH=/platform-config/watchlist-columns-defaults.json`。
+文件需可由运行UID读取，并随初始化配置及完整备份保留；不发布到公共行情目录。
+新账户空间首次provision在控制状态ready前合并缺省列设置，业务空间保持空白；
+文件缺失或无效会保留可重试的pending状态。已有空间不会在启动时重置，
+已有个人列设置保留，普通注册用户也仅获得通用列目录。未配置路径时使用原列默认。
+本次双端运行及完整数据对账见（旧过程附件已清理）。
+
 1. 备份两个 PostgreSQL 库、原 `data/user_data`、策略/研究/模拟交易目录、平台配置、镜像及 Nginx 配置，记录可恢复路径。
-2. 对独立候选库执行原 `app.cell.admin migrate --target-version 8`，分别指定 control/business runtime 角色并登记 Cell。v8提供模拟账号删除级联和账号导入原件清理；迁移前备份双库，不改v1-v7校验和。API 首次启动使用已有运行权限，按初始化配置自动创建缺失的管理员和注册口令，开放注册与密码找回，不重置已改密码/口令；`bootstrap-full-identity` 仍可用于提前初始化。API 不执行建库或 schema 迁移。
+2. 对独立候选库执行原 `app.cell.admin migrate --target-version 7`，分别指定 control/business runtime 角色并登记 Cell。API 首次启动使用已有运行权限，按初始化配置自动创建缺失的管理员和注册口令，开放注册与密码找回，不重置已改密码/口令；`bootstrap-full-identity` 仍可用于提前初始化。API 不执行建库或 schema 迁移。
 3. 对明确暂停的 legacy 租户执行 `import-full-product --directory <原data的一致备份> --tenant-id <id> --owner-id <原owner> --report <摘要路径>`，随后执行 `verify-full-import --directory <同一备份> --tenant-id <id> --report <对账路径>`。该命令覆盖账号与完整业务；仅 `import-full-accounts` 或旧 v4 导入不够。旧通知名称须通过 `--channel-map '{"email":"legacy-email"}'` 明确绑定至该租户的已有渠道，实际值以对账结果为准。
 4. 将平台偏好、密钥和 `data_sources/` 从旧目录复制到独立平台配置目录，完成数量/内容对账。保留管理员维护的全局菜单配置；个人布局/列配置和租户定时/通知配置分别导入其 SQL 归属。保留旧文件用于恢复。
 5. 启动独立 `platform` 并等待首个完整公共版本。版本发布逐项复制新文件、复用上一不可变版本的相同文件，并在数据世代或文件清单变化时放弃本次发布。
@@ -164,7 +165,7 @@ API使用只读打开的不可变`.public_release.json`持共享锁，旧仓库�
 释放后才关闭连接和锁。维护在同文件取得非阻塞排他锁，持锁复核current、近期版本
 及研究引用后删除；锁忙或锁能力不可用则跳过，并报告`release_skip_counts`。
 没有`flock`时保留读取能力但禁用该清理路径，跨主机共享存储另行核验。
-该修复尚未生产部署，源码及验证状态见实施记录（历史报告已移出仓库）。
+实际源码、发布与部署状态统一见[版本基线](../../docs/version-baseline.md)。
 
 升级此候选前先保存回滚产物并核对空间，暂停公共回收timer；全部API子进程更新并
 确认共享锁及闲置收敛后，先dry-run再恢复维护。旧API不持锁，混跑不能保证读者安全。

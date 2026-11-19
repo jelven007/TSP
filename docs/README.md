@@ -1,10 +1,9 @@
 # Tick Stock Platform（TSP）文档中心
 
-应用语义版本为 `0.4.70`。正文维护现行契约与操作入口。
-源码、产物及运行身份的区分见[版本基线](version-baseline.md)，
-工程调整见[工程优化说明](engineering-optimization.md)。
-已结束的计划、升级流水和重复导出已清理；必要审计和当前任务按
-[维护规则](maintenance.md)保留。
+核对日期：2026-11-19。本文保留现行契约，运行身份见[版本基线](version-baseline.md)。
+本工作区源码基点的应用语义版本为 `0.4.70`；本地运行版本为0.4.68，
+本地服务使用独立恢复源码，当前安装补丁与故障边界见版本基线。
+
 
 ## 从这里开始
 
@@ -15,9 +14,9 @@
 | 管理数据、账号与服务 | [部署与运维](operations.md) → [部署目录](../deploy/README.md) |
 | 修改或审查代码 | [AGENTS](../AGENTS.md) → [CONTRIBUTING](../CONTRIBUTING.md) → [系统方案](architecture.md#current) → [测试指南](testing.md) |
 | 二次开发或接入外部系统 | [二次开发](secondary-development.md) → [API 导航](api.md) → [接入协议](reference/integrations.md) |
-| 准备发布、升级与恢复 | [发布运营](release-operations.md) → [发布流水线](release-pipeline.md) → [运维手册](operations.md) → [版本基线](version-baseline.md) |
+| 准备发布、升级与恢复 | [发布运营](release-operations.md) → [运维手册](operations.md) → [版本基线](version-baseline.md) |
 | 定位代码、脚本或测试 | [工程目录](reference/engineering.md#layout) → [测试定位](../tests/README.md#按领域定位现有测试) |
-| 维护文档或查找历史证据 | [文档维护与清理规则](maintenance.md) → [报告分类](evidence.md) |
+| 维护文档或查找必要证据 | [文档维护](maintenance.md) → [成果与审计](../deliverables/README.md) |
 
 ## 项目文档地图
 
@@ -30,12 +29,12 @@ docs/
   README.md                       文档地图
   getting-started.md               环境、安装、首次配置与验证
   requirements.md                 唯一需求定义与八业务模块
+  requirement-ids.json            唯一的保留需求编号基准
   architecture.md                 当前架构、功能血缘与后续系统目标
   api.md                          会话、开放 API、SSE 与 MCP 导航
   secondary-development.md        实际扩展点及升级兼容
   testing.md                      验证矩阵、命令与签收边界
   release-operations.md           产物、发布、支持与运营
-  release-pipeline.md             固定执行入口、并行构建、回执与缓存
   operations.md                   配置、调度、备份、恢复与故障处理
   version-baseline.md             源码、发布和运行版本分类
   maintenance.md                  文档归属、清理范围与检查方法
@@ -51,13 +50,14 @@ docs/
   rustdx-task-routing.md           三组连接、额度与窗口核验
   planning/
     phase2-implementation-plan.md  阶段工作包与待签收能力
+    current-validation.md          当前待修复与待验收项
 ```
 
 ## 六类主手册
 
 | 生命周期 | 唯一主入口 | 维护内容 |
 | --- | --- | --- |
-| 需求 | [需求基线](requirements.md) | 角色、对象、八业务模块、164 条 FR、42 条 NFR、状态与验收条件 |
+| 需求 | [需求基线](requirements.md) | 角色、对象、八业务模块、167 条 FR、42 条 NFR、状态与验收条件 |
 | 方案 | [系统技术方案](architecture.md) | 当前运行拓扑、源码事实源、数据和缓存链路、明确标记的目标架构 |
 | 开发 | [贡献规范](../CONTRIBUTING.md) | 分层、金融口径、Provider、并发、兼容、质量门和 PR 复审 |
 | 测试 | [测试与验收](testing.md) | 隔离环境、定向回归、工程检查、平台与生产签收 |
@@ -81,8 +81,8 @@ docs/
 
 运行模板见[部署目录](../deploy/README.md)，仓库命令见[脚本入口](../scripts/README.md)
 和[后端操作模块](../backend/scripts/README.md)，可运行样例见[examples](../examples/README.md)。
-设计、实施计划和缺陷记录沿`.claude/artifacts/`归属；现行手册保留稳定入口。
-历史报告按六类导航，新增用户交付按用途和专题存放，具体规则见[文档维护](maintenance.md#4-证据目录)。
+现行设计和计划在docs维护；必要未完成事项见[待验收入口](planning/current-validation.md)。
+当前交付及审计按集中目录保存，具体规则见[文档维护](maintenance.md#3-清理边界)。
 
 <a id="maintenance"></a>
 ## 事实源与维护
@@ -92,7 +92,7 @@ docs/
 历史任务成功不等于历史行情全部补齐，规划容量不等于已经通过负载验收。
 
 每次行为、接口、拓扑或配置变化同步相应主手册与专题参考，至少每月复核一次。
-正文保留现行规则，发布过程与原始证据归[报告目录](evidence.md)。
+正文保留现行规则，必要原始证据归[成果与审计目录](../deliverables/README.md)。
 完整维护责任与清理规则见[maintenance.md](maintenance.md)。
 
 从仓库根执行 `make check`。历史资料引用可另执行

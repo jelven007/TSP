@@ -23,6 +23,11 @@ class Scheduler:
                 (claim["tenant_id"], claim["kind"], claim["owner"], claim["revision"], due_at),
             ).fetchone()["completed"]
 
+    def resume_scheduled(self):
+        if self.db.settings.schema_version >= 9:
+            with self.db.data.connection() as conn:
+                conn.execute("SELECT scheduler.resume_scheduled()")
+
     @staticmethod
     def next_due(conn, kind, interval):
         now = datetime.now(UTC)

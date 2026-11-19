@@ -8,8 +8,9 @@ import secrets
 import threading
 import time
 from datetime import UTC, date, datetime
+from datetime import time as clock_time
 from functools import wraps
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -59,6 +60,65 @@ class MinutePriorityPlan(BaseModel):
     sequence: int = Field(ge=0)
     symbols: list[str] = Field(max_length=10000)
     selected: list[str] = Field(max_length=10000)
+
+
+class MonitorRepairRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    owner: str = Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$")
+    strategy_id: str = Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$")
+    generation: int = Field(ge=1)
+    day: date
+    phase: Literal["breadth", "stocks", "observe", "select"]
+    attempt: int = Field(ge=1)
+    symbols: list[str] = Field(min_length=1, max_length=10000)
+    daily_dates: list[date] = Field(max_length=500)
+    minute_end: str | None = None
+    retry_until: datetime
+
+
+class MonitorRepairCancel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    owner: str = Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$")
+    strategy_id: str = Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$")
+    generation: int = Field(ge=1)
+
+
+def _repair_service(request):
+    service = getattr(request.app.state, "monitor_input_repair", None)
+    if service is None:
+        raise HTTPException(503, "monitor_input_repair_unavailable")
+    return service
+
+
+@router.post("/monitor-repair")
+def monitor_repair(request: Request, value: MonitorRepairRequest,
+                   authorization: Annotated[str | None, Header()] = None):
+    _authorize(authorization)
+    from app.market_time import as_cn_datetime, cn_now, published_trading_day
+    now = cn_now()
+    try:
+        end = clock_time.fromisoformat(value.minute_end) if value.minute_end else None
+    except ValueError:
+        raise HTTPException(422, "invalid_repair_window") from None
+    deadline = as_cn_datetime(value.retry_until)
+    if (value.day != now.date() or published_trading_day(value.day) is not True
+            or deadline.date() != value.day or deadline <= now
+            or deadline.time().replace(tzinfo=None) > clock_time(22)
+            or any(day > value.day for day in value.daily_dates)
+            or any(not re.fullmatch(SYMBOL_PATTERN, symbol) for symbol in value.symbols)
+            or (end and (end > now.time().replace(tzinfo=None) or not clock_time(9, 30) <= end <= clock_time(15)))):
+        raise HTTPException(422, "invalid_repair_window")
+    try:
+        return _repair_service(request).request(value.model_dump(mode="json"))
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@router.post("/monitor-repair/cancel")
+def cancel_monitor_repair(request: Request, value: MonitorRepairCancel,
+                          authorization: Annotated[str | None, Header()] = None):
+    _authorize(authorization)
+    return _repair_service(request).cancel(value.owner, value.strategy_id, value.generation)
 
 
 @router.post("/minute-priority")

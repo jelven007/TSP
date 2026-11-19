@@ -11,7 +11,9 @@ from app.services.daily_selections import DailySelections
 
 @pytest.fixture
 def runtime(tmp_path, monkeypatch):
-    return test_screener_history_api.runtime.__wrapped__(tmp_path, monkeypatch)
+    runtime = test_screener_history_api.runtime.__wrapped__(tmp_path, monkeypatch)
+    runtime[1].get("sample").execution_backend = "minute_filter"
+    return runtime
 
 
 @pytest.mark.parametrize("day,selected,bought", [
@@ -22,6 +24,7 @@ def test_saved_signal_day_survives_dependency_change_and_selection_fallback(
     runtime, monkeypatch, day, selected, bought,
 ):
     storage, engine, request, calls = runtime
+    engine.get("sample").execution_backend = "minute_filter"
     engine.get("sample").meta.update(
         timeframes=["1m"], result_sections="signals",
     )
@@ -56,9 +59,13 @@ def test_saved_signal_day_survives_dependency_change_and_selection_fallback(
     assert store.detail("sample", saved["record_id"]) == saved
 
 
-def test_signal_history_prefers_latest_run_including_successful_empty(runtime, monkeypatch):
+@pytest.mark.parametrize("execution", [{}, {
+    "minute_execution": "overnight_capacity_v1", "trigger_selection": "optional_v1",
+}])
+def test_signal_history_prefers_latest_run_including_successful_empty(runtime, monkeypatch, execution):
     storage, engine, request, _ = runtime
-    engine.get("sample").meta.update(timeframes=["1m"], result_sections="signals")
+    engine.get("sample").execution_backend = "minute_filter"
+    engine.get("sample").meta.update(timeframes=["1m"], result_sections="signals", **execution)
     key = strategy_results.capture_identity(engine, storage, "sample", timeframe="1m")
     old = replace(key, strategy_version="old-version")
     store = strategy_results.StrategyResults(storage)

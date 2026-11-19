@@ -30,7 +30,7 @@ def setup_task(tmp_path):
 
 @pytest.mark.parametrize("clock,state,reason", [
     ("09:29:59", "waiting", None), ("09:30:00", "success", None),
-    ("10:50:00", "success", "stop_time"), ("11:30:00", "success", "fallback"),
+    ("10:50:00", "success", "stop_time"), ("11:30:00", "expired", None),
     ("11:30:01", "expired", None),
 ])
 def test_signal_roster_clock_exit_requires_no_account_or_fake_quantities(tmp_path, clock, state, reason):
@@ -113,7 +113,8 @@ def test_real_monitor_archives_first_roster_sell_even_while_buy_waits(tmp_path, 
     catalog._user_data_dir = lambda: tmp_path
     windows = task_windows(catalog, strategy, {})
     if buy_failure:
-        windows["buy"] = [{"start": "09:30:00", "end": "14:55:00"}]
+        windows["buy"] = [{"start": "09:30:00", "end": "14:55:00", "signal": {
+            "id": "trigger", "template": "conditions", "params": {}}}]
         from app.strategy import overnight_runtime
         monkeypatch.setattr(overnight_runtime, "monitor_context",
                             lambda *_: (_ for _ in ()).throw(ValueError("broken buy input")))
@@ -128,6 +129,8 @@ def test_real_monitor_archives_first_roster_sell_even_while_buy_waits(tmp_path, 
     engine = MonitorRuleEngine()
     engine.set_strategy_engine(catalog)
     engine.set_data_dir(tmp_path)
+    from app.services.strategy_monitor_tasks import set_monitoring
+    set_monitoring(tmp_path, "custom_test", "Test", True)
     engine.set_history_loader(service._load_enriched_history)
     engine.set_rules([monitor_rules.normalize({
         "id": "custom_rule", "type": "strategy", "scope": "all", "strategy_id": "custom_test",

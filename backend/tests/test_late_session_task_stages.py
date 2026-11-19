@@ -174,11 +174,12 @@ def test_failure_diagnostics_do_not_change_start_minute_or_use_later_amounts():
     assert result.symbols == [] and result.stage == "conditions_rejected"
 
 
-def test_completed_task_cannot_emit_outside_signal_validity_interval():
+def test_completed_task_keeps_its_receipt_after_signal_validity_interval():
     sig = signal(time="14:30:00", evaluation_delay_minutes=.5, end_time="14:31:00")
     state = {}
-    assert run(sig, 30, state).symbols == ["a"]
-    assert not run(sig, 61, state).symbols
+    first = run(sig, 30, state)
+    assert first.symbols == ["a"]
+    assert run(sig, 61, state) == first
 
 
 def test_live_task_missing_the_entire_breadth_window_cannot_confirm_late():

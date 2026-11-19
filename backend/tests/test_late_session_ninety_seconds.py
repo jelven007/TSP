@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import polars as pl
 import pytest
-from test_late_session_strength import DAY, POOL, TARGET, bars, close_inputs, definition, evaluate
+from test_late_session_strength import DAY, POOL, TARGET, bars, definition, evaluate
 
 CHECK = TARGET + timedelta(seconds=90)
 
@@ -108,22 +108,23 @@ def filter_minute_history(df, params):
         calls.append(set(symbols))
         return frame.filter(pl.col("symbol").is_in(symbols))
 
-    repo = SimpleNamespace(list_minute_dates=lambda *_: [DAY], get_minute_by_dates=minute,
-                           get_daily_close_inputs=close_inputs)
+    repo = SimpleNamespace(list_minute_dates=lambda *_: [DAY], get_minute_by_dates=minute)
     panel = pl.DataFrame({"symbol": POOL*2, "date": [DAY-timedelta(days=1)]*5+[DAY]*5,
                           "close": [10.]*10, "raw_close": [10.]*10, "name": ["sample"]*10})
+    repo.get_daily_close_inputs = lambda day, **_: (
+        panel.filter(pl.col("date") == day), panel.filter(pl.col("date") == day).select("symbol", "close"))
     result = MinuteSignalReplayer(SimpleNamespace(repo=repo), engine).replay(
         engine.get("sample"), panel=panel, start=DAY, end=DAY, params={}, symbols=["a"],
         overrides={"entry_signals": ["csgi_late_session_strength"]})
     assert calls == [set(POOL)]
     assert not result.errors
-    assert len(result.hits) == 1
-    hit = result.hits[0]
-    assert hit.trigger_time == "14:32" and hit.signal_time == "14:31:30"
-    assert hit.entry_window_start == TARGET + timedelta(minutes=2)
-    assert hit.prior_close == 10.
-    assert hit.raw_entry_price == pytest.approx(10.159)
-    assert result.buy_no_next_minute == 0
+    if missing:
+        assert not result.hits and result.buy_no_next_minute == 1
+    else:
+        assert len(result.hits) == 1
+        hit = result.hits[0]
+        assert hit.trigger_time == "14:32" and hit.signal_time == "14:31:30"
+        assert hit.raw_entry_price == pytest.approx(10.22 if mode == "next_minute_open" else 10.159)
 
 
 @pytest.mark.parametrize("start,valid", [("14:58:00", True), ("14:59:00", False), ("15:00:00", False)])

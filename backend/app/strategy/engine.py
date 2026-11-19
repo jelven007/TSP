@@ -276,6 +276,8 @@ class StrategyResult:
     selection_only: bool = False
     price_suggestion_reference: dict | None = None
     monitor_tasks: dict | None = None
+    monitor_contract: str | None = None
+    monitor_executed_signals: dict | None = None
     # Internal execution projection made before grouped scope/display filtering.
     candidate_pool_metadata: dict[str, dict] | None = None
 
@@ -1077,7 +1079,8 @@ class StrategyEngine:
         if context.signal_task_states is not None:
             from app.strategy.version import runtime_identity
 
-            execution_context.signal_task_scope = f"{strategy_id}:{runtime_identity(strategy, overrides)}"
+            execution_context.signal_task_scope = (
+                context.signal_task_scope or f"{strategy_id}:{runtime_identity(strategy, overrides)}")
         holding_context = execution_context
         if daily_pool is not None and strategy.execution_backend != "composite":
             execution_context = scope_context(execution_context, daily_pool["symbols"])
@@ -1164,11 +1167,13 @@ class StrategyEngine:
                 try:
                     result.price_suggestion_reference = {
                         "reference_date": str(previous_session(context.as_of)),
-                        "closes": previous_closes(execution_context, isolate_symbols=True),
+                        "closes": previous_closes(holding_context, isolate_symbols=True),
                     }
                 except ValueError:
                     # Display-only sell suggestions cannot invalidate evaluated signals.
-                    result.price_suggestion_reference = {"reference_date": None, "closes": {}}
+                    result.price_suggestion_reference = {
+                        "reference_date": str(previous_session(context.as_of)), "closes": {},
+                    }
                 result.rows = [{**row, "suggested_lots_100k": suggested_lots(row.get("close"))}
                                for row in result.rows]
             result.section_errors = {}
@@ -2360,15 +2365,16 @@ class StrategyEngine:
                     p = parameters(sig)
                     confirm = evaluation_time(sig, context.as_of)
                     clock = observed.astimezone(CN_TZ).replace(tzinfo=None) if observed and observed.tzinfo else observed
-                    stock_due = not optional or clock is None or confirm is None or clock >= confirm
+                    stock_due = not (state or {}).get("terminal") and (
+                        not optional or clock is None or confirm is None or clock >= confirm)
                     breadth_due = (not optional or clock is None or p["time"] is None
                                    or clock >= datetime.combine(context.as_of, clock_time.fromisoformat(p["time"]))
                                    + timedelta(seconds=15))
-                    reference_due = (not optional and needs_previous_close(sig)) or (
+                    reference_due = not (state or {}).get("terminal") and ((not optional and needs_previous_close(sig)) or (
                         optional and (
                             (breadth_due and p["pool_up_min_pct"] is not None and not (state or {}).get("breadth"))
                             or (stock_due and any(p[key] is not None for key in (
-                                "change_min_pct", "change_max_pct", "amplitude_max_pct")))))
+                                "change_min_pct", "change_max_pct", "amplitude_max_pct"))))))
                     if reference_due:
                         reference = previous_closes(context, isolate_symbols=True)
                     if stock_due:

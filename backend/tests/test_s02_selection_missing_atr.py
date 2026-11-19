@@ -1,7 +1,7 @@
 """Optional preselection metrics cannot discard otherwise qualified members."""
 import polars as pl
 import pytest
-from test_s02_atr14_strategy import DAY, SOURCE, STRATEGY_ID, frames, prior
+from test_s02_atr14_strategy import DAY, SOURCE, frames, prior
 
 from app.strategy import market_data
 from app.strategy.engine import StrategyEngine
@@ -14,7 +14,7 @@ def selection(monkeypatch):
     _, daily = frames()
     symbols = daily["symbol"].unique().sort().to_list()
     rows = pl.DataFrame({"symbol": symbols, "score": [9., 8.], "reference_close": [10., 20.]})
-    return engine.get(STRATEGY_ID).enrich_selection_fn, rows, daily
+    return engine.get("custom_mvxxcp88").enrich_selection_fn, rows, daily
 
 
 @pytest.mark.parametrize("problem", ["missing", "bad_price"])

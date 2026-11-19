@@ -1,4 +1,4 @@
-"""Bounded source-day repair for the latest 20:00 next-session selection window."""
+"""Bounded source-day repair for the latest 16:00 next-session selection window."""
 from __future__ import annotations
 
 import hashlib
@@ -59,61 +59,21 @@ def _save(repo, state):
 
 def repair_inputs(repo, capset, day, *, progress, check_cancelled, quote_service=None,
                   previous=None, diagnostics=None):
-    from app.data_providers.suspension_announcements import AnnouncementLookup
-    from app.services.selection_suspension_repair import missing_symbols, repair_suspensions
-
-    # One shared request/time budget covers both the initial and residual probe.
-    lookup = AnnouncementLookup(check_cancelled=check_cancelled)
-    evidence = diagnostics if diagnostics is not None else {}
-    offset = 32 * max(0, (previous or {}).get("attempts", 1) - 1)
-    try:
-        check_cancelled()
-        if len(missing_symbols(repo, day)) <= 32:
-            progress("verify_suspensions", 5, f"先核验{day}缺日线及已知停牌证券的官方公告")
-            evidence["suspension_check"] = repair_suspensions(
-                repo, day, check_cancelled=check_cancelled, lookup=lookup, offset=offset)
-        else:
-            evidence["suspension_check"] = {"added": 0, "diagnostics": {
-                "phase": "大范围缺口先补真实日线, 再查证剩余证券"}}
-        return _repair_inputs(repo, capset, day, progress=progress, check_cancelled=check_cancelled,
-                              quote_service=quote_service, previous=previous,
-                              evidence=evidence, lookup=lookup, offset=offset)
-    finally:
-        lookup.close()
-
-
-def _repair_inputs(repo, capset, day, *, progress, check_cancelled, quote_service,
-                   previous, evidence, lookup, offset):
     from app.services import kline_periods, kline_sync
     from app.services.daily_close_validation import require_final_daily_rows, validate_daily_close
     from app.services.minute_write_order import begin_minute_request
     from app.services.realtime_guard import paused_quotes
-    from app.services.selection_suspension_repair import repair_suspensions
 
     check_cancelled()
     missing = run_repair_daily(
         repo, capset, day, day, period="1d", mode="missing",
         on_progress=progress, quote_service=quote_service,
     )
-    evidence["gap_check"] = missing
-    check_cancelled()
-    if missing.get("remaining"):
-        progress("verify_suspensions", 15, f"补数后仍缺{missing['remaining']}行, 再核验停复牌")
-        residual = repair_suspensions(repo, day, check_cancelled=check_cancelled,
-                                      lookup=lookup, offset=offset)
-        evidence["suspension_recheck"] = residual
-        if residual["added"]:
-            missing = run_repair_daily(
-                repo, capset, day, day, period="1d", mode="missing",
-                on_progress=progress, quote_service=quote_service)
-            evidence["gap_check"] = missing
+    if diagnostics is not None:
+        diagnostics["gap_check"] = missing
     if missing.get("error"):
         raise ValueError(str(missing["error"]))
     check_cancelled()
-    raw, _ = repo.get_daily_close_inputs(day)
-    if raw.is_empty():
-        return {**evidence, "day": str(day), "selection_ready": False, "data_release_id": None,
-                "gap_check": {**missing, "gap_check_warning": "源交易日暂无日线, 等待补数"}}
     rejected = validate_daily_close(repo, day, isolate_symbols=True) or {}
     if rejected:
         progress("sync_daily", 20, f"主动修复{day}日线/收盘证据异常: {len(rejected)}只")
@@ -161,13 +121,13 @@ def _repair_inputs(repo, capset, day, *, progress, check_cancelled, quote_servic
         check_cancelled()
         validate_daily_close(repo, day)
         repo.refresh_cache()
-    if previous and previous.get("result") and previous.get("input_signature") == input_signature(repo, day):
+    if previous and previous.get("input_signature") == input_signature(repo, day):
         # Retry unresolved missing symbols without repeatedly republishing an
         # unchanged, already validated release.
-        return {**previous["result"], **evidence, "gap_check": missing}
+        return {**previous["result"], "gap_check": missing}
     progress("validate_daily", 80, "重验日线、收盘分钟及加工原价, 发布预选输入")
     release = finalize_daily_settlement(repo, capset, day, check_cancelled)
-    return {**evidence, "day": str(day), "gap_check": missing, "repaired_symbols": sorted(rejected),
+    return {"day": str(day), "gap_check": missing, "repaired_symbols": sorted(rejected),
             "data_release_id": release["release_id"]}
 
 
@@ -197,8 +157,7 @@ def request_repair(repo, capset, quote_service=None, *, stop=None):
         if state["status"] == "cancelled":
             return state
         signature = input_signature(repo, day)
-        if (state["status"] == "succeeded" and not state.get("retry_required")
-                and state.get("input_signature") == signature):
+        if state["status"] == "succeeded" and state.get("input_signature") == signature:
             return state
         if state.get("next_retry_at") and datetime.fromisoformat(state["next_retry_at"]) > now:
             return state
@@ -231,33 +190,26 @@ def request_repair(repo, capset, quote_service=None, *, stop=None):
                 store.progress(job_id, stage, min(99, pct), msg,
                                stage_pct=stage_pct, skip_log=skip_log)
 
-            attempt_diagnostics = {}
             try:
                 result = pipeline_jobs.run_with_capacity(job_id, lambda: repair_inputs(
                     repo, capset, day, progress=progress, check_cancelled=check_cancelled,
                     quote_service=quote_service,
-                    previous=state,
-                    diagnostics=attempt_diagnostics,
+                    previous=state if state.get("result") else None,
                 ))
                 check_cancelled()
                 state = {**state, "input_signature": input_signature(repo, day), "result": result}
-                retry = bool(result["gap_check"].get("remaining")
-                             or result["gap_check"].get("gap_check_warning"))
-                warning = ("部分日线仍缺失, 已发布有效日线供预选继续; 后台继续补数"
-                           if retry else None)
-                if result.get("selection_ready") is False:
-                    warning = "源交易日暂无有效日线, 预选等待数据; 后台继续补数"
-                state = {**state, "retry_required": retry, "warning": warning}
-                store.succeed(job_id, {**result, "warning": warning, "retry_required": retry})
+                if result["gap_check"].get("remaining") or result["gap_check"].get("gap_check_warning"):
+                    store.fail(job_id, "部分日线仍缺失, 将自动重试; 已校验的现有日线已发布")
+                else:
+                    store.succeed(job_id, result)
             except pipeline_jobs.JobCancelledError:
                 store.cancelled(job_id)
             except Exception as exc:
                 logger.exception("次日预选主动修复失败: %s", day)
                 store.fail(job_id, str(exc))
             job = store.get(job_id)
-            state = {**state, "status": job["status"], "error": job.get("error"),
-                     "diagnostics": attempt_diagnostics}
-            if state["status"] in {"failed", "interrupted"} or state.get("retry_required"):
+            state = {**state, "status": job["status"], "error": job.get("error")}
+            if state["status"] in {"failed", "interrupted"}:
                 delay = min(300, 60 * 2 ** min(3, state["attempts"] - 1))
                 state["next_retry_at"] = (cn_now() + timedelta(seconds=delay)).isoformat()
             return _save(repo, state)

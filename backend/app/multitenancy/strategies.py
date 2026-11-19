@@ -114,7 +114,7 @@ class TenantStrategyEngine(StrategyEngine):
                 ), "selection_snapshots": self._saved_selections(session, values),
                     "daily_pool_snapshots": self._saved_pools(session, values),
                     "signal_task_states": session.get("monitor_runtime", "default", {}).get(
-                        "engine", {}).get("late_session_tasks", {})}
+                    "engine", {}).get("late_session_tasks", {})}
             return {
                 "kind": kind, "tenant_id": self.documents.context.tenant_id,
                 "administrator": self.administrator,
@@ -135,7 +135,6 @@ class TenantStrategyEngine(StrategyEngine):
 
     def _saved_pools(self, session, task):
         from app.services.daily_stock_pools import DailyStockPools
-
         ids = set(task["strategy_ids"])
         for sid in task["strategy_ids"]:
             strategy = self.get(sid)

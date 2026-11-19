@@ -113,6 +113,8 @@ def test_morning_monitor_payload_contains_only_owned_remaining_purchase_batches(
     Rules(owned.documents).save_one(monitor_rules.normalize({
         "id": "morning", "name": "清仓", "type": "strategy", "strategy_id": "ma_golden_cross", "scope": "all",
     }))
+    from app.services.strategy_monitor_tasks import set_monitoring
+    set_monitoring(owned.documents, "ma_golden_cross", "均线", True)
     for documents, symbol in [(owned.documents, "600000.SH"), (owned.other, "600519.SH")]:
         paper.create_account(documents, 10000, account_id="one")
         for index, entry in enumerate(["2026-10-29", "2026-10-30"]):
@@ -199,6 +201,20 @@ def test_private_monitor_uses_sandbox_and_discards_edited_input(owned):
     assert Alerts(owned.documents).count() == 0
 
 
+def test_sandbox_receives_worker_freshness_validation_time(owned):
+    Rules(owned.documents).save_one(price_rule(conditions=[{"field": "csg_private", "op": "truth"}]))
+    calls = []
+
+    class Executor:
+        def execute(self, payload, **_kwargs):
+            calls.append(payload)
+            return {"events": [], "results": {}, "state": {}}
+
+    owned.worker.executor = Executor()
+    owned.worker.evaluate(owned.documents.context.tenant_id, owned.snapshot())
+    assert calls[0]["evaluation_started_at"] == owned.clock["now"]
+
+
 def test_monitor_latency_is_live_only_and_logged_after_commit(owned, monkeypatch, caplog):
     import logging
     from dataclasses import asdict
@@ -281,9 +297,13 @@ def test_private_strategy_batch_executes_every_security_but_notifies_once(owned)
         "size_mode": "fixed_amount", "size_value": 1000, "order_type": "market", "cooldown_days": 0,
     })
     Rules(owned.documents).save_one(monitor_rules.normalize({
-        "id": "batch-strategy", "name": "策略监控", "type": "strategy", "scope": "all",
+        "id": "batch_strategy", "name": "策略监控", "type": "strategy", "scope": "all",
         "strategy_id": "demo", "notify_events": ["pool_entry"], "cooldown_seconds": 3600,
     }))
+    from app.services.strategy_monitor_tasks import set_monitoring
+    set_monitoring(owned.documents, "demo", "demo", True)
+    rule = Rules(owned.documents).load_one("batch_strategy")
+    Rules(owned.documents).save_one({**rule, "notify_events": ["pool_entry"], "cooldown_seconds": 3600})
     engine = _SequenceStrategyEngine([_result(cn_today()), _result(cn_today(), pool=symbols)])
 
     class Executor:

@@ -4279,7 +4279,7 @@ _MATRIX_COMPUTED_FEATURES = frozenset({
     "amihud_20d", "turnover_z_60d", "vol_price_corr_20d",
     "vwap_bias", "vol_trend_5_60",
     "limit_up_count_20d", "limit_up_count_60d",
-    # --- 扩充批次 (2026-09-05): 与注册表/scoring 口径一致的 16 个新虚拟因子 ---
+    # --- 扩充批次 (2026-09-05): 与注册表/scoring 口径一致的虚拟因子 ---
     "log_float_mv", "mom_accel_20_60", "rsi_14_delta_5d",
     "overnight_ret_20d", "intraday_ret_20d", "downside_vol_20d",
     "vol_regime_5_60", "amplitude_trend_20_60", "obv_trend_20d",

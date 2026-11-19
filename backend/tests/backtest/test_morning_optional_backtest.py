@@ -30,17 +30,22 @@ def run_optional(tmp_path, params, data=None):
 ])
 def test_single_enabled_clock_has_only_its_own_stage(tmp_path, key, reason, at):
     result = run_optional(tmp_path, {key: at})
+    if key == "fallback_time":
+        assert result.error and "无法确定" in result.error
+        assert not [hit for hit in result.signals if hit["side"] == "sell"]
+        return
     assert not result.error, result.error
     exits = [hit for hit in result.signals if hit["side"] == "sell"]
     assert [(hit["reason"], hit["trigger_time"][-8:]) for hit in exits] == [(reason, at)]
 
 
-def test_disabled_fallback_cannot_supply_a_second_capacity_window(tmp_path):
+def test_disabled_fallback_uses_session_end_without_a_second_signal(tmp_path):
     result = run_optional(tmp_path, {"time": "10:30:00"},
                           volume(extended_frame(), {"10:31": 1., "10:46": 10000.}))
-    assert result.error and "10:35" in result.error and "余股" in result.error
+    assert not result.error, result.error
     assert [hit["reason"] for hit in result.signals if hit["side"] == "sell"] == ["stop_time"]
-    assert result.stats["execution"]["remaining_positions"][0]["remaining"] == 300
+    assert not result.stats["execution"]["remaining_positions"]
+    assert result.fills[-1]["datetime"] == f"{SELL} 10:46:00"
 
 
 def test_early_only_uses_real_signal_and_no_clock_stage(tmp_path):
@@ -61,7 +66,16 @@ def test_all_empty_is_explicitly_rejected_before_creating_cash_ledger(tmp_path):
 
 
 @pytest.mark.parametrize("key", ["start_time", "time", "fallback_time"])
-def test_only_present_clocks_require_whole_minutes_for_cash_backtest(tmp_path, key):
-    result = run_optional(tmp_path, {key: "10:00:15", "rise_pct": 6})
-    assert result.error and "整分钟" in result.error
-    assert not result.fills
+def test_present_clocks_support_seconds_without_pretrigger_fills(tmp_path, key):
+    data = extended_frame().with_columns(*[
+        pl.when(pl.col("datetime").dt.strftime("%H:%M") == "10:01")
+        .then(10.6).otherwise(pl.col(column)).alias(column)
+        for column in ("open", "high", "low", "close")])
+    result = run_optional(tmp_path, {key: "10:00:15", "rise_pct": 6}, data)
+    if key == "fallback_time":
+        assert result.error and "无法确定" in result.error
+        assert not [fill for fill in result.fills if fill["side"] == "sell"]
+    else:
+        assert not result.error, result.error
+        assert result.fills[-1]["datetime"] == f"{SELL} " + (
+            "10:01:00" if key == "time" else "10:02:00")

@@ -9,9 +9,6 @@ import { defaultStrategyResultColumns } from '@/lib/strategy-result-columns'
 
 const { snapshot } = vi.hoisted(() => ({ snapshot: vi.fn() }))
 vi.mock('@/lib/api', () => ({ api: { marketSnapshot: snapshot } }))
-vi.mock('@/lib/useSharedQueries', () => ({
-  useQuoteStatus: () => ({ data: { is_trading_hours: true } }),
-}))
 vi.mock('@/components/StockPreviewDialog', () => ({ StockPreviewDialog: () => null }))
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 let root: Root
@@ -80,7 +77,10 @@ it('reorders after a live update and uses displayed order for stock navigation',
   snapshot.mockResolvedValue({ as_of: '2026-11-06', rows: [
     { symbol: symbols[0], raw_close: 1 }, { symbol: symbols[1], raw_close: 20 },
   ] })
-  await act(async () => { await vi.advanceTimersByTimeAsync(1010) })
+  await act(async () => {
+    await client.invalidateQueries({ queryKey: ['market-snapshot', 'strategy-result-live'] })
+    await vi.advanceTimersByTimeAsync(10)
+  })
   expect(order()).toEqual(symbols)
   await sort('live_price')
   expect(order()).toEqual([symbols[1], symbols[0], ...symbols.slice(2)])

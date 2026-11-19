@@ -30,27 +30,55 @@ async function render(result: ScreenerResult) {
 }
 
 describe('StrategyDailyResults', () => {
-  it('keeps valid selection visible and distinguishes invalid references from missing daily rows', async () => {
+  it('shows S01 saved cumulative metrics and keeps stock navigation in all tabs', async () => {
+    const row = { symbol: '600001.SH', name: '第一只', current_return: .025,
+      current_range: .031, amount: 210000000, score: .014 }
     await render({
-      as_of: '2026-11-17', strategy: 'custom_mvxxcp88', rows: [], total: 0, elapsed_ms: 0,
-      section_mode: 'signals', selection_only: true,
-      selection_snapshot: {
-        as_of: '2026-11-17', source_date: '2026-11-16', generated_at: '2026-11-16T20:01:00+08:00',
-        rows: [{ symbol: '600001.SH' }],
-        coverage: {
-          schema: 'daily_selection_coverage_v1', source_date: '2026-11-16', scope_total: 3,
-          available_daily: 1, missing_symbols: ['600003.SH'], complete: false,
-          invalid_symbols: { '600002.SH': '600002.SH 收盘校验失败: 原始日线与15:00分钟不一致' },
-        },
-      },
-      sections: { sell: [], select: [{ symbol: '600001.SH' }], buy: [] },
+      as_of: '2026-11-05', strategy: 'custom_mvxxcs01', rows: [row], total: 1, elapsed_ms: 0,
+      section_mode: 'signals', sections: { sell: [row], select: [row], buy: [row] },
     })
-    expect(host.querySelector('[role="tabpanel"]')?.textContent).toContain('600001.SH')
-    expect(host.querySelector('[role="tabpanel"]')?.textContent).not.toContain('600002.SH')
-    expect(host.textContent).toContain('缺日线 1 只')
-    expect(host.textContent).toContain('隔离异常 1 只')
-    expect(host.textContent).toContain('600002.SH 收盘校验失败')
-    expect(host.textContent).not.toContain('预选失败')
+    for (const index of [0, 1, 2]) {
+      await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index].click())
+      expect(host.textContent).not.toContain('ATR')
+      expect(host.textContent).not.toContain('94%')
+      expect(host.textContent).not.toContain('10万元')
+      expect(host.querySelector('button[title="查看个股详情"]')).not.toBeNull()
+      if (index !== 1) {
+        expect(host.textContent).toContain('2.50%')
+        expect(host.textContent).toContain('3.10%')
+        expect(host.textContent).toContain('累计成交额')
+      }
+    }
+  })
+  it('keeps strategy explanations collapsed while errors remain visible, preserving disclosure on tab and data changes', async () => {
+    const result: ScreenerResult = {
+      as_of: '2026-11-05', strategy: 'custom_mvxxcp88', rows: [], total: 0, elapsed_ms: 0,
+      section_mode: 'signals', sections: { sell: [], select: [], buy: [] },
+      section_errors: { buy: '分钟文件不可读' }, execution_error: '行情读取失败',
+      execution_status: { state: 'retrying', reason: '等待行情恢复', updated_at: 1793840000000 },
+    }
+    await render(result)
+    const disclosure = host.querySelector('details')!
+    expect(disclosure).not.toBeNull()
+    expect(disclosure.open).toBe(false)
+    expect(disclosure.querySelector('summary')?.textContent).toBe('策略说明')
+    expect(disclosure.textContent).toContain('卖：前一交易日')
+    expect(host.querySelector('[role="status"]')?.closest('details')).toBeNull()
+    expect(host.querySelector('[role="alert"]')?.closest('details')).toBeNull()
+    await act(async () => disclosure.querySelector('summary')!.click())
+    expect(disclosure.open).toBe(true)
+    await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[2].click())
+    expect(disclosure.open).toBe(true)
+    expect([...host.querySelectorAll('[role="alert"]')].map(alert => alert.textContent))
+      .toEqual(['行情读取失败', '分钟文件不可读'])
+    expect([...host.querySelectorAll('[role="alert"]')].every(alert => !alert.closest('details'))).toBe(true)
+    await act(async () => root.render(<QueryClientProvider client={qc}>
+      <StrategyDailyResults result={{ ...result, computed_at: 1793840001000 }} positionLimit={5} />
+    </QueryClientProvider>))
+    expect(host.querySelector('details')).toBe(disclosure)
+    expect(disclosure.open).toBe(true)
+    await act(async () => disclosure.querySelector('summary')!.click())
+    expect(disclosure.open).toBe(false)
   })
   it('distinguishes a failed buy from zero hits and labels the previous success', async () => {
     await render({

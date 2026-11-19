@@ -148,6 +148,7 @@ class MinuteReplayHit:
     score: float = 0.0
     signal_time: str | None = None
     raw_entry_price: float | None = None
+    entry_window_end: datetime | None = None
 
 
 @dataclass
@@ -201,6 +202,12 @@ class MinuteSignalReplayer:
     ) -> MinuteReplayResult:
         t0 = time.perf_counter()
         result = MinuteReplayResult()
+        from app.strategy.late_session_strength import execution_end
+        from app.strategy.s01_signals import stored_definitions
+        requested_entries = set(overrides.get("entry_signals", strategy.entry_signals) or [])
+        deadline_signals = {"csgi_" + sig["id"]: sig for sig in stored_definitions(self.strategy_engine)
+                            if sig.get("template") == "late_session_strength"
+                            and "csgi_" + sig["id"] in requested_entries}
         repo = self.engine.repo
         if panel.is_empty():
             return result
@@ -310,18 +317,14 @@ class MinuteSignalReplayer:
             observed_at = pool_cutoff(self.strategy_engine, [strategy.meta["id"]],
                                       {strategy.meta["id"]: overrides}, day,
                                       datetime.combine(day, clock_time(15) if full_pool else clock_time.min))
-            strategy_history = (
-                history.filter(pl.col("datetime") <= observed_at)
-                if full_pool
-                else history
-            )
-
             context = StrategyDataContext(
                 asset_type="stock",
                 timeframe="1m",
                 as_of=day,
                 current=current if not current.is_empty() else None,
-                history=strategy_history,
+                # Each signal enforces its own completed-minute cutoff. The
+                # earliest pool publication clock must not remove later bars.
+                history=history,
                 daily_history=daily_history if not daily_history.is_empty() else None,
                 pool_history=current if not current.is_empty() else None,
                 pool_universe=pool_evidence(repo, day, observed_at=observed_at),
@@ -395,7 +398,8 @@ class MinuteSignalReplayer:
                             pool_symbols=(run_result.daily_stock_pool or {}).get("symbols"),
                             prev_close=previous_closes(context),
                         )
-                        result.errors.extend(f"{day}: {msg}" for msg in evaluated.diagnostics)
+                        result.errors.extend(f"{day}: {msg}" for msg in evaluated.diagnostics
+                                             if f"{day}: {msg}" not in result.errors)
             result.replayed_days += 1
             result.strategy_matches += len(run_result.rows)
             entries = overrides.get("entry_signals", strategy.entry_signals) or []
@@ -420,9 +424,34 @@ class MinuteSignalReplayer:
                 entry_window_start = _executable_minute(
                     max(trigger + timedelta(minutes=1), available)
                 )
+                hit_signals = {name for hit in run_result.entry_signal_hits if hit["symbol"] == symbol
+                               for name in hit.get("signals", [])}
+                deadlines = [execution_end(sig, day) for name, sig in deadline_signals.items()
+                             if name in hit_signals]
+                entry_window_end = min(deadlines) if deadlines else None
+                if entry_window_end is not None and entry_window_start > entry_window_end:
+                    result.buy_no_next_minute += 1
+                    continue
                 if entry_window_start.date() != day:
                     result.buy_no_next_minute += 1
                     continue
+                if strategy.meta.get("minute_entry_fill") == "next_minute_open":
+                    from app.backtest.entry_execution import expected_trading_minutes
+
+                    window = expected_trading_minutes(
+                        entry_window_start, count=240 if entry_window_end is not None else 5)
+                    if entry_window_end is not None:
+                        window = tuple(at for at in window if at <= entry_window_end)
+                    executable = history.filter(
+                        (pl.col("symbol") == symbol) & pl.col("datetime").is_in(window)
+                        & pl.col("open").is_finite() & (pl.col("open") > 0)).sort("datetime")
+                    if executable.is_empty():
+                        result.buy_no_next_minute += 1
+                        continue
+                    raw_close = float(executable["open"][0])
+                    if not math.isfinite(raw_close) or raw_close <= 0:
+                        result.buy_no_next_minute += 1
+                        continue
                 prior_close = prev_raw_close.get(str(symbol))
                 if prior_close is None or not math.isfinite(prior_close) or prior_close <= 0:
                     result.buy_no_next_minute += 1
@@ -438,6 +467,7 @@ class MinuteSignalReplayer:
                     score=float(run_result.scores.get(str(symbol), 0.0) or 0.0),
                     signal_time=signal_time,
                     raw_entry_price=raw_close,
+                    entry_window_end=entry_window_end,
                 ))
 
         result.elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)

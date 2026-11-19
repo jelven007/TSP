@@ -1,4 +1,4 @@
-"""Independent raw-close return exits and a real two-stage liquidation clock."""
+"""Independent raw-close exits retain the first trigger and stop at fallback."""
 from datetime import date, datetime, timedelta
 
 import polars as pl
@@ -47,7 +47,7 @@ def test_new_template_defaults_and_roundtrip(tmp_path):
 
 @pytest.mark.parametrize("patch", [
     {"fallback_time": "10:30:00"}, {"fallback_time": "10:29:59"},
-    {"fallback_time": "11:30:01"}, {"fallback_time": "10:4:00"},
+    {"fallback_time": "24:00:00"}, {"fallback_time": "10:4:00"},
     {"rise_pct": 0}, {"rise_pct": -1}, {"rise_pct": 101},
     {"fall_pct": 0}, {"fall_pct": -2}, {"fall_pct": True},
     {"fall_pct": float("nan")}, {"amplitude_pct": 6},
@@ -105,25 +105,25 @@ def test_stop_and_fallback_work_without_quotes_and_only_for_remaining_qty():
     assert stop["reason"] == "stop_time" and stop["trigger_time"].endswith("10:30:00")
     fallback, = run(empty, prev_close={}, now=AT.replace(minute=45),
                     positions=[position(qty=40, available_qty=40)]).hits
-    assert fallback["reason"] == "fallback"
-    assert fallback["trigger_time"].endswith("10:45:00") and fallback["available_qty"] == 40
+    assert fallback["reason"] == "stop_time" and fallback["deadline_elapsed"] is True
+    assert fallback["trigger_time"].endswith("10:30:00") and fallback["available_qty"] == 40
     assert not run(empty, now=AT.replace(minute=45),
                    positions=[position(qty=0, available_qty=0)]).hits
     assert not run(empty, now=AT.replace(minute=45),
                    positions=[position(entry_date=str(DAY), available_qty=0)]).hits
 
 
-def test_fallback_is_distinct_even_when_an_earlier_return_trigger_is_replayed():
+def test_fallback_keeps_an_earlier_return_trigger_and_marks_it_expired():
     hit, = run(frame(10.6), now=AT.replace(minute=45)).hits
-    assert hit["reason"] == "fallback" and hit["source"] == "clock"
-    assert hit["trigger_time"].endswith("10:45:00")
+    assert hit["reason"] == "rise" and hit["source"] == "completed_minute"
+    assert hit["trigger_time"].endswith("10:00:00") and hit["deadline_elapsed"] is True
 
 
-def test_stop_retriggers_remaining_holdings_after_an_earlier_return_hit():
+def test_stop_does_not_retrigger_remaining_holdings_after_an_earlier_return_hit():
     hit, = run(frame(10.6), now=AT.replace(minute=30),
                positions=[position(qty=40, available_qty=40)]).hits
-    assert hit["reason"] == "stop_time" and hit["source"] == "clock"
-    assert hit["trigger_time"].endswith("10:30:00") and hit["available_qty"] == 40
+    assert hit["reason"] == "rise" and hit["source"] == "completed_minute"
+    assert hit["trigger_time"].endswith("10:00:00") and hit["available_qty"] == 40
 
 
 def test_legacy_amplitude_definition_keeps_its_frozen_semantics():
@@ -150,7 +150,7 @@ def test_monitor_dedup_keeps_separate_holding_exit_stages():
     assert monitor._new_strategy_signals(key, "sell_signal", DAY, [fallback]) == set()
 
 
-def test_signal_replay_preserves_early_return_and_later_fallback():
+def test_signal_replay_preserves_only_the_first_trigger():
     from app.services.morning_liquidation_replay import replay
 
     class Repo:
@@ -163,7 +163,7 @@ def test_signal_replay_preserves_early_return_and_later_fallback():
 
     result = replay(Repo(), signal(), start=DAY, end=DAY, symbols=["a"], positions=[position()])
     assert [(hit["reason"], hit["time"]) for hit in result["triggers"]] == [
-        ("rise", "10:00:00"), ("stop_time", "10:30:00"), ("fallback", "10:45:00"),
+        ("rise", "10:00:00"),
     ]
 
 

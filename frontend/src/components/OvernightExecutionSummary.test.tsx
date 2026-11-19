@@ -19,4 +19,14 @@ describe('overnight allocation explanation', () => {
     expect(html).toContain('单票含费≤净值25%')
     expect(html).not.toContain('按本批入选数量等分')
   })
+
+  it('does not invent funds or fees for a parameter-free optional strategy', () => {
+    const html = renderToStaticMarkup(<OvernightExecutionSummary
+      params={{}} entryAllocation="equal_selected_v1" optionalTriggers />)
+    expect(html).not.toContain('<dt>资金</dt>')
+    expect(html).not.toContain('<dt>费用</dt>')
+    expect(html).not.toContain('现金100,000元')
+    expect(html).not.toContain('资金费用在策略参数中设置')
+    expect(html).toContain('资金和费用使用公共回测设置')
+  })
 })

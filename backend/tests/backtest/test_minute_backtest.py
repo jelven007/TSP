@@ -173,9 +173,7 @@ def _make_service(
 
     repo = _FakeMinuteRepo(minute_frames)
     def closing_inputs(day, *, include_closing_minute=True):
-        raw = panel.filter(pl.col("date") == day).select(
-            "symbol", "date", pl.col("raw_close").alias("close"),
-        )
+        raw = panel.filter(pl.col("date") == day).select("symbol", "date", pl.col("raw_close").alias("close"))
         return raw, raw.select("symbol", "close") if include_closing_minute else pl.DataFrame()
     repo.get_daily_close_inputs = closing_inputs
     bt_engine = BacktestEngine(repo)

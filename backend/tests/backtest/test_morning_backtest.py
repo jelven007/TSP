@@ -19,7 +19,7 @@ BUY = date(2026, 9, 4)
 SELL = date(2026, 9, 7)
 SYMBOL = "000001.SZ"
 EXIT = "csgi_morning_liquidation"
-OVERLAY = [{"left": "amount_mean_20d", "op": ">=", "right": "1.0",
+OVERLAY = [{"left": "turnover_mean_20d", "op": ">=", "right": "1.0",
             "leftDays": 0, "rightDays": 0}]
 
 
@@ -64,6 +64,8 @@ def service_fixture(tmp_path, *, panel=None, frames=None):
             pl.lit(10.0).alias("close"), pl.lit(10.0).alias("raw_close"),
             pl.lit(2e8).alias("amount"),
         )
+    if "turnover_rate" not in panel.columns:
+        panel = panel.with_columns(pl.lit(2.).alias("turnover_rate"))
     if frames is None:
         frames = {BUY: _minute_frame(BUY, [(SYMBOL, "14:30", 10.2)]),
                   SELL: morning_frame()}
@@ -381,15 +383,15 @@ def test_gap_after_partial_sale_retains_actual_sell_fragment(tmp_path):
     assert result.stats["execution"]["remaining_positions"][0]["remaining"] == 300
 
 
-def test_twenty_completed_daily_amounts_exclude_current_huge_amount(tmp_path):
+def test_completed_daily_turnover_excludes_current_turnover(tmp_path):
     _, panel, frames = service_fixture(tmp_path)
-    history = panel.filter(pl.col("date") < BUY).tail(20)
-    panel = pl.concat([history, panel.filter(pl.col("date") >= BUY).with_columns(pl.lit(9e12).alias("amount"))])
+    history = panel.filter(pl.col("date") < BUY).tail(21)
+    panel = pl.concat([history, panel.filter(pl.col("date") >= BUY).with_columns(pl.lit(99.).alias("turnover_rate"))])
     service, _, _ = service_fixture(tmp_path, panel=panel, frames=frames)
     result = service.run(configuration())
     assert not result.error and result.stats["n_trades"] == 1
     weak = panel.with_columns(
-        pl.when(pl.col("date") < BUY).then(9e7).otherwise(pl.col("amount")).alias("amount"),
+        pl.when(pl.col("date") < BUY).then(.9).otherwise(pl.col("turnover_rate")).alias("turnover_rate"),
     )
     service, _, _ = service_fixture(tmp_path, panel=weak, frames=frames)
     result = service.run(configuration())
@@ -411,6 +413,7 @@ def test_real_late_session_signal_uses_full_pool_before_output_and_overlay(tmp_p
     panel = _daily_panel(days, symbols).with_columns(
         pl.lit(10.).alias("close"), pl.lit(10.).alias("raw_close"),
         pl.when(pl.col("symbol") == SYMBOL).then(2e8).otherwise(9e7).alias("amount"),
+        pl.when(pl.col("symbol") == SYMBOL).then(2.).otherwise(.9).alias("turnover_rate"),
     )
     at = datetime(2026, 9, 4, 14, 30)
     frame = pl.concat([_minute_frame(BUY, [
@@ -574,7 +577,7 @@ def test_reentry_does_not_inherit_the_previous_lots_pending_exit(tmp_path):
     result = service.run(configuration())
     assert not result.error, result.error
     assert [(fill["side"], fill["datetime"]) for fill in result.fills] == [
-        ("buy", f"{BUY} 14:31:00"), ("sell", f"{SELL} 10:30:00"),
+        ("buy", f"{BUY} 14:31:00"), ("sell", f"{SELL} 10:31:00"),
         ("buy", f"{SELL} 10:32:00"),
     ]
     position, = result.stats["execution"]["remaining_positions"]

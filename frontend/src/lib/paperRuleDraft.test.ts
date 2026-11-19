@@ -41,8 +41,12 @@ describe('backtest rule draft compatibility', () => {
       expect(draft.notes.join(' ')).toContain(note)
     }
   })
-  it('rejects missing or unknown saved versions and cannot borrow a different strategy definition', () => {
-    for (const state of [null, { ...saved, defaultsVersion: undefined }, { ...saved, defaultsVersion: 99 }]) {
+  it('rejects missing, old or unknown saved versions and cannot borrow a different strategy definition', () => {
+    for (const state of [
+      null, { ...saved, defaultsVersion: undefined },
+      ...[1, 2, 3, BACKTEST_DEFAULTS_VERSION + 1, String(BACKTEST_DEFAULTS_VERSION)]
+        .map(defaultsVersion => ({ ...saved, defaultsVersion })),
+    ]) {
       const draft = backtestRuleDraft(state, { id: 's-one', execution_backend: 'polars_expr' })
       expect(draft.available).toBe(false)
       expect(draft.rule).toEqual({})

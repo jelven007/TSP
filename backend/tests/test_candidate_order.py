@@ -6,19 +6,17 @@ import pytest
 
 from app.market_time import cn_today
 from app.strategy.candidate_order import candidate_pool_order
-from app.strategy.engine import StrategyEngine, StrategyResult
+from app.strategy.engine import StrategyResult
 from app.strategy.monitor import MonitorRuleEngine
 
 
 class SnapshotEngine:
-    _effective_signals = staticmethod(StrategyEngine._effective_signals)
-
     def __init__(self, result):
         self.result = result
 
     def get(self, sid):
         return SimpleNamespace(meta={"id": sid, "params": []}, filter_history_fn=None,
-                               execution_backend="polars_expr", exit_signals=[])
+                               execution_backend="polars_expr")
 
     def run(self, sid, context, **kwargs):
         return self.result
@@ -28,16 +26,16 @@ class SnapshotEngine:
     ("custom_mvxxcp88", "signals", 5, ["000002.SZ", "600000.SH", "000001.SZ"]),
     ("other", "signals", 5, ["600000.SH", "000001.SZ", "000002.SZ"]),
     ("other", None, 1, ["000001.SZ", "600000.SH", "000002.SZ"]),
-    ("other", None, 5, ["000002.SZ", "600000.SH", "000001.SZ"]),
+    ("other", None, 5, ["000001.SZ", "600000.SH", "000002.SZ"]),
 ])
 def test_monitor_projects_full_default_pool_order(sid, mode, limit, expected):
     rows = [
         {"symbol": "600000.SH", "close": 10, "atr14_previous_close": 0.2,
-         "return_1430": 0.2, "prev_d_amount20": 20},
+         "return_1430": 0.2, "prev_d_amount20": 2e8},
         {"symbol": "000001.SZ", "close": 10, "atr14_previous_close": None,
-         "return_1430": 0.3, "prev_d_amount20": 10},
+         "return_1430": 0.3, "prev_d_amount20": 3e8},
         {"symbol": "000002.SZ", "close": 10, "atr14_previous_close": 0.2,
-         "return_1430": 0.1, "prev_d_amount20": 30},
+         "return_1430": 0.1, "prev_d_amount20": 1e8},
     ]
     original = [dict(row) for row in rows]
     result = StrategyResult(as_of=cn_today(), strategy_id=sid, rows=rows, total=3,
@@ -51,7 +49,7 @@ def test_monitor_projects_full_default_pool_order(sid, mode, limit, expected):
     # Runtime params are the evaluated snapshot's defaults, not later config.
     engine._strategy_engine.get = lambda _: SimpleNamespace(
         meta={"id": sid, "params": [{"id": "position_limit", "default": limit}]},
-        filter_history_fn=None, execution_backend="polars_expr", exit_signals=[])
+        filter_history_fn=None, execution_backend="polars_expr")
     df = pl.DataFrame([{**row, "atr14_previous_close": 999} for row in rows])
     result.entry_signal_hits = []
     engine.evaluate(df)

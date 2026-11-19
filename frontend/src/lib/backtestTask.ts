@@ -189,6 +189,7 @@ export function startBacktest(params: {
   matching?: string
   entry_fill?: string
   exit_fill?: string
+  minute_price_rule?: 'legacy' | 'high_low_v1'
   fees_pct?: number
   commission_pct?: number
   stamp_tax_pct?: number
@@ -228,6 +229,7 @@ export function startBacktest(params: {
     matching: params.matching,
     entry_fill: params.entry_fill,
     exit_fill: params.exit_fill,
+    minute_price_rule: params.minute_price_rule,
     fees_pct: params.fees_pct,
     commission_pct: params.commission_pct,
     stamp_tax_pct: params.stamp_tax_pct,

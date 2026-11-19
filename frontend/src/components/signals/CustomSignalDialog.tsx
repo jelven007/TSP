@@ -6,11 +6,10 @@ import { AnimatePresence } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight, Loader2, Plus, Save, Search, Sparkles, X } from 'lucide-react'
-import { api, type CustomSignal, type CustomSignalCondition, type CustomSignalFieldGroup, type LateSessionStrengthParams, type MorningLiquidationParams, type S01ExitParams } from '@/lib/api'
+import { api, type CustomSignal, type CustomSignalCondition, type CustomSignalFieldGroup, type LateSessionStrengthParams, type MorningLiquidationParams } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { LATE_SESSION_DEFAULTS, MORNING_LIQUIDATION_DEFAULTS, morningLiquidationDraft, lateSessionBarTime, lateSessionCheckTime, lateSessionLatestStartTime } from '@/lib/customSignals'
-
-import { isS01Signal, S01_ENTRY_TIMING_DEFAULTS, S01_ENTRY_MARKET_VALIDITY } from '@/lib/customSignals'
+import { isS01Signal, s01ExitDraft } from '@/lib/customSignals'
 import { S01SignalParamsEditor } from './S01SignalParamsEditor'
 
 interface Props {
@@ -73,10 +72,7 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
     if (next.template === 'late_session_strength' && (delay === undefined || delay === 0))
       next.params = { ...LATE_SESSION_DEFAULTS, ...next.params,
         evaluation_delay_minutes: LATE_SESSION_DEFAULTS.evaluation_delay_minutes }
-    if (next.template === 's01_late_entry') {
-      next.params = { ...S01_ENTRY_TIMING_DEFAULTS, ...next.params, market_validity: S01_ENTRY_MARKET_VALIDITY }
-      delete (next.params as unknown as Record<string, unknown>).market_min_valid
-    }
+    if (next.template === 's01_morning_exit') next.params = s01ExitDraft(next)
     setDraft(next)
     setError('')
     setAiOpen(false); setAiDesc(''); setAiError(''); setAiLoading(false)
@@ -120,8 +116,8 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
       if (morning) {
         const p = morningParams
         if (![p.start_time, p.time, p.fallback_time].every(at =>
-          at == null || (/^(09|10|11):[0-5]\d:[0-5]\d$/.test(at) && at >= '09:30:00' && at <= '11:30:00')))
-          throw new Error('早盘时间须为 09:30:00～11:30:00')
+          at == null || /^(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(at)))
+          throw new Error('时间须为 00:00:00～23:59:59 的 HH:MM:SS')
         if (p.start_time != null && [p.time, p.fallback_time].some(at => at != null && at < p.start_time!))
           throw new Error('启动时间不得晚于止损或兜底时间')
         if (p.time != null && p.fallback_time != null && p.fallback_time <= p.time)
@@ -152,15 +148,6 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
         if (![p.ma5_1m_count, p.ma5_5m_count].every(value =>
           value == null || (Number.isInteger(value) && value >= 1 && value <= 100)))
           throw new Error('MA5 数量须为1～100的整数')
-      }
-      if (d.template === 's01_late_entry') {
-        const p = d.params as { time: string; evaluation_delay_minutes: number }
-        const seconds = p.evaluation_delay_minutes * 60
-        if (!Number.isInteger(seconds) || seconds < 30 || seconds > 900 || seconds % 30)
-          throw new Error('确认延时须为30～900秒且为30秒的整数倍')
-        if (!/^1[34]:[0-5]\d:[0-5]\d$/.test(p.time) || p.time < '13:01:00'
-          || p.time > lateSessionLatestStartTime(seconds))
-          throw new Error('启动时间须在13:01之后，确认时间不得晚于15:00:00')
       }
       for (const c of d.conditions) {
         if (!c.left || !c.op || c.right === '') throw new Error('条件填写不完整')
@@ -227,9 +214,7 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                     <option value="conditions">普通条件组合</option>
                     {(allowLateSession || lateSession) && <option value="late_session_strength">尾盘走强 · 分钟入场</option>}
                     {(allowMorningLiquidation || morning) && <option value="morning_liquidation">早盘清仓 · 持仓出场</option>}
-                    {s01 && <option value={draft.template!}>{draft.template === 's01_late_entry' ? 'S01尾盘选股'
-                      : (draft.params as S01ExitParams)?.guard_time != null
-                        ? '早盘清仓_S01' : 'S01放量下跌卖出'}</option>}
+                    {s01 && <option value={draft.template!}>{draft.template === 's01_late_entry' ? 'S01尾盘选股' : 'S01放量下跌卖出'}</option>}
                   </select>
                 </label>
               )}
@@ -299,7 +284,8 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                     或满足3分钟跌幅、最近3根/之前10根均量比的已启用项；两项均填写时须同时满足。
                     跌幅填写正百分数，3分钟跌幅使用当前完成分钟与3分钟前收盘价，量比使用13根连续完成分钟。
                     参数留空不生效；全部为空不触发本模板出场。启动时间为空取消启动门槛。
-                    已设置的止损时间到无条件清仓，已设置的兜底时间再次对余股触发，行情缺失时已启用时钟仍有效。
+                    时间支持全天配置。已设置的止损时间到触发清仓，到兜底时间立即停止所有股票卖出，
+                    撤销未成交余单并保留余股。行情缺失时已启用止损时钟仍有效。
                     信号触发后由交易模块处理成交，停牌、跌停或不可卖持仓可能无法成交。
                   </p>
                 </div>
@@ -367,7 +353,8 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                           params: { ...lateParams, end_time: end_time || null } }))}
                         className="w-full" buttonClassName="h-9 w-full justify-start" />
                       <p className="text-[10px] leading-4 text-muted">
-                        有效时段终点及个股重试上限；留空不限，实时新入场最晚14:55。
+                        买入信号触发后持续买入至结束时间，超过即停止买入并撤销余单；也是个股重试上限。
+                        留空不设模板截止，实时新入场最晚14:55。
                       </p>
                     </label>
                   </div>

@@ -128,7 +128,7 @@ def summary(repo, *, scheduler=None):
     except (OSError, ValueError, KeyError, TypeError):
         logger.exception("读取盘后遗留复核状态失败")
         return {**base, "available": False, "status": "unavailable",
-                "error": "复核状态读取失败, 请检查服务日志"}
+                "error": "复核状态读取失败，请检查服务日志"}  # noqa: RUF001
 
 
 def request_repair(repo, capset, quote_service=None, *, stop=None):
@@ -144,7 +144,7 @@ def request_repair(repo, capset, quote_service=None, *, stop=None):
         if state is not None and state["day"] != str(day):
             if state["status"] in {"pending", "running"}:
                 _save(repo, {**state, "status": "interrupted",
-                             "error": "复核请求已跨日, 原交易日未完成, 不自动重放历史"})
+                             "error": "复核请求已跨日，原交易日未完成，不自动重放历史"})  # noqa: RUF001
             state = None
         if state is None:
             state = _save(repo, {"day": str(day), "status": "pending", "attempts": 0,
@@ -174,7 +174,7 @@ def request_repair(repo, capset, quote_service=None, *, stop=None):
             try:
                 state = _save(repo, state)
             except Exception:
-                store.fail(job_id, "盘后复核状态保存失败, 尚未开始写入")
+                store.fail(job_id, "盘后复核状态保存失败，尚未开始写入")  # noqa: RUF001
                 raise
 
             def check_cancelled():
@@ -220,7 +220,7 @@ def request_repair(repo, capset, quote_service=None, *, stop=None):
                 if after.get("error") or after["invalid_count"] or not after["valid_count"]:
                     store.fail(job_id, "收盘证据仍有异常或未核实项, 将在当日自动重试")
                 elif any(gaps.get(key) for key in ("remaining", "error", "warning", "gap_check_warning")):
-                    store.fail(job_id, "日线仍有缺口或未核实项, 将在当日自动重试; 已验证数据保持")
+                    store.fail(job_id, "日线仍有缺口或未核实项，将在当日自动重试；已验证数据保持")  # noqa: RUF001
                 else:
                     store.succeed(job_id, result)
             except pipeline_jobs.JobCancelledError:

@@ -64,7 +64,10 @@ def test_minute_context_blocker_becomes_a_retry_receipt(monkeypatch, tmp_path, s
     from app.strategy.engine import StrategyEngine
 
     day = date(2026, 11, 18)
-    now = datetime(2026, 11, 18, 14, 30, 15, tzinfo=CN_TZ)
+    now = datetime(2026, 11, 18, 14, 30, 30, tzinfo=CN_TZ)
+    monkeypatch.setattr("app.market_time.cn_now", lambda: now)
+    monkeypatch.setattr("app.market_time.cn_today", lambda: day)
+    monkeypatch.setattr("app.strategy.monitor.cn_today", lambda: day)
     monkeypatch.setattr(monitor_compute, "cn_today", lambda: day)
     monkeypatch.setattr(monitor_compute, "cn_now", lambda: now)
     strategy = tmp_path / "late_strategy.py"
@@ -78,10 +81,25 @@ def test_minute_context_blocker_becomes_a_retry_receipt(monkeypatch, tmp_path, s
                         lambda *args: (_ for _ in ()).throw(ValueError("分钟分区尚未发布")))
     sig = signal(time="14:30:00", evaluation_delay_minutes=.5, pool_up_min_pct=60.)
     sig["id"] = "late"
+    from app.strategy import custom_signals
+    custom_signals.save_one(tmp_path, sig)
+    from app.services.strategy_monitor_tasks import set_monitoring
+    set_monitoring(tmp_path, "sample", "测试", True)
     frame = pl.DataFrame({"symbol": ["a"], "close": [11.], "date": [day],
                          "quote_ts": [now.timestamp() * 1000]})
     payload = {"evaluation_started_at": now.timestamp(), "late_task_only": stale,
-               "late_task_strategy_ids": ["sample"], "late_task_definitions": {"sample": [sig]},
+               "strategy_task_ids": ["sample"],
+               "strategy_task_windows": {"sample": {"buy": [{
+                   "start": "14:30:00", "confirm": "14:30:30", "end": "14:55:00", "signal": sig}],
+                   "sell": []}},
+               "strategy_task_plans": {"sample": {"actions": [{
+                   "kind": "buy", "signal_id": "late", "phase": "stocks",
+                   "scheduled_at": "2026-11-18T14:30:30+08:00",
+                   "retry_until": "2026-11-18T14:55:00+08:00"}]}},
+               "strategy_task_receipts": {"sample": {"tasks": {"buy": {"signals": {
+                   "late": {"breadth": {"state": "success", "terminal": True}}}}}}},
+               "strategy_task_results": {"sample": {}},
+               "daily_identities": {"sample": {}},
                "late_task_scopes": {"sample": "sample:probe"}, "state": {},
                "snapshot": {"status": {"is_trading_hours": True}, "days": {"stock": str(day)},
                             "frames": {"stock": encode_frame(frame)}, "indices": encode_frame(pl.DataFrame())},
@@ -90,6 +108,12 @@ def test_minute_context_blocker_becomes_a_retry_receipt(monkeypatch, tmp_path, s
     result = monitor_compute.evaluate_snapshot(payload, None, engine, tmp_path)
     assert result["events"] == result["execution_events"] == []
     daily = result["results"]["sample"]
-    assert daily["entry_filter_error"] == "分钟分区尚未发布"
-    assert result["state"]["engine"]["late_session_tasks"]["sample:probe:csgi_late"]["retry_phase"] == "breadth"
-    assert len(monitor_compute.failure_events(result["results"], payload["rules"], {}, now)[0]) == 1
+    assert "分钟分区尚未发布" in daily["section_errors"]["buy"]
+    stocks = daily["monitor_tasks"]["buy"]["signals"]["late"]["stocks"]
+    assert stocks["state"] == "failed" and stocks["terminal"] is False
+    assert stocks["retry_until"] == "2026-11-18T14:55:00+08:00"
+    events, state = monitor_compute.failure_events(result["results"], payload["rules"], {}, now)
+    failures = [event for event in events if event["type"] == "signal_calculation_failed"]
+    assert len(failures) == 1
+    assert "分钟分区尚未发布" in failures[0]["message"]
+    assert monitor_compute.failure_events(result["results"], payload["rules"], state, now)[0] == []

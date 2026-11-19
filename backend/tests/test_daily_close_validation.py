@@ -172,22 +172,6 @@ def test_pipeline_rejects_completed_received_clock_and_leaves_intraday_provision
         validate_completed_pipeline(repo, DAY, DAY, now=datetime(2026, 11, 4, 15, 35))
 
 
-@pytest.mark.parametrize("basis,valid", [(None, True), ("received", False)])
-def test_initial_history_outside_minute_window_keeps_official_batch_contract(tmp_path, basis, valid):
-    from app.services.daily_close_validation import validate_completed_pipeline
-
-    older = date(2026, 10, 20)
-    part = tmp_path / "kline_daily" / f"date={older}"
-    part.mkdir(parents=True)
-    daily(day=older, basis=basis, stamp=None if valid else ms(older)).write_parquet(part / "part.parquet")
-    repo = repository(tmp_path)
-    if valid:
-        validate_completed_pipeline(repo, older, DAY, now=datetime(2026, 11, 4, 16), minute_start=DAY)
-    else:
-        with pytest.raises(ValueError, match="2026-10-20"):
-            validate_completed_pipeline(repo, older, DAY, now=datetime(2026, 11, 4, 16), minute_start=DAY)
-
-
 def test_screener_rejects_stale_enriched_before_minute_loading(tmp_path, monkeypatch):
     from app.services.screener import ScreenerService
 

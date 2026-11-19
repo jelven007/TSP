@@ -8,6 +8,11 @@ import { accountScope, accountStorage, confirmAccount } from '@/lib/accountSessi
 import { useStrategyPool } from '@/lib/useStrategyPool'
 import { AccountScopeBoundary } from './AccountScopeBoundary'
 
+vi.mock('@/lib/api', () => ({ api: {
+  strategyPool: async () => ({ ids: JSON.parse(accountStorage.getItem('strategy-pool') ?? '[]'), revision: 1 }),
+  strategyPoolSave: async ({ ids }: { ids: string[] }) => ({ ids, revision: 1 }),
+} }))
+
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
 function authenticated(tenant: string): AuthStatus {

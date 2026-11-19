@@ -24,6 +24,17 @@ STREAM_IDS = [path.rsplit("/", 2)[1] for path, _ in STREAMS]
 BAD_DATES = ["not-a-date", "2026-13-01", "2026/09/04", ""]
 
 
+def test_minute_price_rule_is_frozen_in_new_requests_and_isolates_stream_jobs():
+    from app.api.backtest import StrategyBacktestRequest, _make_job_key
+
+    assert StrategyBacktestRequest(strategy_id="s03").minute_price_rule == "high_low_v1"
+    args = ("s03", None, "2026-06-29", "2026-06-30", "open_t+1", "close_t",
+            "signal_next_minute", .0002, 5., 5, 1., 1000000., "equal", None, None)
+    assert _make_job_key(*args, minute_price_rule="legacy") != _make_job_key(
+        *args, minute_price_rule="high_low_v1",
+    )
+
+
 @pytest.fixture()
 def client() -> TestClient:
     app = FastAPI()

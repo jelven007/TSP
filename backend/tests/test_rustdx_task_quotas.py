@@ -152,6 +152,37 @@ def test_pools_share_task_and_physical_endpoint_budgets(
         server.close()
 
 
+def test_sparse_runtime_can_quote_while_minute_reference_holds_all_endpoint_slots(monkeypatch):
+    import tsp_rustdx_native as native
+
+    from app.plugins.rustdx import routing
+
+    monkeypatch.setattr(routing, "_during_session", lambda: False)
+    servers = [_Server(idle_timeout=30) for _ in range(3)]
+    reference, realtime, history = servers
+    runtime = routing.TaskRuntime(
+        native.RustdxClient, connections=8, timeout=2, reference=reference.address,
+        ranked_nodes=[server.address for server in servers],
+    )
+    try:
+        runtime._get("minute").quotes_json([(0, f"{index:06d}") for index in range(1_200)])
+        _wait(lambda: reference.live == 8)
+        assert json.loads(runtime.xdxr_json(0, "000001")) == []
+        rows = json.loads(runtime.quotes_json([(0, "000001")]))
+        assert rows[0]["code"] == "000001"
+        _wait(lambda: reference.live == 8 and realtime.live == history.live == 1)
+        stats = json.loads(runtime.stats_json())
+        assert stats["bindings"] == {
+            "minute": reference.address, "realtime": realtime.address, "history": history.address,
+        }
+        assert all(server.peak <= 9 for server in servers)
+        assert stats["network"]["active"] == 10
+    finally:
+        runtime.close()
+        for server in servers:
+            server.close()
+
+
 def test_group_failover_drains_all_old_sockets_and_metadata():
     import tsp_rustdx_native as native
 

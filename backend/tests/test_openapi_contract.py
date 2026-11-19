@@ -101,16 +101,11 @@ EXPECTED_OPEN_ENDPOINTS: set[str] = {
 # cached新增可选日期/资产/周期, 无日期保持旧快照语义, 开放端点集合不变。
 # daily/minute新增可选freq, 省略时保持1d/1m; 响应组件及开放端点集合不变。
 # index/minute新增可选with_prev_close=false, 旧请求/响应组件和69端点集合不变。
-# 账号PUT/DELETE沿既有paper:trade权限; 新增可选initial_cash_editable,
-# 旧创建/设置/冻结保持, 历史成交不改写, SQL删除需schema8。
-# market-snapshot新增可选realtime=false与symbols=null; 默认全市场行为、
-# 响应组件及开放端点集合保持, 实时模式仅读取当日共享缓存。
 # 新增自动跟单规则PUT修改; 复用输入/响应模型, 身份和启停由服务端保留。
 # 跟单新增可选买/卖订单类型及pool模式; 账户最低佣金/额外过户费/日期税率
 # 加法扩展, 旧请求默认与端点集合不变; 费用作用全账户, 历史成交不重算。
-# 统一候选同时保留账户生命周期和market-snapshot契约, 账户PUT新增可选费率三字段。
-# 2026-11-09分钟跟单新增可选execution_mode, 默认orders保持旧调用; 开放端点集合不变。
-EXPECTED_TIER_A_SCHEMA_SHA256 = "a595b1d197b28e580c5797c78e3b7fa5a97a2c6792825ef887549f3f8cd35072"
+# 账户生命周期补充修改/删除入口; 已有请求继续保持兼容。
+EXPECTED_TIER_A_SCHEMA_SHA256 = "4e79af4f84177420c5124c5cdacac53db06f78864b1564c4697e738555af4337"
 _HTTP_METHODS = {"get", "post", "put", "delete", "patch"}
 
 

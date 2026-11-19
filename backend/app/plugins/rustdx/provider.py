@@ -744,8 +744,7 @@ class RustdxProvider:
             if timestamp is None:
                 continue
             if frequency == 8 and timestamp.time() == datetime.min.replace(hour=13).time():
-                # TDX's live noon copy is the morning close, as independently
-                # checked against the same source's settled 11:30 OHLCV.
+                # The source's live noon copy represents the morning close.
                 timestamp = timestamp.replace(hour=11, minute=30)
                 if timestamp in canonical:
                     continue
@@ -1530,8 +1529,7 @@ class RustdxProvider:
                             reference = client.reference_view()
                             try:
                                 result, calls, _ = reference.incremental_bars_with_source(
-                                    # Overlap protects the frozen cutoff when the
-                                    # second request crosses a minute boundary.
+                                    # Overlap protects the frozen cutoff across a minute boundary.
                                     symbol, frequency=8, offset=max(1, min(int(count) + 4, 800)),
                                 )
                             except RustdxError as error:

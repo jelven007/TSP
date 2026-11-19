@@ -99,6 +99,18 @@ it('rejects a fallback at the same second as stop after using the shared picker'
   expect(document.querySelector('[role="dialog"]')?.textContent).toContain('晚于止损时间')
 })
 
+it('saves afternoon liquidation clocks and explains the immediate fallback stop', async () => {
+  const f = await fixture()
+  await f.select('启动时间', '13:00:00')
+  await f.select('止损时间', '14:15:30')
+  await f.select('兜底时间', '14:30:15')
+  await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent?.includes('保存'))!.click())
+  expect(f.save).toHaveBeenCalledWith(expect.objectContaining({
+    params: expect.objectContaining({ start_time: '13:00:00', time: '14:15:30', fallback_time: '14:30:15' }),
+  }), { createOnly: false })
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('到兜底时间立即停止所有股票卖出')
+})
+
 it('selects and reloads a functional second-precision late-session start', async () => {
   const f = await fixture({
     id: 'late_session_strength', name: '尾盘建仓', kind: 'entry', timeframe: 'intraday',

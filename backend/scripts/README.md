@@ -2,8 +2,7 @@
 
 脚本复用 `backend/app/` 的既有服务、仓库与数据契约。
 从 `backend` 执行 `uv run --frozen --no-sync python -m scripts.<分类>.<模块> ...`；
-先按冻结锁安装依赖。当前文件归属见[工程目录](../../docs/reference/engineering.md#layout)，
-历史位置转换见迁移表（历史报告已移出仓库）。
+先按冻结锁安装依赖。当前文件归属见[工程目录](../../docs/reference/engineering.md#layout)。
 
 | 分类 | 现有模块 | 职责 |
 | --- | --- | --- |
@@ -16,7 +15,7 @@
 | `demos/` | `demo_ai_strategy_gate`、`demo_recap_push_mode` | 策略门控与复盘推送行为演示 |
 
 各脚本的网络、数据库、写盘与 dry-run 行为沿用原契约；以具体 `--help` 和专项文档为准。
-报告归属与原有固定输出入口见[六类报告导航](../../docs/evidence.md)；
+用户成果和必要证据归属见[交付入口](../../deliverables/README.md)；
 分类不改变从backend执行的`scripts`包，不与根仓库工具目录合并。
 备份与维护见[运维手册](../../docs/operations.md)，性能验收见
 [测试与验收](../../docs/testing.md)。运行数据与输出放在明确的隔离路径。

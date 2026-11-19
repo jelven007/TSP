@@ -1,9 +1,11 @@
 """财务默认周期任务复用线程、互斥与发布链路, 并遵守自动同步总开关。"""
 import asyncio
 import threading
+from datetime import datetime
 
 import pytest
 
+from app.market_time import CN_TZ
 from app.services import financial_sync, preferences
 from app.tickflow.capabilities import Cap, CapabilityLimits, CapabilitySet
 
@@ -83,6 +85,7 @@ def test_financial_auto_sync_uses_worker_and_publishes_with_write_lock(
         return 3
 
     monkeypatch.setattr(financial_sync.asyncio, "sleep", tick)
+    monkeypatch.setattr(financial_sync, "cn_now", lambda: datetime(2026, 11, 19, 21, tzinfo=CN_TZ))
     monkeypatch.setattr(financial_sync, "_sync_history_table_for_symbols", sync)
     monkeypatch.setattr(
         "app.services.data_release.publish_data_release",

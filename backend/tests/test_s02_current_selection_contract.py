@@ -1,4 +1,4 @@
-"""Current S02 templates must not restore the retired daily amount gate."""
+"""Current S02 templates use the saved selection and signal contracts."""
 import json
 from datetime import date, datetime
 from pathlib import Path
@@ -11,18 +11,7 @@ from app.strategy.engine import StrategyDataContext, StrategyEngine
 from app.strategy.signal_sections import select_rows
 
 EXAMPLES = Path(__file__).resolve().parents[2] / "examples/strategies"
-SID = "s02_atr14_example"
-
-
-@pytest.fixture(autouse=True)
-def synthetic_calendar(monkeypatch):
-    """Keep the synthetic fixture independent of installed market data."""
-    previous_session.cache_clear()
-    monkeypatch.setattr(
-        "app.strategy.basic_filter.published_trading_day", lambda day: day.weekday() < 5,
-    )
-    yield
-    previous_session.cache_clear()
+SID = "custom_mvxxcp88"
 
 
 def selection_case(*, amount=2e7):
@@ -48,7 +37,7 @@ def selection_case(*, amount=2e7):
     return engine, overrides, context
 
 
-@pytest.mark.parametrize("amount", [2e7, None, 2e8], ids=["below_old_gate", "missing_amount", "above_old_gate"])
+@pytest.mark.parametrize("amount", [2e7, None, 2e8], ids=["small_amount", "missing_amount", "large_amount"])
 def test_current_template_keeps_qualified_selection_and_buy_members(amount):
     engine, overrides, context = selection_case(amount=amount)
     strategy = engine.get(SID)
@@ -79,9 +68,9 @@ def test_current_template_still_enforces_other_numeric_filters():
     assert [row["symbol"] for row in selected] == ["600001.SH"]
 
 
-def test_explicit_historical_amount_overlay_still_filters():
+def test_explicit_turnover_overlay_still_filters():
     engine, overrides, context = selection_case()
     overrides["overlay_filter"] = [
-        {"left": "amount_mean_20d", "op": ">=", "right": "1.0", "leftDays": 0, "rightDays": 0},
+        {"left": "turnover_mean_20d", "op": ">=", "right": "3.0", "leftDays": 0, "rightDays": 0},
     ]
     assert select_rows(engine, engine.get(SID), context, overrides=overrides) == []

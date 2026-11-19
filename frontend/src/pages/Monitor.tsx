@@ -25,6 +25,8 @@ import { DimensionMembersDialog, type DimensionKind, type DimensionMembersTarget
 import { usePreferences, useQuoteStatus } from '@/lib/useSharedQueries'
 import { hasPermission, multitenancyEnabled } from '@/lib/accountSession'
 import { NotificationsPanel } from '@/components/monitor/NotificationsPanel'
+import { StrategyMonitorTasks } from '@/components/screener/StrategyMonitorTasks'
+import { groupMonitorTaskHistory } from '@/lib/monitorTaskHistory'
 
 const TYPE_LABEL: Record<string, string> = {
   signal: '信号', price: '价格/涨跌', market: '市场异动', strategy: '策略监控', sector: '板块监控',
@@ -177,13 +179,17 @@ export function Monitor() {
   // 规则个数
   const rulesQuery = useQuery({ queryKey: QK.monitorRules, queryFn: api.monitorRulesList })
   const rulesCount = rulesQuery.data?.rules.length ?? 0
-  const removableRulesCount = rulesQuery.data?.rules.filter(r => !r._system_task && !r.lot_id).length ?? 0
+  const removableRulesCount = rulesQuery.data?.rules.filter(r => !r.lot_id).length ?? 0
+  const dailyTasks = useQuery({
+    queryKey: ['strategy-monitoring'], queryFn: api.strategyMonitoring,
+    refetchInterval: quoteStatus?.is_trading_hours === false ? 120_000 : 10_000,
+  })
 
   // 清除全部规则 (逐条删除)
   const clearRulesMut = useMutation({
     mutationFn: async () => {
       const rules = rulesQuery.data?.rules ?? []
-      await Promise.all(rules.filter(r => !r._system_task && !r.lot_id).map(r => api.monitorRuleDelete(r.id)))
+      await Promise.all(rules.filter(r => !r.lot_id).map(r => api.monitorRuleDelete(r.id)))
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QK.monitorRules })
@@ -202,7 +208,7 @@ export function Monitor() {
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title="监控中心" subtitle="实时信号与规则管理" right={multitenancyEnabled() && (
+      <PageHeader title="监控中心" subtitle="当日定时任务、历史通知与规则管理" right={multitenancyEnabled() && (
         <button type="button" aria-expanded={notificationsOpen} className="rounded-btn border border-border px-3 py-1.5 text-xs text-secondary" onClick={() => {
           const next = new URLSearchParams(searchParams)
           if (notificationsOpen) next.delete('notifications')
@@ -227,12 +233,22 @@ export function Monitor() {
           </div>
         </div>
       )}
-      <div className="page-content flex-1 min-h-0">
-        <div className="flex h-full min-w-0 flex-col gap-4 lg:flex-row">
+      <div className="page-content flex flex-col flex-1 min-h-0">
+        <section aria-label="当日策略任务" className="page-card mb-3 max-h-64 sm:max-h-96 overflow-auto px-4 py-3">
+          <p className="text-xs font-medium">当日策略任务 · 每策略每交易日3项：选、买、卖</p>
+          <p className="mt-1 text-[11px] text-muted">仅在对应北京时间窗口内执行；窗口外显示待执行或已结束。下方近7日历史通知不代表正在运行的任务。</p>
+          {dailyTasks.isError ? <p role="alert" className="text-xs text-danger">当日任务加载失败</p>
+            : dailyTasks.isLoading ? <p className="text-xs text-muted">加载当日任务…</p>
+            : (dailyTasks.data?.strategies ?? []).filter(value => value.enabled).map(value => <div key={value.strategy_id}>
+              <p className="mt-2 text-xs font-medium">{rulesQuery.data?.rules.find(rule => rule.strategy_id === value.strategy_id)?.name ?? value.strategy_id}</p>
+              <StrategyMonitorTasks value={value} />
+            </div>)}
+        </section>
+        <div className="flex flex-1 min-h-0 min-w-0 flex-col gap-4 lg:flex-row">
           {/* 左栏: 触发记录 */}
           <section className="page-card flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <div className="flex items-center gap-3 border-b border-border/60 bg-surface/60 px-4 py-2.5">
-              <SectionHeader icon={BellRing} title="触发记录" />
+              <SectionHeader icon={BellRing} title="历史通知 · 近7日" />
               {/* 过滤标签 — 单行横向滚动, 不折行 (缩放/窄窗口下保持一行) */}
               <div className="flex min-w-0 flex-nowrap items-center gap-0.5 overflow-x-auto [&>button]:shrink-0">
                 {(['all', 'strategy', 'signal', 'price', 'market', 'sector', 'abnormal', 'volume_delta', 'date'] as const).map(f => (
@@ -260,7 +276,7 @@ export function Monitor() {
                 >
                   <Tags className="h-3.5 w-3.5" />
                 </button>}
-                <span className="rounded-md bg-elevated/50 px-1.5 py-0.5 text-[10px] font-medium text-muted">{total}</span>
+                <span className="rounded-md bg-elevated/50 px-1.5 py-0.5 text-[10px] font-medium text-muted">{total}条原始记录</span>
                 {total > 0 && (
                   <button
                     onClick={() => setConfirmClear(true)}
@@ -319,7 +335,7 @@ export function Monitor() {
       <ConfirmDialog
         open={confirmClearRules}
         title="清除普通监控规则?"
-        message={`将删除 ${removableRulesCount} 条普通规则；系统关键任务及托管任务保留。此操作不可撤销。`}
+        message={`将删除 ${removableRulesCount} 条普通规则；持仓托管任务保留。此操作不可撤销。`}
         confirmText="清除"
         danger
         onCancel={() => setConfirmClearRules(false)}
@@ -388,11 +404,11 @@ function AlertsList({ alertsQuery, confirmClear, setConfirmClear, total, enterTs
     }
   }
 
-  const events = useMemo(() => (alertsQuery.data as any)?.alerts ?? [], [alertsQuery.data])
+  const events = useMemo(() => groupMonitorTaskHistory((alertsQuery.data as any)?.alerts ?? []), [alertsQuery.data])
 
   // 切股导航列表: 有 symbol 的触发记录 (按展示顺序)
   const alertsNavItems = useMemo(
-    () => toNavItems(events.filter((ev: AlertEvent) => ev.symbol)),
+    () => toNavItems(events.filter((ev): ev is typeof ev & { symbol: string } => !!ev.symbol)),
     [events],
   )
   const handlePreviewEvent = useCallback((ev: AlertEvent) => {
@@ -430,12 +446,12 @@ function AlertsList({ alertsQuery, confirmClear, setConfirmClear, total, enterTs
       ) : (
         <div className="space-y-2">
               {events.map((ev: any, i: number) => {
-            const sev = SEVERITY_CONFIG[ev.severity ?? 'info'] ?? SEVERITY_CONFIG.info
+            const sev = SEVERITY_CONFIG[ev.severity === 'warning' ? 'warn' : ev.severity ?? 'info'] ?? SEVERITY_CONFIG.info
             const SevIcon = sev.icon
             const isNew = ev.ts > enterTs
             return (
               <motion.div
-                key={`${ev.ts}-${ev.symbol ?? ''}-${ev.rule_name ?? ''}`}
+                key={`${ev.ts}-${ev.strategy_id ?? ''}-${ev.taskKind ?? ''}-${ev.symbol ?? ''}-${ev.rule_name ?? ''}`}
                 initial={isNew ? { opacity: 0, y: -8, scale: 0.98 } : { opacity: 0, y: 4 }}
                 animate={isNew ? {
                   opacity: [0, 1, 1, 0.85, 1],
@@ -453,6 +469,9 @@ function AlertsList({ alertsQuery, confirmClear, setConfirmClear, total, enterTs
                   <SevIcon className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
+                  {ev.taskRecords && <p className="mb-1 text-[11px] font-medium text-secondary">
+                    {ev.taskDate} · {{ buy: '买', sell: '卖', select: '选' }[ev.taskKind as string] ?? ev.taskKind}任务历史 · {ev.taskRecords.length}条回执
+                  </p>}
                   {ev.source === 'strategy' ? (() => {
                     const sname = strategyName(ev.message ?? '')
                     const eventMeta = strategyEventMeta(ev.type)
@@ -577,7 +596,7 @@ function AlertsList({ alertsQuery, confirmClear, setConfirmClear, total, enterTs
                         </span>
                       </div>
                       {/* 详情行: 实际命中信号为主 (有 signals 时); 无 truth 命中则回退条件摘要 */}
-                      {ev.signals && ev.signals.length > 0 ? (
+                      {ev.taskRecords ? <p className="mt-1 text-[11px] text-secondary">{ev.message}</p> : ev.signals && ev.signals.length > 0 ? (
                         <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px]">
                           <span className="text-muted">命中</span>
                           {ev.signals.map((s: string, j: number) => (
@@ -617,6 +636,22 @@ function AlertsList({ alertsQuery, confirmClear, setConfirmClear, total, enterTs
                           <span className="text-[11px]">{renderMessage(ev.source, ev.message)}</span>
                         </div>
                       )}
+                      {ev.details && (
+                        <details className="mt-2 text-[11px]">
+                          <summary className="cursor-pointer text-accent">查看完整计算回执</summary>
+                          <p className="mt-1 whitespace-pre-wrap break-words">{ev.message}</p>
+                          <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded bg-elevated p-2">
+                            {JSON.stringify(ev.details, null, 2)}
+                          </pre>
+                        </details>
+                      )}
+                      {ev.taskRecords && ev.taskRecords.length > 1 && <details className="mt-2 text-[11px]">
+                        <summary className="cursor-pointer text-accent">展开同一任务全部历史回执（{ev.taskRecords.length}条）</summary>
+                        {ev.taskRecords.map((record: AlertEvent, index: number) => <div key={index} className="mt-2 border-t border-border pt-2">
+                          <p>{record.message}</p>
+                          <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words">{JSON.stringify(record.details, null, 2)}</pre>
+                        </div>)}
+                      </details>}
                       {/* 规则全量条件 (次要灰字): 已有命中信号主行时展示, 供回溯规则定义 */}
                       {ev.signals && ev.signals.length > 0 && ev.conditions && ev.conditions.length > 0 && (
                         <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[10px] text-muted/70">
@@ -849,9 +884,6 @@ function RulesList({ rulesQuery, onEdit }: {
                   {r.lot_id && (
                     <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold bg-emerald-400/10 text-emerald-500" title="由「持仓」页托管, 请在持仓页修改或删除">批次</span>
                   )}
-                  {r._system_task && (
-                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold bg-amber-400/10 text-amber-500" title="系统关键任务持续启用，普通监控操作无法取消">系统关键任务</span>
-                  )}
                   {r.asset_type === 'index' && (
                     <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold bg-sky-500/10 text-sky-400">指数</span>
                   )}
@@ -890,9 +922,7 @@ function RulesList({ rulesQuery, onEdit }: {
                   {!r.enabled && <span className="shrink-0 text-[9px] text-secondary">· 停用</span>}
                 </div>
                 <div className="flex items-center gap-0.5 shrink-0">
-                  {r._system_task ? (
-                    <span className="inline-flex items-center rounded-md border border-border/60 bg-elevated/60 px-1.5 py-0.5 text-[9px] text-secondary" title="关键策略调度持续启用">持续启用</span>
-                  ) : r.lot_id ? (
+                  {r.lot_id ? (
                     <span
                       className="inline-flex items-center rounded-md border border-border/60 bg-elevated/60 px-1.5 py-0.5 text-[9px] text-secondary"
                       title="由「持仓」页生成的规则, 该页托管; 启停/修改/删除请到持仓页"

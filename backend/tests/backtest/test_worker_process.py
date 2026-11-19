@@ -310,7 +310,7 @@ def test_spawn_mining_benchmarks_strategy_on_every_outer_fold(tmp_path):
     manifest = store.create(
         {
             "factor_names": ["turnover_rate"],
-            "strategy_ids": ["low_volatility_leader"],
+            "strategy_ids": ["ma_golden_cross"],
             "symbols": None,
             "asset_type": "stock",
             "start": (start - timedelta(days=7)).isoformat(),
@@ -340,7 +340,7 @@ def test_spawn_mining_benchmarks_strategy_on_every_outer_fold(tmp_path):
 
     assert result["status"] in {"succeeded", "succeeded_with_budget_exhausted"}
     folds = pl.read_parquet(store.artifact_path("spawn_mining_benchmark", "folds"))
-    benchmark_signature = benchmark_candidate("low_volatility_leader").candidate_id
+    benchmark_signature = benchmark_candidate("ma_golden_cross").candidate_id
     benchmark_rows = folds.filter(
         (pl.col("evaluation_kind") == "benchmark")
         & (pl.col("candidate_signature") == benchmark_signature)

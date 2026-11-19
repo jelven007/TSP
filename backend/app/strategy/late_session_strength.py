@@ -117,6 +117,11 @@ def evaluation_time(sig: dict, day: date, *, completed_through: datetime | None 
     return at + timedelta(minutes=params["evaluation_delay_minutes"] or 0) if at is not None else None
 
 
+def execution_end(sig: dict, day: date) -> datetime:
+    """The saved end clock also bounds fills after a successful signal."""
+    return datetime.combine(day, time.fromisoformat(parameters(sig)["end_time"] or "15:00:00"))
+
+
 def bar_time(sig: dict, day: date, *, completed_through: datetime | None = None) -> datetime | None:
     """信号的启动分钟数据标签, 确认延迟不改变此截止。"""
     value = parameters(sig)["time"]
@@ -208,6 +213,8 @@ def entry_deadline(engine, strategy, overrides, context, *, expired_only=True) -
         if not expired_only or observed > end:
             deadlines.append(end)
     return min(deadlines, default=None)
+
+
 @dataclass
 class Evaluation:
     symbols: list[str] = field(default_factory=list)
@@ -704,6 +711,7 @@ def evaluate(
     previous_volume_mean: dict[str, float] | None = None,
     task_state: dict | None = None,
     input_error: str | None = None,
+    breadth_only: bool = False,
 ) -> Evaluation:
     """Two-stage receipts; storage owners commit task_state with the result."""
     if not optional_definition(sig):
@@ -747,6 +755,8 @@ def evaluate(
         state.clear()
         state.update(identity=identity, as_of=str(day), params=params,
                      signal_id=sig.get("id"), pool_symbols=sorted(set(pool_symbols or [])))
+    if state.get("terminal"):
+        return Evaluation(**copy.deepcopy(state["terminal"]))
     if start and observed is not None and observed < start:
         result.stage = "waiting_start"
         return result
@@ -765,11 +775,6 @@ def evaluate(
         if not state.get("terminal"):
             state["terminal"] = asdict(result)
         return result
-    if state.get("terminal"):
-        result = Evaluation(**copy.deepcopy(state["terminal"]))
-        result.progress["observed_at"] = observed.isoformat() if observed else None
-        return result
-
     def attempt(**phase):
         try:
             if input_error:
@@ -799,6 +804,8 @@ def evaluate(
             if breadth.stage == "breadth_rejected":
                 state["terminal"] = asdict(breadth)
             return breadth
+    if breadth_only:
+        return breadth or result
     if confirm_at and observed is not None and observed < confirm_at:
         result = breadth or result
         result.stage = "waiting_confirmation"

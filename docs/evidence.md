@@ -1,16 +1,11 @@
-# 验证证据与历史报告
+# 验证证据
 
-仓库不保存已结束的过程计划、修复流水、升级日志、重复导出或临时截图。
-已清理材料中的历史日期、安装状态和测试计数不能认证当前版本或运行状态。
-用户本地的当前成果、Excel、冻结业务结果、未完成开发和不可变审计记录保留；
-清理过程文件不删除应用中的回测任务、数据库或交易账本。
+当前需求定义只在[需求手册](requirements.md)维护，
+编号基准见[requirement-ids.json](requirement-ids.json)。
+检查持续拒绝缺编号、重复定义、无效模块、状态及本地链接错误。
 
-需求编号基线移至 [requirement-ids.json](requirement-ids.json)，内容保持原冻结集合。
-[需求手册](requirements.md)仍是唯一功能定义；检查继续拒绝缺失编号、重复定义、
-无效模块、状态和本地链接。目录移除不关闭文档或需求门禁。
-
-当前发布过程见[发布流水线](release-pipeline.md)，身份核对见
-[版本基线](version-baseline.md)，验收要求见[测试手册](testing.md)。
-最终用户成果归 [deliverables](../deliverables/README.md)，必要证据归其 audit 目录。
-未完成设计、计划和缺陷记录可在本地 `.claude/artifacts/` 维护，结束后将有效契约
-归入对应手册并清理过程材料。保留范围和检查方法见[维护规则](maintenance.md)。
+历史研究和过程报告按用户要求清理，不再作为主手册的依赖。
+当前最终交付及必须保留的不可变审计见[deliverables](../deliverables/README.md)。
+每次验证分别记录环境、输入身份、命令、结果及未覆盖范围，不用旧测试计数替代新证据。
+发布流程见[发布运营](release-operations.md)，当前身份见[版本基线](version-baseline.md)；
+源码、测试、产物发布、环境部署和真实容量分别签收。

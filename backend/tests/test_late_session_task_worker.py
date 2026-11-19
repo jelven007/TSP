@@ -20,6 +20,8 @@ def setup(owned, monkeypatch):
         "id": "late", "name": "尾盘任务", "type": "strategy", "scope": "all",
         "strategy_id": "ma_golden_cross",
     }))
+    from app.services.strategy_monitor_tasks import set_monitoring
+    set_monitoring(owned.documents, "ma_golden_cross", "尾盘任务", True)
     owned.clock["now"] = datetime.combine(cn_today(), time(14, 30, 15), CN_TZ).timestamp()
     sig = signal(time="14:30:00", evaluation_delay_minutes=.5, pool_up_min_pct=60.)
     sig["id"] = "late"
@@ -103,12 +105,15 @@ def test_real_schema_seven_prepares_generic_minute_stage_times(owned, tmp_path):
     Rules(owned.documents).save_one(normalize({
         "id": "late", "name": "尾盘任务", "type": "strategy", "scope": "all", "strategy_id": "generic_late",
     }))
+    from app.services.strategy_monitor_tasks import set_monitoring
+    set_monitoring(owned.documents, "generic_late", "尾盘任务", True)
     owned.clock["now"] = datetime.combine(cn_today(), time(14, 30), CN_TZ).timestamp()
     try:
         _, _, payload, _ = owned.worker.prepare(owned.documents.context.tenant_id, owned.snapshot())
-        assert payload["late_task_strategy_ids"] == ["generic_late"]
-        assert payload["late_task_definitions"]["generic_late"][0]["id"] == "late"
-        assert datetime.fromisoformat(payload["late_task_at"]).time() == time(14, 30, 15)
+        assert payload["late_task_strategy_ids"] == []
+        assert payload["strategy_task_windows"]["generic_late"]["buy"][0]["signal"]["id"] == "late"
+        assert payload["strategy_task_plans"]["generic_late"]["actions"] == []
+        assert datetime.fromisoformat(payload["next_evaluation_at"]).time() == time(14, 30, 15)
         assert payload["late_task_scopes"]["generic_late"].startswith("generic_late:")
     finally:
         owned.worker.db.settings = settings

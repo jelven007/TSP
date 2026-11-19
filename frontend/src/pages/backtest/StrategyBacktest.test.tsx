@@ -110,9 +110,62 @@ function strategyFixture(id = 'example', source: StrategyDetail['source'] = 'bui
   }
 }
 
+it.each(['custom_mvxxcs01', 'custom_mvxxcp88', 'custom_mvxxcs03', 'custom_any_name'])(
+  'uses common saved-signal execution descriptions for any custom minute strategy (%s)', async id => {
+    const custom: StrategyDetail = {
+      ...strategyFixture(id, 'custom'), name: id, execution_backend: 'minute_filter',
+      timeframes: ['1m'], entry_signals: ['csgi_late'], exit_signals: ['csgi_morning'],
+      ...(id === 'custom_mvxxcs01' ? { minute_execution: 'overnight_capacity_v1', optional_triggers: true } : {}),
+    }
+    vi.spyOn(api, 'screenerStrategies').mockResolvedValue({ presets: [custom], load_errors: [] })
+    vi.spyOn(api, 'strategyGet').mockResolvedValue(custom)
+    vi.spyOn(api, 'customSignalsList').mockResolvedValue({ signals: [
+      { id: 'late', name: '当前尾盘', kind: 'entry', enabled: true, timeframe: 'intraday',
+        template: 'late_session_strength', conditions: [], params: {
+          time: '14:50:00', evaluation_delay_minutes: .5, end_time: '15:00:00',
+          change_min_pct: 3, change_max_pct: 5, pool_up_min_pct: 60,
+          ma5_1m_count: null, ma5_5m_count: null,
+        } },
+      { id: 'morning', name: '当前早盘', kind: 'exit', enabled: true, timeframe: 'intraday',
+        template: 'morning_liquidation', conditions: [], params: {
+          start_time: '11:00:00', time: '11:25:00', fallback_time: '11:30:00',
+          rise_pct: null, fall_pct: null, decline_3m_pct: .2, volume_ratio_min: 1.5,
+        } },
+    ] })
+    await remountWithStrategy(id)
+    expect(host.querySelector('[aria-label="建仓口径"]')?.textContent).toContain('尾盘走强信号触发时间 → 结束时间')
+    expect(host.querySelector('[aria-label="清仓口径"]')?.textContent).toContain('早盘清仓信号触发时间 → 兜底时间')
+    expect(host.textContent).toContain('14:50:30')
+    expect(host.textContent).toContain('3分钟跌幅 ≥ 0.2%')
+    expect(host.textContent).not.toContain('缺分区的日子自动跳过')
+    await act(async () => [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('策略设置') && button.textContent?.includes('编辑'))!.click())
+    await settle()
+    const dialog = document.querySelector('[role="dialog"]')!
+    expect(dialog.textContent).toContain('11:25:00')
+    expect(dialog.textContent).toContain('3分钟跌幅 ≥ 0.2%')
+    expect(dialog.textContent).not.toContain('现价相对原始昨收达到涨幅或跌幅阈值')
+    expect(startBacktest).not.toHaveBeenCalled()
+  },
+)
+
 it('does not load result charts or replay dialogs on an empty backtest entry', () => {
   expect(state.loadedViews).toEqual([])
   expect(startBacktest).not.toHaveBeenCalled()
+})
+
+it('keeps common custom minute controls while signal definitions are unavailable', async () => {
+  const custom: StrategyDetail = {
+    ...strategyFixture('custom_s03', 'custom'), execution_backend: 'minute_filter',
+    timeframes: ['1m'], entry_signals: ['csgi_late_s03'], exit_signals: ['csgi_exit_s03'],
+  }
+  vi.spyOn(api, 'screenerStrategies').mockResolvedValue({ presets: [custom], load_errors: [] })
+  vi.spyOn(api, 'strategyGet').mockResolvedValue(custom)
+  vi.spyOn(api, 'customSignalsList').mockResolvedValue({ signals: [] })
+  await remountWithStrategy(custom.id)
+  expect(host.querySelector('[aria-label="建仓口径"]')).not.toBeNull()
+  expect(host.querySelector('[aria-label="清仓口径"]')).not.toBeNull()
+  expect(host.textContent).toContain('信号定义尚未确认')
 })
 
 it('clears stale generic weights when the strategy owns ranking', async () => {
@@ -168,7 +221,7 @@ it('enables a saved custom minute holding exit with minute liquidation and posit
   expect(signal).toBeDefined()
   expect(signal?.textContent).not.toContain('回测暂不支持')
   expect(signal?.disabled).toBe(false)
-  expect(host.textContent).toContain('次交易日触发分钟收盘')
+  expect(host.textContent).toContain('早盘清仓信号触发时间 → 兜底时间')
   expect([...host.querySelectorAll<HTMLButtonElement>('button')]
     .find(button => button.textContent?.trim() === '全量模拟')?.disabled).toBe(true)
   expect(save).not.toHaveBeenCalled()
@@ -269,7 +322,7 @@ it('keeps fresh liquidation defaults while S01 detail loads and submits the five
   expect(Array.from(host.querySelectorAll('button')).find(el => el.textContent === '运行回测')?.disabled).toBe(true)
   await act(async () => resolveDetail(s01))
   await settle()
-  expect(host.querySelector('[aria-label="清仓口径"]')?.textContent).toBe('信号后下1分钟起，5分钟卖出')
+  expect(host.querySelector('[aria-label="清仓口径"]')?.textContent).toBe('未选择出场触发器')
   await click('运行回测')
   expect(startBacktest).toHaveBeenCalledWith(expect.objectContaining({
     strategy_id: s01.id, exit_fill: 'signal_next_minute', max_positions: 4, initial_capital: 1000000,
@@ -304,8 +357,8 @@ it.each([
   const exit = host.querySelector('[aria-label="清仓口径"]')!
   expect(entry).not.toBeNull()
   expect(exit).not.toBeNull()
-  expect(entry.textContent).toBe('信号后下1分钟起，5分钟容量撮合')
-  expect(exit.textContent).toBe('信号后下1分钟起，5分钟卖出')
+  expect(entry.textContent).toBe('未选择入场触发器')
+  expect(exit.textContent).toBe('早盘清仓信号触发时间 → 兜底时间')
   expect(entry.className).toBe(exit.className)
   expect(entry.parentElement?.className).toBe(exit.parentElement?.className)
   expect(entry.querySelector('select')).toBeNull()
@@ -314,6 +367,7 @@ it.each([
   await click('运行回测')
   expect(startBacktest).toHaveBeenLastCalledWith(expect.objectContaining({
     strategy_id: id, entry_fill: 'close_t', exit_fill: 'signal_next_minute', initial_capital: 1000000,
+    minute_price_rule: 'high_low_v1',
     minute_fill: false, mode: 'position',
   }))
   state.task = completed(4)
@@ -344,7 +398,6 @@ it('uses the requested migrated defaults and request units', async () => {
     minimum_commission: 5,
     transfer_fee_pct: 0.0005,
   }))
-  expect(host.textContent).toContain('单票目标约 25.0%')
 })
 
 it('describes the daily five-minute entry capacity window', () => {
@@ -362,7 +415,8 @@ it('describes the minute strategy post-confirmation entry capacity window', asyn
 
   await remountWithStrategy('minute-example')
 
-  expect(host.textContent).toContain('信号后下1分钟起，5分钟容量撮合')
+  expect(host.querySelector('[aria-label="建仓口径"]')?.textContent).toBe('未选择入场触发器')
+  expect(host.textContent).toContain('按每分钟K线的最高价成交')
 })
 
 it('keeps the selected result page when editing the next run, and applies a new completed task', async () => {
@@ -394,7 +448,7 @@ it('shows the overnight capital and fee contract and disables independent full m
   await act(async () => picker.click())
   await settle()
   const summary = host.querySelector('[data-testid="overnight-execution"]')!
-  expect(summary.textContent).toContain('个股信号确认后下一分钟起，按系统回测5分钟买入窗口执行')
+  expect(summary.textContent).toContain('14:47～14:49')
   expect(summary.textContent).toContain('现金100,000元')
   expect(summary.textContent).toContain('分钟参与率10%')
   expect(summary.textContent).toContain('最晚13:30；午休不成交')
@@ -404,6 +458,48 @@ it('shows the overnight capital and fee contract and disables independent full m
   const position = Array.from(host.querySelectorAll('button')).find(el => el.textContent === '仓位模拟')!
   expect(position.className).toContain('bg-accent')
   expect(host.textContent).toContain('需前两个交易日日线')
+})
+
+it('uses common replay controls and clears stale parameters for parameter-free optional S01', async () => {
+  const custom: StrategyDetail = {
+    ...strategyFixture('custom_mvxxcs01', 'custom'), name: 's01',
+    execution_backend: 'minute_filter', timeframes: ['1m'],
+    minute_execution: 'overnight_capacity_v1', optional_triggers: true,
+    entry_allocation: 'equal_selected_v1',
+  }
+  vi.spyOn(api, 'screenerStrategies').mockResolvedValue({ presets: [custom], load_errors: [] })
+  vi.spyOn(api, 'strategyGet').mockResolvedValue(custom)
+  await remountWithStrategy(custom.id)
+  const labels = Array.from(host.querySelectorAll('label')).map(el => el.textContent)
+  expect(labels).toContain('初始资金')
+  expect(labels).toContain('最大持仓数')
+  expect(labels).toContain('佣金 ‱')
+  expect(labels).toContain('单笔最低佣金（元）')
+  expect(labels).toContain('建仓口径')
+  expect(labels).toContain('清仓口径')
+  expect(labels).toContain('买入权重')
+  expect(labels).toContain('最大总仓位(%)')
+  expect(host.querySelector('[data-testid="overnight-execution"]')).toBeNull()
+  async function setField(label: string, value: string) {
+    const field = Array.from(host.querySelectorAll('label')).find(el => el.textContent === label)!
+      .parentElement!.querySelector('input,select') as HTMLInputElement | HTMLSelectElement
+    await act(async () => {
+      const prototype = field.tagName === 'SELECT' ? HTMLSelectElement.prototype : HTMLInputElement.prototype
+      Object.getOwnPropertyDescriptor(prototype, 'value')!.set!.call(field, value)
+      field.dispatchEvent(new Event(field.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }))
+    })
+    await settle()
+  }
+  await setField('最大持仓数', '5')
+  await setField('最大总仓位(%)', '80')
+  await setField('买入权重', 'score_weight')
+  expect(host.querySelector('[aria-label="清仓口径"]')?.textContent).toBe('未选择出场触发器')
+  await click('运行回测')
+  expect(startBacktest).toHaveBeenCalledWith(expect.objectContaining({
+    strategy_id: custom.id, initial_capital: 1000000, params: {}, max_positions: 5,
+    max_exposure_pct: .8, position_sizing: 'score_weight', exit_fill: 'signal_next_minute',
+    entry_fill: 'close_t',
+  }))
 })
 
 it.each(['overnight_capacity_v1', 'generic_morning_liquidation_v1', 'generic_morning_liquidation_resume_v2'])('retains and exports actual minute fills when the sell deadline fails (%s)', async execution => {

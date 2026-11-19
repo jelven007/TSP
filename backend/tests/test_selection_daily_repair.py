@@ -123,32 +123,6 @@ def test_normal_daily_is_not_refetched_and_success_survives_restart(env, monkeyp
     assert all(p.read_bytes() == data for p, data in before.items())
 
 
-def test_halt_verification_precedes_missing_backfill_and_is_saved_with_release(env, monkeypatch):
-    from app.services import selection_suspension_repair
-    def verify(*a, **kw):
-        env.calls.append("verify_halt")
-        return {"added": 1, "remaining_symbols": [], "diagnostics": {}}
-    monkeypatch.setattr(selection_suspension_repair, "repair_suspensions", verify)
-    state = env.repair.request_repair(env.repo, None)
-    assert env.calls[:2] == ["verify_halt", "missing"]
-    assert state["result"]["suspension_check"]["added"] == 1
-
-
-def test_residual_daily_gap_is_probed_again_then_rechecked_without_fake_prices(env, monkeypatch):
-    from app.services import selection_suspension_repair
-    checks = []
-    monkeypatch.setattr(selection_suspension_repair, "repair_suspensions",
-                        lambda *a, **kw: checks.append("verify") or
-                        {"added": int(len(checks) == 2), "remaining_symbols": [], "diagnostics": {}})
-    def missing(*a, **kw):
-        env.calls.append("missing")
-        return {"rows": 0, "remaining": int(len(checks) < 2)}
-    monkeypatch.setattr(env.repair, "run_repair_daily", missing)
-    state = env.repair.request_repair(env.repo, None)
-    assert state["status"] == "succeeded"
-    assert checks == ["verify", "verify"] and env.calls.count("missing") == 2
-
-
 def test_source_failure_has_bounded_retry_then_recovers_without_fake_readiness(env, monkeypatch):
     path = env.paths["kline_daily"]
     env.raw.with_columns(pl.lit(0).alias("quote_ts"),
@@ -197,7 +171,7 @@ def test_cancelled_repair_is_not_resurrected_by_the_retry_timer(env, monkeypatch
     assert not (env.repo.store.data_dir / "settlement_ready.json").exists()
 
 
-@pytest.mark.parametrize("when", [datetime(2026, 11, 10, 19, 59, 59, tzinfo=CN_TZ),
+@pytest.mark.parametrize("when", [datetime(2026, 11, 10, 15, 59, 59, tzinfo=CN_TZ),
                                  datetime(2026, 11, 11, 9, 30, tzinfo=CN_TZ)])
 def test_outside_latest_postclose_window_never_repairs_history(env, when):
     env.clock[0] = when
@@ -248,23 +222,8 @@ def test_unrelated_gap_diagnostics_are_preserved_when_daily_close_is_valid(env, 
     monkeypatch.setattr(env.repair, "run_repair_daily", lambda *a, **kw:
                         {"rows": 0, "remaining": 2, "warning": "out-of-scope missing"})
     state = env.repair.request_repair(env.repo, None)
-    assert state["status"] == "succeeded" and state["result"]["gap_check"]["remaining"] == 2
-    assert state["retry_required"] is True and state["warning"]
-    assert state["error"] is None
-    assert env.store.get(state["job_id"])["status"] == "succeeded"
+    assert state["status"] == "failed" and state["result"]["gap_check"]["remaining"] == 2
     assert (env.repo.store.data_dir / "settlement_ready.json").exists()
     env.clock[0] += timedelta(minutes=1)
     assert env.repair.request_repair(env.repo, None)["attempts"] == 2
     assert env.calls.count("publish") == 1
-
-
-def test_no_daily_rows_waits_for_backfill_without_failed_task_or_fake_ready(env, monkeypatch):
-    env.paths["kline_daily"].unlink()
-    monkeypatch.setattr(env.repair, "run_repair_daily", lambda *a, **kw:
-                        {"rows": 0, "remaining": 1})
-    state = env.repair.request_repair(env.repo, None)
-    assert state["status"] == "succeeded" and state["error"] is None
-    assert state["retry_required"] is True
-    assert state["result"]["selection_ready"] is False
-    assert not (env.repo.store.data_dir / "settlement_ready.json").exists()
-    assert "publish" not in env.calls

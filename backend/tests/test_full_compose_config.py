@@ -90,6 +90,8 @@ def test_production_16g_budget_caps_memory_and_database_connections(tmp_path):
     ], env=env, capture_output=True, text=True, check=True)
     services = json.loads(result.stdout)["services"]
     assert sum(int(service["mem_limit"]) for service in services.values()) == 8704 * 1024**2
+    for name in ("api", "gateway", "research", "realtime", "notifications", "scheduled"):
+        assert services[name]["environment"]["TSP_CELL_SCHEMA_VERSION"] == "9"
 
     processes = {name: 1 for name in (
         "gateway", "research", "realtime", "notifications", "scheduled",

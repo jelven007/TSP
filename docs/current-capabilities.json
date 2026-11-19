@@ -1,6 +1,8 @@
 {
   "application_version_source": "VERSION",
-  "schema_target": 8,
+  "schema_target": 9,
   "strategy_pool_definition": "strategy_scope_v4",
+  "strategy_pool_required_definition": "strategy_scope_v4",
+  "local_runtime_strategy_pool_definition": "strategy_scope_v4",
   "scope": "source capabilities; deployment identity is verified separately"
 }

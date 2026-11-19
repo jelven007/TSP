@@ -1,102 +1,55 @@
 # API、事件与 MCP 导航
 
-2026-11-18本地0.4.65已安装S01数量门槛移除与`strategy_scope_v4`池。
-当日池接口分页完整读回S01的5026只和S02的3049只；返回数量不等于最终选股命中数。
-现有接口、授权及信号参数保持，线上未安装此次差量。
+本页维护当前接口入口和兼容规则；字段及权限以实际路由、类型与契约测试为准。
+通用数据源和扩展协议见[接入参考](reference/integrations.md)，
+策略结果含义见[S01](reference/s01.md)、[S02](reference/s02.md)。
+历史查询只读持久化结果，不通过GET启动策略、行情加载或Compute。
 
-2026-11-18新增登录租户私有接口：
-`POST /api/monitor-rules/strategies/{strategy_id}/monitoring`接收`{"enabled":true|false}`，
-仅适用于自定义／AI策略，原子启停同策略监控并返回generation；不计算策略。
-`GET /api/monitor-rules/strategies/monitoring`返回策略启停与当前日选／买／卖时段、状态，
-读取归档和回执，不依赖最新行情或发起重算。账户身份、业务权限及同源校验沿现有中间件。
+登录租户的策略监控启停使用
+`POST /api/monitor-rules/strategies/{strategy_id}/monitoring`，
+接收`{"enabled":true|false}`，所有公开策略共用此接口，返回启停世代，不立即计算策略；
+`GET /api/monitor-rules/strategies/monitoring`读取当日卖／选／买时段及保存状态。
+账户权限和同源校验沿现有中间件，不因此授予Tier A访问。
 
-2026-11-14统一候选：账户策略池偏好`GET/PUT /api/strategies/pool`仅供登录会话，
-不开放给API Token；`read:analysis`的策略读取前缀不包含这一管理资源。
-既有Tier A端点集合及schema指纹保持，验证见[现行发布流程](release-pipeline.md)。
+新入池策略默认关闭；自定义／AI策略开启后，后台按交易日执行选、买、卖三个任务。
+取消监控推进世代并取消未完成任务；旧系统关键恢复源退出，不再自动恢复S02。
+完成阶段使用`monitor_contract=strategy_monitor_v2`及`monitor_tasks`保存回执，
+单策略明细保留这些字段，成功与正常拒绝不会因行情序号或30秒期限变成等待。
+`strategy_results_updated`仅失效事件携带策略ID的结果及监控状态；切卡片、日期或页签只读。
+普通自定义日线策略也生成夜间选任务；日期归档按策略自身`stock/1d`或`stock/1m`
+隔离，日视图读取兼容这两种周期，不把日线策略的结果强写为分钟身份。
 
-2026-11-14当前本地回测执行：自定义S01（`custom_mvxxcs01`）保持14:45环境启动、14:46个股确认，指标仍截止14:45已完成分钟；删除额外等待及专用三分钟买入，14:47～14:51按系统五个交易分钟买入窗口执行，以分钟最高价、系统成交量容量及含费预算撮合，买足提前结束，到期撤销余量。系统通用清仓`signal_next_minute`在卖出信号下一分钟起执行五个交易分钟，到期撤委托，余股保留估值；缺分钟消耗原时槽，同日跨午休、收盘截断，不自动次日续卖该委托。S01原出场信号及专用卖出执行保持；当前保存源码、信号门槛和参数未改。本地0.4.58配套安装，无线上部署或新收益回测，历史冻结结果保留。验收见[现行验收要求](testing.md)。
+`GET/PUT /api/strategies/pool`按租户＋用户维护名单及顺序，响应`ids/revision`；
+PUT必须带非负整数revision，空ids明确清空，重复或不可用ID拒绝，冲突返回409。
+旧非空选择迁移通过可选`migrate=true`，明确编辑后不被旧导入覆盖。
+事务内发布私有策略池事件。
 
-当前`s01_late_entry`完整参数新增内部
-`market_validity="price_amount_prev_close_v2"`：已有分钟OHLC有限且正、amount有限且非负
-可0，精确上一交易日raw_close有限且正。须与原六项门槛及两个时间字段一起保存，
-不新增页面控件；旧六/八字段冻结请求仍有效且保留旧口径。早盘模板ID
-`s01_morning_exit`不变，显示“早盘清仓_S01”；实际本地验证见
-[现行验收要求](testing.md)。
+`GET /api/screener/daily-stock-pool/{strategy_id}`要求`as_of`，
+返回pool、total和分页symbols，可选record_id读取快照；limit为1～1000、offset非负。
+当前`strategy_scope_v4`只按自身完整范围及状态成池，数值过滤与行情缺失不缩池。
+旧快照按原版本读取，不由GET重新标注或重算。
 
-`POST /api/custom-signals`的`s01_late_entry`模板接受旧六项完整数值参数，
-或同时增加`time="14:45:00"`与`evaluation_delay_minutes=1`的新八字段定义。
-启动HH:MM:SS且在午后13:01起、确认不晚于15:00；延时30～900秒且为30秒整数倍，
-API存分钟，页面显示“确认延时（秒）”。只存在一个时间字段、未知字段或非法值拒绝保存。
-GET不自动升级旧冻结定义，编辑保存才添加新时间；普通单信号回放仍要求通过S01策略
-提供完整环境。内部模板ID、引用及端点不变，验证见
-[现行验收要求](testing.md)。
+`POST /api/custom-signals`的早盘清仓模板为`morning_liquidation`，
+kind为exit、timeframe为intraday，conditions为空。
+七项`start_time/time/fallback_time/rise_pct/fall_pct/decline_3m_pct/volume_ratio_min`
+允许显式null停用，time仍是止损键；关闭条件同时关闭其专用依赖。
+全空不生成退出。现价相对精确前交易日原始昨收；分钟跌幅和均量比只读取已完成前缀。
+旧振幅两字段、涨跌四字段冻结定义仍保留原解析，不读取即转换。
 
-2026-11-08统一候选同时保留账户生命周期及market-snapshot契约，
-`PUT /api/paper/account`新增可选`min_commission/transfer_fee_pct/stamp_tax_mode`，
-与独立费用设置采用相同单位和范围，一次校验后保存，不追改历史成交。
-旧请求及端点集合保持；当前Tier A Schema指纹为
-`7117dde25be64938edde68476dd8318c9353f8700a881b4a540162ff931b62c0`。
-实际候选、兼容和发布门禁见[现行发布流程](release-pipeline.md)，下方记录保留原执行身份。
+尾盘走强模板为`late_session_strength`，kind为entry、timeframe为intraday，
+conditions为空。新十二字段依次为`time/evaluation_delay_minutes/pool_up_min_pct/`
+`amount_min_100m/turnover_min_pct/amplitude_max_pct/change_min_pct/change_max_pct/`
+`volume_ratio_min/ma5_1m_count/ma5_5m_count/end_time`，显式null停用且不补默认。
+确认延迟页面30～900秒、30秒步长，内部除以60保存；百分数按百分数数值保存，
+成交额单位亿元，MA5数量为1～100整数。启动及结束用北京时间HH:mm:ss。
+启动后15秒广度、确认时点个股条件分阶段保存，失败在各自期限重试并告警；
+全部当日指标固定截至启动分钟。空模板截止不取消全局14:55实时新入场守卫。
+旧六／七字段冻结定义保持原缺省及校验。
 
-2026-11-08自动跟单参数融合为未部署的可选加法扩展。原规则创建/PUT增加
-`buy_order_type`、`sell_order_type`（market/next_open/close，缺字段回退order_type）；
-`candidate_priority`增加pool，仅strategy来源可选。旧默认event及原端点集合保持。
-原账户创建/批量创建/设置增加`min_commission`（元，0～10000，旧默认5）、
-`transfer_fee_pct`（小数费率，0～0.01，旧默认0）、
-`stamp_tax_mode`（fixed/historical，旧默认fixed）；响应费表透传，设置只影响未来成交。
-费率pct直接传小数，佣金/过户费页面万分比÷10000，固定印花税千分比÷1000，
-滑点万分比直接传bps。接口身份、隔离、回读及开放Schema指纹验证见
-本次回执（历史报告已移出仓库）。
-
-`GET /api/screener/market-snapshot?realtime=true&symbols=600001.SH`仅返回当前日共享缓存
-中的指定股票（每批1～1000只），返回`raw_close/change_pct/turnover_rate/vol_ratio_5d`
-及既有技术信号、报价时间字段。缺当前日缓存返回当日日期和空rows；非法范围422。
-不带参数继续返回原全市场快照，单位及验证见本次记录（历史报告已移出仓库）。
-两个新增查询参数均为可选，缺省为`realtime=false`、`symbols=null`；
-Tier A端点集合及响应组件保持，契约快照与默认请求回归同步验证。
-
-模拟账户新增 `PUT/DELETE /api/paper/account?account=<id>`（本地源码候选，未部署）。
-修改字段为 `name/initial_cash/commission_pct/stamp_tax_pct/slippage_bps/queue_limit_orders`，
-账号ID固定；已有业务记录禁止改本金，未知字段422、非法值400、不存在404。
-删除清理账号专属业务及提醒/通知，文件失败409并保留数据；SQL需要schema 8。
-旧创建、费用和冻结入口继续兼容，详细口径见[账号生命周期](reference/trading-ai.md#paper-6-api-设计apipaper-薄胶水--域模块)。
-新增 `paper_changed` 事件只刷新相关账号、对比与提醒，不重载页面。
-
-`POST /api/custom-signals`早盘清仓定义使用`template=morning_liquidation`、
-`timeframe=intraday`、`kind=exit`、空`conditions`，`params`为
-`{"time":"10:30:00","fallback_time":"10:45:00","rise_pct":6,"fall_pct":6}`。
-时间09:30:00～11:30:00，支持秒且兜底晚于止损；涨跌幅须有限正数且≤100，百分数按6传入。
-现价相对精确前交易日原始昨收计算；跌幅填写正数，未知参数或混用旧振幅拒绝。
-仅`time/amplitude_pct`旧定义保持原振幅及单截止，编辑保存后明确转换。
-`POST /api/custom-signals/intraday/replay`使用原日期/证券字段，另须提供1～200条
-`positions`，每条含所选`symbol`与已确认交易日`entry_date`，可附`account_id/cycle_id`；
-回放只判断日期与信号，输入数量不代表成交或账户授权。
-返回`triggers`的`reason`（rise/fall/stop_time/fallback/resume，旧定义amplitude/deadline）、`trigger_time`、
-新阈值的`change_pct`为小数（0.06代表6%），
-`source`（completed_minute/clock）、`diagnostics`和`execution=signal_only`。
-普通无持仓信号监控拒绝此模板，通用分钟策略监控使用租户实际持仓。
-
-内部`POST /api/custom-signals`新增可选`template`及`params`。
-尾盘走强使用`template=late_session_strength`、`timeframe=intraday`、`kind=entry`、
-空`conditions`；参数为`time`、`change_min_pct`、`change_max_pct`、
-`pool_up_min_pct`、`ma5_1m_count`、`ma5_5m_count`，百分数按0.4/4/60传入。
-默认14:30:00、0.4～4、60、7、4；时间为午后整分钟，数量为整数且至少2。
-`POST /api/custom-signals/intraday/replay`回放模板必须指定`strategy_id`，
-使用该策略已保存的当日股票池，响应`diagnostics`列出缺快照或数据日期，
-`symbols`仅限定输出、不能改变上涨占比分母。现有普通信号请求兼容，无新增Tier A授权。
-
-内部会话接口`GET /api/screener/daily-stock-pool/{strategy_id}`以必填`as_of`
-查询当日基础池，返回`pool`（尚未生成时null），可选`record_id`选择快照；
-`limit`为1～1000、`offset`非负，完整数量在`total`，`symbols`为当前页。
-名单与策略最终结果独立；此接口遵循现有租户会话权限，不新增Tier A开放端点。
-新生成名单只满足股票范围与状态条件，`basic_filter`保存入池所用配置，
-不含流通市值及其他数值条件；`definition_version`为`scope_only_v3`。
-`reference_date`及盘前参考策略字段作为兼容元数据保留，不表示入池依赖参考价。
-历史v2或无版本字段快照保留原口径，不因读取新接口而重算或重新标注。
-
-核对日期：2026-11-01。接口行为以运行实例生成的 OpenAPI 和对应源码为准。
-本文提供调用入口和授权边界；完整字段、单位、Provider 和事件协议见
-[接入参考](reference/integrations.md)。
+`POST /api/custom-signals/intraday/replay`只回放信号，响应execution为signal_only。
+持仓出场须提供1～200条positions，各含symbol和已确认交易日entry_date；
+数量不证明账户授权或实际成交。尾盘回放须指定strategy_id并读取其保存的当日完整池，
+symbols只限定输出，不改变广度分母；诊断明确缺快照或数据日期。
 
 ## 1. 三种入口
 

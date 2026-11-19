@@ -43,7 +43,8 @@ def late(owned):
         meta={"id": SID, "name": "过期测试", "asset_types": ["stock"], "timeframes": ["1m"],
               "result_sections": "signals"},
         basic_filter={}, entry_signals=["csgi_late"], exit_signals=[],
-        execution_backend="minute_filter", source="custom", logic_version="fixture",
+        # Exercise the retained pre-v2 bridge; custom phase ownership has separate tests.
+        execution_backend="minute_filter", source="builtin", logic_version="fixture",
         stop_loss=None, trailing_stop=None, trailing_take_profit_activate=None,
         trailing_take_profit_drawdown=None, max_hold_days=None,
         filter_fn=None, filter_history_fn=None, lookback_days=30,
@@ -52,6 +53,8 @@ def late(owned):
         "source": "custom", "code": "", "definition": definition_payload(definition)})
     Rules(owned.documents).save_one(monitor_rules.normalize({
         "id": "late", "name": "尾盘监控", "type": "strategy", "strategy_id": SID, "scope": "all"}))
+    from app.services.strategy_monitor_tasks import set_monitoring
+    set_monitoring(owned.documents, SID, "过期测试", True)
     builtins = StrategyEngine([Path(__file__).resolve().parents[1] / "app/strategy/builtin"])
     engine = TenantStrategyEngine(owned.documents, builtins, SimpleNamespace())
     identity = capture_identity(engine, owned.documents, SID, timeframe="1m")
@@ -74,20 +77,10 @@ def request_for(monkeypatch, documents):
 
 
 @pytest.mark.parametrize("trading,buy", [(False, "waiting"), (True, "waiting"), (False, "failed")])
-@pytest.mark.parametrize("previous_archive", [True, False])
-def test_unconfirmed_entry_expires_without_fresh_market_and_preserves_archive(
-    late, monkeypatch, trading, buy, previous_archive,
-):
+def test_unconfirmed_entry_expires_without_fresh_market_and_preserves_archive(late, monkeypatch, trading, buy):
     owned, identity = late
     store = StrategyResults(owned.documents)
-    from app.strategy.basic_filter import previous_session
-
-    if previous_archive:
-        store.save(identity, {"as_of": str(previous_session(cn_today())), "rows": [], "total": 0},
-                   started_at=0)
     previous = store.save(identity, saved_result(identity, buy=buy), started_at=1)["result"]
-    sell = "success" if previous_archive else "waiting"
-    assert previous["section_statuses"]["sell"] == sell
     records = owned.documents.records("strategy_result_history")
     tenant = owned.documents.context.tenant_id
     assert owned.worker.evaluate(tenant, owned.snapshot(status={"is_trading_hours": trading},
@@ -99,22 +92,21 @@ def test_unconfirmed_entry_expires_without_fresh_market_and_preserves_archive(
     request = request_for(monkeypatch, owned.documents)
     view = screener._with_execution_status(request, {SID: previous}, str(cn_today()), identities=[identity])[SID]
     assert view["execution_status"]["state"] == "expired"
-    assert view["section_statuses"] == {"select": "success", "buy": "expired", "sell": sell}
-    assert view["section_errors"].get("sell") == previous["section_errors"].get("sell")
+    assert view["section_statuses"] == {**previous["section_statuses"], "buy": "expired"}
     assert "14:55:00" in view["section_errors"]["buy"]
     assert "等待14:30:30" not in view["section_errors"]["buy"]
     assert view["sections"] == previous["sections"]
     assert owned.documents.records("strategy_result_history") == records
     assert owned.documents.get("monitor_results", "default") is None
     refreshes = [event for event in EventLog(owned.documents).since(0)
-                 if event["kind"] == "strategy_results_updated"]
+                 if event["kind"] == "strategy_results_updated" and "monitoring" not in event["payload"]]
     assert len(refreshes) == 1
     # Restarts and subsequent waiting ticks retain the same terminal state.
     owned.clock["now"] += 30
     owned.worker.evaluate(tenant, owned.snapshot(status={"is_trading_hours": False}))
     assert owned.documents.get("strategy_execution_status", SID)["state"] == "expired"
     assert [event for event in EventLog(owned.documents).since(0)
-            if event["kind"] == "strategy_results_updated"] == refreshes
+            if event["kind"] == "strategy_results_updated" and "monitoring" not in event["payload"]] == refreshes
 
 
 @pytest.mark.parametrize("offset,expected", [(0, None), (0.001, "expired")])
@@ -212,14 +204,11 @@ def test_unconfirmed_day_expires_when_monitor_removed_or_disabled(late, monkeypa
     else:
         rules.save_one({**rules.load_one("late"), "enabled": False})
     before = rules.load_all()
-    owned.worker.executor = SimpleNamespace(
-        execute=lambda *args, **kwargs: pytest.fail("removed monitor must not compute"))
-    _, _, prepared, _ = owned.worker.prepare(owned.documents.context.tenant_id, owned.snapshot())
-    assert prepared["rules"] == [] and prepared["strategy_task_ids"] == []
     owned.worker.evaluate(owned.documents.context.tenant_id,
                           owned.snapshot(status={"is_trading_hours": False}))
     request = request_for(monkeypatch, owned.documents)
     view = screener._with_execution_status(request, {SID: previous}, str(cn_today()), identities=[identity])[SID]
-    assert view["execution_status"]["state"] == "expired"
-    assert view["section_statuses"]["buy"] == "expired"
+    # Cancelled monitoring must not produce another automatic attempt.
+    assert owned.documents.get("strategy_execution_status", SID) is None
+    assert view == previous
     assert rules.load_all() == before

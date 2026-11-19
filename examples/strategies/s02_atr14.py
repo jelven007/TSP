@@ -1,4 +1,4 @@
-"""S02完整分钟示例：预选保存ATR，买入复用前交易日指标。"""
+"""S02完整分钟策略：按前交易日ATR14简单均值/昨收排名。"""
 from datetime import date
 
 import polars as pl
@@ -6,9 +6,9 @@ import polars as pl
 from app.strategy.market_data import get_atr14_sma_reference, previous_session
 
 META = {
-    "id": "s02_atr14_example",
+    "id": "custom_mvxxcp88",
     "result_sections": "signals",
-    "name": "s02 ATR14/昨收示例",
+    "name": "s02 ATR14/昨收",
     "description": "尾盘走强，ATR14/昨收降序，次交易日早盘清仓",
     "tags": ["自定义", "分钟", "隔夜"],
     "asset_types": ["stock"],
@@ -42,7 +42,6 @@ MAX_HOLD_DAYS = None
 
 RULES = """
 当日完整池仅按股票范围与ST/停牌状态形成；流通市值及其他数值只用于策略选股。
-当前覆盖overlay_filter=[]，已取消20日均成交额≥1亿元条件；成交额不决定资格或排名。
 入场沿尾盘走强信号，每只股票保留首次真实触发分钟，返回全部合格命中。
 TR=max(最高-最低, abs(最高-前收), abs(最低-前收))，使用一致复权日线。
 ATR14=截至精确T-1的14个TR简单均值；比率=ATR14/T-1复权收盘，按比率降序。
@@ -52,7 +51,7 @@ ATR在前交易日16:00预选时计算并保存；买入复用已保存指标，
 缺失ATR仍保留买入信号，排在已知ATR之后，指标和排名分数保持未知。
 atr_rank为1起始顺位；score按排名线性映射到0～100分，第一名100、末名0，单只50。
 scoring_mode=strategy由源码固定排名，旧涨幅权重和评分方向不能覆盖。
-出场沿早盘清仓，与排名无关；资金、最多5仓、T+1和成交约束由交易模块执行。
+出场沿早盘清仓，与排名无关。
 """
 
 
@@ -72,21 +71,17 @@ def filter_minute_history(
         ratio = reference.get("atr14_previous_close")
         valid = isinstance(ratio, (int, float)) and 0 <= ratio < float("inf")
         previous = reference.get("reference_close")
-        change = (
-            hit["close"] / previous - 1
-            if isinstance(previous, (int, float)) and 0 < previous < float("inf") else None
-        )
+        change = (hit["close"] / previous - 1
+                  if isinstance(previous, (int, float)) and 0 < previous < float("inf") else None)
         reference_date = reference.get("atr_reference_date") or (selection or {}).get("source_date")
         if isinstance(reference_date, str):
             reference_date = date.fromisoformat(reference_date)
-        rows.append({
-            **hit, "atr14": reference.get("atr14") if valid else None,
-            "atr14_previous_close": ratio if valid else None,
-            "atr_reference_date": reference_date,
-            "change_pct": change,
-            "atr_metric_error": None if valid else
-            reference.get("atr_metric_error") or "前日预选ATR缺失, 保留信号并排在末尾",
-        })
+        rows.append({**hit, "atr14": reference.get("atr14") if valid else None,
+                     "atr14_previous_close": ratio if valid else None,
+                     "atr_reference_date": reference_date,
+                     "change_pct": change,
+                     "atr_metric_error": None if valid else
+                     reference.get("atr_metric_error") or "前日预选ATR缺失, 保留信号并排在末尾"})
     ranked = (pl.DataFrame(rows, infer_schema_length=None) if rows else hits.with_columns(
         pl.lit(None, dtype=pl.Float64).alias("atr14_previous_close"))).sort(
         ["atr14_previous_close", "change_pct", "symbol"] if rows else ["symbol"],
@@ -117,10 +112,8 @@ def enrich_selection(rows, params, *, daily, as_of):
         metrics = get_atr14_sma_reference(daily, symbols, expected)
     except ValueError:
         # Optional display metrics must not discard qualified stocks with a bad window.
-        groups = (
-            daily.filter(pl.col("date").is_in(expected)).partition_by("symbol", as_dict=True)
+        groups = daily.filter(pl.col("date").is_in(expected)).partition_by("symbol", as_dict=True) \
             if daily is not None and {"symbol", "date"} <= set(daily.columns) else {}
-        )
         parts = []
         for symbol in symbols:
             try:

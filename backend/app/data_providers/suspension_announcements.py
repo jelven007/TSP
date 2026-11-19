@@ -32,8 +32,8 @@ def _title(text):
     return re.sub(r"^[^:]{1,12}:", "", compact).replace(":", "")
 
 
-def parse_announcement(symbol, text, *, announced_at, cutoff, source_url):
-    """Only unambiguous own-stock opening events known by the selection cutoff."""
+def parse_announcement(symbol, text, *, announced_at, cutoff, source_url, collect_future=False):
+    """Collect future effective events only for the independent discovery path."""
     if announced_at is None:
         return []
     announced_at, cutoff = _local(announced_at), _local(cutoff)
@@ -53,7 +53,7 @@ def parse_announcement(symbol, text, *, announced_at, cutoff, source_url):
             effective = datetime(*map(int, match.group(1, 2, 3))).date()
         except ValueError:
             continue
-        if effective > cutoff.date():
+        if not collect_future and effective > cutoff.date():
             continue
         suffix = compact[match.end():match.end() + 20]
         if re.match(r"(?:[，,])?(?:一小时|半天|[0-9一二三四五六七八九十]+分钟)", suffix):  # noqa: RUF001
@@ -229,11 +229,131 @@ class AnnouncementLookup:
             raise ValueError("未找到同证券/标题/公告日期的唯一巨潮官方附件")
         return matches[0]
 
+    def market_notices(self, exchange, begin, end, *, checkpoint=None, on_progress=None):
+        """Complete all-market lists, never interpreting a truncated page as coverage."""
+        from app.data_providers.instrument_status import current_a_share_identity
+
+        if exchange not in {"SH", "SZ"}:
+            raise ValueError("不支持的停复牌公告市场")
+        page_size = 100 if exchange == "SH" else 50
+        def page_keys(body):
+            rows = body.get("result" if exchange == "SH" else "data") or []
+            return [((str(row.get("SECURITY_CODE", "")),),
+                     urljoin("https://www.sse.com.cn", row.get("URL", "")))
+                    if exchange == "SH" else
+                    (tuple(row.get("secCode", [])), urljoin("https://www.szse.cn", row.get("attachPath", "")))
+                    for row in rows]
+
+        def total_rows(body):
+            return (body.get("pageHelp") or {}).get("total") if exchange == "SH" else body.get("announceCount")
+
+        def invalid(message):
+            if on_progress:
+                on_progress(None)
+            raise ValueError(message)
+
+        notices, seen, total, first_keys, page = [], set(), None, None, 0
+        if checkpoint:
+            if checkpoint["begin"] != str(begin) or checkpoint["end"] != str(end):
+                raise ValueError("停复牌公告分页断点窗口不符")
+            first = self._market_page(exchange, begin, end, 1)
+            first_keys = [(tuple(codes), url) for codes, url in checkpoint["first_keys"]]
+            if total_rows(first) != checkpoint["total"] or page_keys(first) != first_keys:
+                invalid("全市场公告扫描期间发生变化, 下轮重新扫描")
+            notices, total, page = list(checkpoint["notices"]), checkpoint["total"], checkpoint["page"]
+            seen = {(tuple(codes), url) for codes, url in checkpoint["seen"]}
+        pages = range(page + 1, 65) if total is None or page * page_size < total else ()
+        for page in pages:
+            body = self._market_page(exchange, begin, end, page)
+            rows = body.get("result" if exchange == "SH" else "data")
+            count = total_rows(body)
+            if not isinstance(rows, list) or type(count) is not int or not 0 <= count <= 64 * page_size:
+                invalid("全市场公告分页格式或总量无效")
+            if total is None:
+                total = count
+            if count != total or len(rows) != min(page_size, max(0, total - (page - 1) * page_size)):
+                invalid("全市场公告分页总量变化或缺页, 下轮重新扫描")
+            keys = []
+            for row in rows:
+                if exchange == "SH":
+                    codes = [str(row.get("SECURITY_CODE", ""))]
+                    title, url = row.get("TITLE"), row.get("URL")
+                    formal_date = str(row.get("SSEDATE", ""))[:10]
+                    stamp = row.get("ADDDATE")
+                    try:
+                        stamp = datetime.fromisoformat(stamp)
+                        if stamp.time() == datetime.min.time():
+                            stamp = None
+                    except (TypeError, ValueError):
+                        stamp = None
+                    url = urljoin("https://www.sse.com.cn", url or "")
+                else:
+                    codes = row.get("secCode")
+                    title, url = row.get("title"), row.get("attachPath")
+                    formal_date = str(row.get("publishTime", ""))[:10]
+                    stamp = None
+                    url = urljoin("https://www.szse.cn", url or "")
+                if not isinstance(codes, list) or not isinstance(title, str) or not url.endswith((".PDF", ".pdf")):
+                    invalid("全市场公告记录缺少证券/标题/附件身份")
+                key = (tuple(codes), url)
+                if key in seen:
+                    invalid("全市场公告重复页或重复记录, 下轮重新扫描")
+                seen.add(key)
+                keys.append(key)
+                if not re.search("停牌|复牌", title):
+                    continue
+                datetime.fromisoformat(formal_date)
+                for code in codes:
+                    symbol = f"{code}.{exchange}"
+                    if current_a_share_identity(symbol) is not None:
+                        notices.append({"symbol": symbol, "title": title, "formal_date": formal_date,
+                                        "announced_at": stamp.isoformat() if stamp else None, "url": url})
+            if page == 1:
+                first_keys = keys
+            if on_progress:
+                on_progress({"begin": str(begin), "end": str(end), "page": page,
+                             "total": total, "first_keys": first_keys, "seen": sorted(seen),
+                             "notices": list(notices)})
+            if page * page_size >= total:
+                break
+        if page > 1:
+            check = self._market_page(exchange, begin, end, 1)
+            if total_rows(check) != total or page_keys(check) != first_keys:
+                invalid("全市场公告扫描期间发生变化, 下轮重新扫描")
+        return {"notices": notices, "pages": page, "rows": total}
+
+    def _market_page(self, exchange, begin, end, page):
+        if exchange == "SH":
+            return self._request(
+                "GET", "https://query.sse.com.cn/security/stock/queryCompanyBulletin.do",
+                params={"isPagination": "true", "securityType": "0101,120100,020100",
+                        "beginDate": str(begin), "endDate": str(end), "bulletinType": "L2_ALL",
+                        "pageHelp.pageSize": 100, "pageHelp.pageNo": page,
+                        "pageHelp.beginPage": page, "pageHelp.endPage": page,
+                        "pageHelp.cacheSize": 1}).json()
+        return self._request(
+            "POST", "https://www.szse.cn/api/disc/announcement/annList",
+            headers={"Referer": "https://www.szse.cn/"},
+            json={"seDate": [str(begin), str(end)], "stock": [],
+                  "channelCode": ["listedNotice_disc"], "pageSize": 50, "pageNum": page}).json()
+
+    def verify_notice(self, notice, *, cutoff):
+        notice = dict(notice)
+        if isinstance(notice.get("announced_at"), str):
+            notice["announced_at"] = datetime.fromisoformat(notice["announced_at"])
+        formal = datetime.fromisoformat(notice["formal_date"]).date()
+        return self._resolve_notices(notice["symbol"], [notice], formal - timedelta(days=1),
+                                     formal + timedelta(days=1), cutoff=cutoff, collect_future=True)
+
     def __call__(self, symbol, day, *, cutoff, **kwargs):
         code, exchange = symbol.split(".")
         begin, end = day - timedelta(days=60), day + timedelta(days=1)
         notices = self._sse(code, begin, end) if exchange == "SH" else self._szse(code, begin, end)
-        diagnostics, events = [], []
+        return self._resolve_notices(symbol, notices, begin, end, cutoff=cutoff)
+
+    def _resolve_notices(self, symbol, notices, begin, end, *, cutoff, collect_future=False):
+        code = symbol.split(".")[0]
+        diagnostics, events, deferred = [], [], False
         times = None
         for notice in sorted(notices, key=lambda item: item["formal_date"], reverse=True)[:8]:
             self.check_cancelled()
@@ -244,6 +364,9 @@ class AnnouncementLookup:
                     times = self._public_times(code, min(dated) - timedelta(days=1), max(dated))
                 notice["announced_at"] = times.get((_title(notice["title"]), notice["formal_date"]))
             stamp = notice["announced_at"]
+            if collect_future and stamp is not None and _local(stamp) > _local(cutoff):
+                deferred = True
+                continue
             if stamp is None or _local(stamp) > _local(cutoff):
                 reason = ("未证明实际公开时间" if stamp is None else
                           f"公开时间{stamp.isoformat()}晚于预选截止{cutoff.isoformat()}")
@@ -256,7 +379,8 @@ class AnnouncementLookup:
                 except (ValueError, httpx.HTTPError):
                     url = self._cninfo_alternative(code, notice, begin, end)
                     text = self._pdf(url)
-                parsed = parse_announcement(symbol, text, announced_at=stamp, cutoff=cutoff, source_url=url)
+                parsed = parse_announcement(symbol, text, announced_at=stamp, cutoff=cutoff,
+                                            source_url=url, collect_future=collect_future)
                 events.extend(parsed)
                 if not parsed:
                     diagnostics.append(f'{notice["title"]}: 正文未确认自身全天停复牌生效日')
@@ -264,4 +388,4 @@ class AnnouncementLookup:
                 diagnostics.append(f'{notice["title"]}: {exc}')
         if len(notices) > 8:
             diagnostics.append("公告超过8份附件查证上限")
-        return {"events": events, "diagnostics": diagnostics}
+        return {"events": events, "diagnostics": diagnostics, "deferred": deferred}

@@ -28,7 +28,7 @@ export function Signals() {
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title="信号" subtitle="内置预计算信号与自定义条件信号, 供策略 / 回测 / 监控统一使用" />
+      <PageHeader title="信号指标" subtitle="内置预计算信号与自定义条件信号, 供策略 / 回测 / 监控统一使用" />
       <div className="page-content min-h-0 flex-1 overflow-y-auto">
         <div className="min-w-0">
           <SignalsBody highlight={highlight} />

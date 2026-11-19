@@ -18,7 +18,7 @@ def prepare_daily(panel, repo, *, as_of=None):
     from app.share_capital import apply_historical_float_shares, load_share_history
 
     panel = panel.drop("reference_close", "day_return", "previous_return",
-                       "prev_d_amount20", "previous_row_date", "before_previous_row_date", strict=False)
+                       "previous_row_date", "before_previous_row_date", strict=False)
     if as_of is not None and not panel.is_empty():
         present = panel.filter(pl.col("date") == as_of)["symbol"]
         missing = panel.filter(pl.col("date") < as_of).sort("symbol", "date").group_by(
@@ -96,12 +96,12 @@ def run_momentum(service, config, strategy, values, overrides, *,
         return finish("动量容量策略请通过策略自身参数配置选股、退出、资金和费用")
     repo = service.engine.repo
     try:
-        plan = minute_replay_feature_plan(25, service._effective_basic_filter(strategy, overrides))
+        plan = minute_replay_feature_plan(3, service._effective_basic_filter(strategy, overrides))
         # S02 uses raw prices, not daily limit signals; omit their required columns too.
         plan = replace(plan, base_columns=plan.base_columns - plan.signal_columns,
                        signal_columns=frozenset())
         panel = service.engine.load_panel_for_backtest(
-            None, minute_panel_start(config.start, 25), config.end,
+            None, minute_panel_start(config.start, 3), config.end,
             plan, asset_type="stock")
         if panel.is_empty():
             return finish("缺少回测日线行情")

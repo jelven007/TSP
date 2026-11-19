@@ -1,6 +1,8 @@
 """Task routing keeps ranked candidates and reference configuration stable."""
 import json
 
+import pytest
+
 from app.plugins.rustdx import client
 
 
@@ -61,6 +63,45 @@ def test_task_operations_use_separate_pools_and_minute_foreground():
         assert runtime.pools["history"].calls[-1][0] == "xdxr"
     finally:
         runtime.close()
+
+
+@pytest.mark.parametrize("node_count", [1, 3])
+def test_realtime_prefers_unbound_qualified_node_before_sharing_reference(node_count):
+    from app.plugins.rustdx.routing import TaskRuntime
+
+    class Pool:
+        def __init__(self, size, server, timeout, **options):
+            self.server = server
+            self.options = options
+
+        def quotes_json(self, securities, **options):
+            return json.dumps([{"price": 10.5, "code": securities[0][1]}])
+
+        def close(self):
+            pass
+
+    reference = "127.0.0.2:7709"
+    runtime = TaskRuntime(Pool, connections=8, timeout=2, reference=reference,
+                          ranked_nodes=[reference, "127.0.0.3:7709", "127.0.0.4:7709"][:node_count])
+    try:
+        rows = json.loads(runtime.quotes_json([(0, "000001")]))
+        assert rows == [{"price": 10.5, "code": "000001"}]
+        assert runtime.pools["realtime"].server == (
+            reference if node_count == 1 else "127.0.0.3:7709"
+        )
+        assert runtime.pools["realtime"].options["task_group"] == "realtime"
+        assert runtime._bindings["minute"] == reference
+    finally:
+        runtime.close()
+
+
+def test_realtime_does_not_use_an_unqualified_reference_when_candidates_are_unavailable():
+    from app.plugins.rustdx.routing import TaskRuntime
+
+    runtime = TaskRuntime(None, connections=8, timeout=2, reference="127.0.0.2:7709",
+                          ranked_nodes=[])
+    with pytest.raises(RuntimeError, match="no qualified candidates"):
+        runtime.quotes_json([(0, "000001")])
 
 
 def test_facade_marks_minute_increment_without_requiring_fake_new_keywords(monkeypatch):

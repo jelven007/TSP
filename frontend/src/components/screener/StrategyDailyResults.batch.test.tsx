@@ -21,9 +21,9 @@ async function render(extra: any = {}, props: any = {}) {
   host = document.createElement('div'); document.body.append(host)
   root = createRoot(host); qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const rows = [
-    { symbol: '600003.SH', name: '三', return_1430: .02, prev_d_amount20: 3e8 },
-    { symbol: '600001.SH', name: '一', return_1430: .02, prev_d_amount20: 5e8 },
-    { symbol: '600002.SH', name: '二', return_1430: .03, prev_d_amount20: 4e8 },
+    { symbol: '600003.SH', name: '三', return_1430: .02 },
+    { symbol: '600001.SH', name: '一', return_1430: .02 },
+    { symbol: '600002.SH', name: '二', return_1430: .03 },
   ]
   await act(async () => root.render(<QueryClientProvider client={qc}>
     <StrategyDailyResults result={{ as_of: '2026-07-15', strategy: 's02',
@@ -32,7 +32,7 @@ async function render(extra: any = {}, props: any = {}) {
 }
 function tab(label: string) { return [...document.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(b => b.textContent?.startsWith(label))! }
 function symbols() { return [...document.querySelectorAll('tbody tr')].map(r => r.querySelector('td')?.textContent) }
-it('sorts all selected stocks using the buy limit and preserves code/name detail actions', async () => {
+it('sorts all selected stocks by return and preserves code/name detail actions', async () => {
   const onPreview = vi.fn()
   await render({}, { positionLimit: 2, onPreview })
   await act(async () => tab('选').click())
@@ -47,10 +47,10 @@ it('sorts all selected stocks using the buy limit and preserves code/name detail
     }
   }
 })
-it('uses amount priority when all stocks fit and retains navigation order', async () => {
+it('keeps the same priority when all stocks fit and retains navigation order', async () => {
   await render({}, { positionLimit: 3 })
   await act(async () => tab('选').click())
-  expect(symbols()).toEqual(['600001.SH', '600002.SH', '600003.SH'])
+  expect(symbols()).toEqual(['600002.SH', '600001.SH', '600003.SH'])
   await act(async () => document.querySelector<HTMLButtonElement>('tbody button')!.click())
   expect(calls.preview.navList.map((x: any) => x.symbol)).toEqual(symbols())
 })

@@ -48,7 +48,6 @@ export const QK = {
   // 导致每次都拉 TickFlow 触限流。分时图用固定 refetchInterval 刷新即可。
   minuteBatch:          (symbols: string) => ['minute-batch', symbols] as const,
   instrumentSearch:     (q: string, assetTypes?: string) => ['instrument-search', q, assetTypes ?? 'stock'] as const,
-  instrumentNames:      (symbols: string[]) => ['instrument-names', symbols] as const,
 
   // Screener
   screener:             ['screener'] as const,
@@ -146,9 +145,9 @@ export const QK = {
   paperCorporateActions: (acc: string) => ['paper', 'corporate-actions', acc] as const,
   paperCompare:         ['paper', 'compare'] as const,
   paperAutoRules:       (acc: string) => ['paper', 'auto-rules', acc] as const,
+  alerts:               (source?: string) => ['alerts', source ?? ''] as const,
   alertsAll:            ['alerts'] as const,
   alertsTotal:          ['alerts-total'] as const,
-  alerts:               (source?: string) => ['alerts', source ?? ''] as const,
 
   // AI 大盘复盘
   reviewReports:        ['review-reports'] as const,
@@ -207,7 +206,6 @@ export const KLINE_QUERY_PREFIXES = [
 // 行情由独立公共事件驱动，设置、能力矩阵等静态查询不应被连带刷新。
 export const SSE_EVENT_RESET_ROOTS = new Set([
   'strategy-pool',
-  'paper',
   'alerts',
   'alerts-total',
   'screener-cached',

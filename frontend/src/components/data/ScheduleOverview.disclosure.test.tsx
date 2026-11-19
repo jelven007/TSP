@@ -37,7 +37,7 @@ it('keeps category disclosures independent and preserves expansion when live sch
     expect.stringContaining('基础与完整性'),
     expect.stringContaining('实时行情与快照'),
     expect.stringContaining('K线采集与加工'),
-    expect.stringContaining('财务与能力保障'),
+    expect.stringContaining('晚间维护与能力保障'),
     expect.stringContaining('扩展数据'),
   ])
   expect(groups.every(group => !group.open)).toBe(true)

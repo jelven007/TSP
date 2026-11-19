@@ -261,8 +261,15 @@ class TenantSchedules:
             DailySelections,
             due_window,
             signal_strategy,
+            valid_selection,
         )
-        from app.services.strategy_monitor_tasks import monitored_ids, selection_receipts
+        from app.services.strategy_monitor_tasks import (
+            monitored_ids,
+            pending_selection_repairs,
+            selection_receipts,
+            selection_repairs,
+            task_receipt,
+        )
         from app.services.strategy_results import capture_identities
         from app.strategy.config import list_overrides
         from app.strategy.engine import StrategyEngine
@@ -283,28 +290,37 @@ class TenantSchedules:
             active = monitored_ids(unit)
             ids = [sid for sid, strategy in engine._strategies.items()
                    if sid in active and signal_strategy(strategy) and not strategy.meta.get("research_only")]
-            pending = [sid for sid in ids if store.read(sid, target) is None]
+            from app.services.strategy_monitor_state import finished
+            pending = [sid for sid in ids if store.read(sid, target) is None
+                       and (not expired or not finished(
+                           task_receipt(unit, sid, source).get("tasks", {}).get("select", {})))]
             if not pending:
                 return
             key = str(target)
             previous = store.job(key)
             job = {**previous, "source_date": str(source), "as_of": str(target),
                    "attempts": previous.get("attempts", 0) + 1, "started_at": time.time_ns()}
+            generations = {sid: unit.get("strategy_monitoring", sid)["generation"] for sid in pending}
             if expired:
                 expired_job = {**job, "state": "expired",
                     "errors": {sid: "盘后选股时段已结束, 尚无成功归档" for sid in pending}}
                 store.job(key, expired_job)
                 selection_receipts(unit, expired_job, now)
                 return
-            if str(source) not in snapshot.get("settlement_days", []):
-                waiting = {**job, "state": "waiting_data",
-                    "errors": {sid: f"等待{source}盘后完整数据" for sid in pending}}
-                store.job(key, waiting)
-                selection_receipts(unit, waiting, now)
+            all_pending = set(pending)
+            repairs = {sid: value for sid, value in (previous.get("repairs") or {}).items()
+                       if sid in all_pending}
+            blocked = pending_selection_repairs(self.market, repairs)
+            pending = [sid for sid in pending if sid not in blocked]
+            blocked_errors = {sid: (previous.get("errors") or {}).get(sid, "等待输入修复完成")
+                              for sid in blocked}
+            job["repairs"] = repairs
+            if not pending:
+                store.job(key, {**previous, "repairs": repairs})
                 return
             observed = fingerprint(unit.connection, include_state=False)
             overrides = list_overrides(unit)
-            identities = capture_identities(engine, unit, pending, overrides_map=overrides, timeframe="1m")
+            identities = capture_identities(engine, unit, pending, overrides_map=overrides, timeframe="all")
             release = snapshot.get("public_release", {}).get("id")
             marker = signature({"input": observed, "source_date": str(source), "target": key,
                                 "release": release, "definition_version": DEFINITION_VERSION})
@@ -313,16 +329,43 @@ class TenantSchedules:
             task = engine.task("daily_selections", strategy_ids=pending, source_date=str(source),
                                as_of=key, overrides_map=overrides,
                                **({"public_release_id": release} if release else {}))
+        if str(source) not in snapshot.get("settlement_days", []):
+            errors = {sid: f"等待{source}盘后完整数据" for sid in pending}
+            repairs = {**repairs, **selection_repairs(
+                self.market, repo, context.tenant_id, generations, job, errors,
+                engine=engine, storage=documents, overrides=overrides)}
+            with authorize(self.identity, context, account["auth_version"]), documents.transaction() as unit:
+                valid_claim(unit.connection, claim)
+                if fingerprint(unit.connection, include_state=False) != observed:
+                    raise AccessError(409, "预选配置已更新")
+                waiting = {**job, "state": "waiting_data", "errors": {**blocked_errors, **errors}, "repairs": repairs}
+                DailySelections(unit).job(key, waiting)
+                selection_receipts(unit, waiting, now)
+            return
         try:
             response = self.executor.execute(task)
-        except Exception:
+        except Exception as exc:
+            errors = {sid: str(exc) for sid in pending}
+            repairs = {**repairs, **selection_repairs(
+                self.market, repo, context.tenant_id, generations, job, errors,
+                engine=engine, storage=documents, overrides=overrides)}
             with authorize(self.identity, context, account["auth_version"]), documents.transaction() as unit:
                 valid_claim(unit.connection, claim)
                 failed = {**job, "state": "failed", "finished_at": time.time_ns(),
-                    "errors": {sid: "盘后预选计算暂不可用，将自动重试" for sid in pending}}
+                    "errors": {**blocked_errors, **errors}, "repairs": repairs}
                 DailySelections(unit).job(key, failed)
                 selection_receipts(unit, failed, now)
             return
+        missing = set(pending) - set(response.get("selections", {})) - set(response.get("errors", {}))
+        response["errors"] = {**response.get("errors", {}),
+                             **{sid: "盘后预选结果缺失，将自动重试" for sid in missing}}
+        for sid, selected in list(response.get("selections", {}).items()):
+            if sid in pending and (sid in response["errors"] or not valid_selection(selected, target)):
+                response["errors"].setdefault(sid, "盘后预选证据异常, 需要修复重试")
+                del response["selections"][sid]
+        repairs = {**repairs, **selection_repairs(
+            self.market, repo, context.tenant_id, generations, job, response["errors"],
+            engine=engine, storage=documents, overrides=overrides)}
         rejected = None
         with authorize(self.identity, context, account["auth_version"]), documents.transaction() as unit:
             valid_claim(unit.connection, claim)
@@ -335,18 +378,19 @@ class TenantSchedules:
                 store.job(key, {**job, "state": "failed", "finished_at": time.time_ns(),
                                "errors": {sid: str(rejected) for sid in pending}})
             else:
-                completed = set(ids) - set(pending)
+                completed = set(ids) - all_pending
                 for sid, selected in response.get("selections", {}).items():
                     if sid not in pending or selected.get("as_of") != key or selected.get("source_date") != str(source):
                         raise ValueError("盘后预选结果日期或策略不匹配")
                     store.save(identities[sid], selected, started_at=job["started_at"],
                                input_generation={"public_release_id": release, "signature": marker})
                     completed.add(sid)
-                errors = {**response.get("errors", {}),
+                errors = {**blocked_errors, **response.get("errors", {}),
                           **{sid: "盘后预选结果缺失，将自动重试" for sid in set(pending) - completed
                              - set(response.get("errors", {}))}}
                 finished = {**job, "state": "failed" if errors else "succeeded",
-                               "completed": sorted(completed), "errors": errors, "finished_at": time.time_ns()}
+                               "completed": sorted(completed), "errors": errors, "finished_at": time.time_ns(),
+                               "repairs": repairs, "selections": response.get("selections", {})}
                 store.job(key, finished)
                 selection_receipts(unit, finished, commit_now)
                 append_event(unit.connection, documents.context.tenant_id, "strategy_results_updated",
@@ -379,10 +423,8 @@ class TenantSchedules:
                 await asyncio.to_thread(self.health.record, progress=False)
 
         async def work():
-            from app.multitenancy.critical_schedule import check_completion, reconcile
-
-            await asyncio.to_thread(reconcile, self.runtime, documents, claim)
-            await asyncio.to_thread(check_completion, self.runtime, documents, claim, now=now)
+            from app.services.strategy_monitor_tasks import retire_legacy
+            await asyncio.to_thread(retire_legacy, documents)
             await asyncio.to_thread(self.daily_selections, documents, snapshot, repo, now, claim)
             if self.db.settings.schema_version >= 7:
                 await asyncio.to_thread(self.daily_pools, documents, snapshot, repo, now, claim)
@@ -428,6 +470,7 @@ async def run(db, market, stopped):
 
     schedules = TenantSchedules(db, market)
     try:
+        await asyncio.to_thread(schedules.scheduler.resume_scheduled)
         while not stopped.is_set():
             claims = await asyncio.to_thread(
                 schedules.scheduler.claim, "scheduled", db.settings.worker_concurrency,

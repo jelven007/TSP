@@ -92,9 +92,13 @@ def create_entry(data, rule, event, repo, now, account_id=paper.DEFAULT_ACCOUNT_
         if signal.date() != now.date() or not signal <= available <= now:
             raise ValueError("S02信号时钟无效")
         start = _ceil_minute(max(signal + timedelta(minutes=1), available))
-        window = expected_trading_minutes(start)
-        if not window or now > window[-1] or now.time() > time(14, 55):
-            raise ValueError("S02新入场或五分钟成交窗口已截止")
+        entry_definition = policy.get("entry_definition")
+        from app.strategy.late_session_strength import execution_end
+        end_at = (execution_end(entry_definition, now.date()) if entry_definition
+                  else expected_trading_minutes(start)[-1])
+        window = tuple(moment for moment in expected_trading_minutes(start, count=240) if moment <= end_at)
+        if not window or now > end_at or now.time() > time(14, 55):
+            raise ValueError("S02新入场或买入结束时间已截止")
         sig = policy.get("exit_definition")
         if not isinstance(sig, dict) or sig.get("template") != morning_liquidation.TEMPLATE:
             raise ValueError("缺少S02早盘清仓定义")
@@ -127,7 +131,7 @@ def create_entry(data, rule, event, repo, now, account_id=paper.DEFAULT_ACCOUNT_
         if order is None:
             return None, error
         order["strategy_execution"] = {
-            "mode": MODE, "start_at": start.isoformat(), "end_at": window[-1].isoformat(),
+            "mode": MODE, "start_at": start.isoformat(), "end_at": end_at.isoformat(),
             "not_before": _ceil_minute(now).isoformat(), "budget": amount,
             "prior_close": prior, "costs": _cost_snapshot(acc), "target_fixed": False,
             "rule_signature": [rule["match_id"], rule["side"], rule["execution_mode"]],
@@ -211,31 +215,19 @@ def _commit(data, order, moment, qty, price, fee, account_id):
 
 def _buy(data, order, frame, now, account_id):
     meta = order["strategy_execution"]
-    if now.replace(second=0, microsecond=0) > _clock(meta["end_at"]):
-        order.update(status="cancelled", reason=f"S02五分钟窗口结束, 撤销余量{paper.remaining_qty(order)}股")
+    if now > _clock(meta["end_at"]):
+        order.update(status="cancelled", reason=f"S02买入结束时间已到, 撤销余量{paper.remaining_qty(order)}股")
         paper.save_order(data, order, account_id)
         return
     start, not_before = _clock(meta["start_at"]), _clock(meta["not_before"])
     matcher = matcher_for_account(meta["costs"])
-    eligible = frame.filter((pl.col("symbol") == order["symbol"]) & (pl.col("datetime") >= not_before))
-    available = set(eligible["datetime"])
-    through = None
-    # A wall-clock poll proves no bar was received. Only an observed contiguous
-    # prefix can advance the checkpoint without treating normal latency as a revision.
-    for moment in expected_trading_minutes(start):
-        if moment < not_before:
-            continue
-        if moment > now or moment not in available:
-            meta["waiting_for_minute"] = moment.isoformat()
-            break
-        meta.pop("waiting_for_minute", None)
-        through = moment
-    eligible = eligible.head(0) if through is None else eligible.filter(pl.col("datetime") <= through)
+    eligible = frame.filter(pl.col("datetime") >= not_before)
     plan = execute_entry_window(
         eligible, symbol=order["symbol"], start_at=start, prior_close=meta["prior_close"],
         budget=meta["budget"],
         size_order=lambda price: order["qty"] if meta["target_fixed"] else matcher.buy_quantity(meta["budget"], price, order["symbol"]),
         buy_value=matcher.buy_value,
+        end_at=_clock(meta["end_at"]),
     )
     existing = _sync(data, order, account_id)
     if not meta["target_fixed"] and plan.target_shares:
@@ -259,24 +251,22 @@ def _buy(data, order, frame, now, account_id):
         if not _commit(data, order, fragment.datetime, fragment.shares, fragment.price, fragment.fee, account_id):
             paper._expire(data, order, "S02买入资金或仓位校验失败, 保留实际成交", account_id)
             return
-    if through is not None:
-        meta["processed_through"] = through.isoformat()
+    meta["processed_through"] = min(now, _clock(meta["end_at"])).isoformat()
     paper.save_order(data, order, account_id)
-    if through == _clock(meta["end_at"]) and order["status"] == "pending":
-        order.update(status="cancelled", reason=f"S02五分钟窗口结束, 撤销余量{paper.remaining_qty(order)}股")
+    if now >= _clock(meta["end_at"]) and order["status"] == "pending":
+        order.update(status="cancelled", reason=f"S02买入结束时间已到, 撤销余量{paper.remaining_qty(order)}股")
         paper.save_order(data, order, account_id)
 
 
 def _sell(data, order, frame, now, account_id):
     meta = order["strategy_execution"]
-    if now.replace(second=0, microsecond=0) > _clock(meta["end_at"]):
-        missing = f", 缺失分钟{meta['waiting_for_minute']}" if meta.get("waiting_for_minute") else ""
-        paper._expire(data, order, f"S02清仓截止后仍有余股{paper.remaining_qty(order)}股{missing}, 保留实际成交和持仓", account_id)
+    if now >= _clock(meta["end_at"]):
+        paper._expire(data, order, f"S02清仓截止后仍有余股{paper.remaining_qty(order)}股, 保留实际成交和持仓", account_id)
         return
     existing = _sync(data, order, account_id)
     rows = frame.filter(
         (pl.col("symbol") == order["symbol"]) & (pl.col("datetime") >= _clock(meta["not_before"]))
-        & (pl.col("datetime") <= _clock(meta["end_at"]))
+        & (pl.col("datetime") < _clock(meta["end_at"]))
     )
     if rows["datetime"].n_unique() != rows.height:
         raise ValueError("S02清仓成交窗口含重复分钟")
@@ -292,9 +282,7 @@ def _sell(data, order, frame, now, account_id):
         if next_at.time() == time(11, 31):
             next_at = datetime.combine(now.date(), time(13, 1))
         if moment != next_at:
-            meta["waiting_for_minute"] = next_at.isoformat()
-            break
-        meta.pop("waiting_for_minute", None)
+            raise ValueError("S02清仓成交窗口缺失分钟")
         meta["processed_through"] = moment.isoformat()
         next_at = moment + timedelta(minutes=1)
         price, volume = row["close"], row["volume"]
@@ -312,9 +300,8 @@ def _sell(data, order, frame, now, account_id):
         else:
             raise ValueError("S02清仓可卖量或公司行为校验失败")
     paper.save_order(data, order, account_id)
-    if now.replace(second=0, microsecond=0) >= _clock(meta["end_at"]) and order["status"] == "pending":
-        missing = f", 缺失分钟{meta['waiting_for_minute']}" if meta.get("waiting_for_minute") else ""
-        paper._expire(data, order, f"S02清仓截止后仍有余股{paper.remaining_qty(order)}股{missing}, 保留实际成交和持仓", account_id)
+    if now >= _clock(meta["end_at"]) and order["status"] == "pending":
+        paper._expire(data, order, f"S02清仓截止后仍有余股{paper.remaining_qty(order)}股, 保留实际成交和持仓", account_id)
 
 
 @paper_operation(write=True)
@@ -366,8 +353,11 @@ def advance(data, repo, now, account_id=paper.DEFAULT_ACCOUNT_ID):
                     continue
                 exit_params = morning_liquidation.parameters(policy["exit_definition"])
                 # 委托有效期独立于模板时钟; 不回填已停用的兜底参数。
-                execution_end = exit_params.get("fallback_time") or exit_params.get("time") or "11:30:00"
+                execution_end = exit_params.get("fallback_time") or (
+                    exit_params["time"] if "amplitude_pct" in exit_params else "15:00:00")
                 deadline = time(15) if hit["reason"] == "resume" else time.fromisoformat(execution_end)
+                if now >= datetime.combine(now.date(), deadline):
+                    continue
                 order, error = paper.create_order(
                     data, symbol, "sell", account_id=account_id,
                     qty=paper._available_of(pos, str(now.date())), order_type="market",

@@ -32,7 +32,7 @@ from app.strategy import paper, paper_auto
 
 logger = logging.getLogger(__name__)
 INPUT_NAMESPACES = ("strategy_sources", "strategy_overrides", "custom_factors", "custom_signals",
-                    "monitor_runtime", "strategy_monitoring", "critical_strategy_schedule")
+                    "monitor_runtime", "strategy_monitoring")
 
 
 def fingerprint(conn, *, include_state=True):
@@ -86,9 +86,18 @@ class FullWorker:
     def prepare(self, tenant_id, snapshot, claim=None):
         account, context = self.account(tenant_id)
         documents = TenantDocuments(self.db, context)
-        from app.multitenancy.critical_schedule import reconcile
+        from app.services.strategy_monitor_tasks import retire_legacy
 
-        reconcile(self, documents, claim)
+        retire_legacy(documents)
+        for saved in documents.records("strategy_monitoring"):
+            state = saved["value"]
+            if not state.get("repair_cancel_pending"):
+                continue
+            try:
+                self.market.cancel_monitor_repair(tenant_id, saved["id"], state["generation"])
+                documents.put("strategy_monitoring", saved["id"], {**state, "repair_cancel_pending": False})
+            except Exception:
+                logger.warning("cancelled monitor input repair awaiting platform acknowledgement")
         with authorize(self.identity, context, account["auth_version"]), documents.transaction(write=False) as unit:
             conn = unit.connection
             definitions = conn.execute(
@@ -97,7 +106,9 @@ class FullWorker:
             rules = []
             for row in definitions:
                 sid = row["definition"].get("strategy_id")
-                if sid and unit.get("strategy_monitoring", sid, {}).get("enabled") is False:
+                if (sid and row["definition"].get("type") == "strategy"
+                        and not row["definition"].get("lot_id")
+                        and unit.get("strategy_monitoring", sid, {}).get("enabled") is not True):
                     continue
                 execution = row["definition"].get("_execution", {})
                 if (execution.get("policy_version") != context.policy_version
@@ -150,11 +161,7 @@ class FullWorker:
                     payload["overrides"].get(sid, {}).get("exit_signals", source_exits.get(sid, [])) or [],
                 ))
             }
-            from app.services.strategy_results import (
-                StrategyResults,
-                capture_identity,
-                previous_daily_state,
-            )
+            from app.services.strategy_results import capture_identity, previous_daily_state
             payload["previous_states"] = {}
             payload["daily_identities"] = {}
             payload["entry_deadlines"] = {}
@@ -165,6 +172,10 @@ class FullWorker:
             payload["late_task_scopes"] = {}
             payload["strategy_task_windows"] = {}
             payload["strategy_task_ids"] = []
+            payload["strategy_task_receipts"] = {}
+            payload["strategy_task_plans"] = {}
+            payload["strategy_task_generations"] = {}
+            payload["strategy_task_results"] = (unit.get("monitor_results", "default") or {}).get("results", {})
             payload["sell_rosters"] = {}
             from app.services.daily_selections import DailySelections
             payload["selection_snapshots"] = {
@@ -188,9 +199,13 @@ class FullWorker:
                 catalog._user_data_dir = lambda: unit
                 from app.strategy.engine import StrategyDataContext
                 from app.strategy.late_session_strength import (
-                    entry_deadline,
                     next_task_time,
-                    pending_evaluation_time,
+                )
+                from app.strategy.signal_sections import (
+                    live_entry_deadline as entry_deadline,
+                )
+                from app.strategy.signal_sections import (
+                    pending_entry_time as pending_evaluation_time,
                 )
                 from app.strategy.version import runtime_identity
 
@@ -229,29 +244,54 @@ class FullWorker:
                             catalog, unit, sid, overrides=payload["overrides"].get(sid),
                             timeframe=(catalog.get(sid).meta.get("timeframes") or ["1d"])[0]))
                         strategy = catalog.get(sid)
+                        from app.market_time import published_trading_day
+                        from app.services.strategy_monitor_state import CONTRACT, plan
                         from app.services.strategy_monitor_tasks import (
-                            next_task_check,
                             sell_roster,
+                            task_receipt,
                             task_windows,
-                            window_state,
                         )
-                        from app.strategy.signal_sections import supports_signal_sections
                         if (sid in {r.get("strategy_id") for r in rules}
-                                and strategy.source in ("custom", "ai") and supports_signal_sections(strategy)):
+                                and strategy.source in ("custom", "ai")):
+                            from app.strategy.daily_pool import DEFINITION_VERSION
+                            pool = payload["daily_pool_snapshots"].get(sid) or {}
+                            if pool.get("definition_version") != DEFINITION_VERSION:
+                                from app.services.strategy_monitor_tasks import trusted_scope
+                                try:
+                                    pool = trusted_scope(catalog, self.repo, unit, sid, cn_today(),
+                                                         payload["overrides"].get(sid))
+                                    from app.services.daily_stock_pools import DailyStockPools
+                                    from app.services.strategy_results import ResultIdentity
+                                    identity = ResultIdentity(**payload["daily_identities"][sid])
+                                    payload["daily_pool_snapshots"][sid] = DailyStockPools(unit).save(
+                                        identity, pool, started_at=time.time_ns())
+                                except Exception as exc:
+                                    payload["daily_pool_snapshots"][sid] = {"error": str(exc)}
                             try:
                                 windows = task_windows(catalog, strategy, payload["overrides"].get(sid) or {})
                             except ValueError:
                                 windows = {"buy": [], "sell": []}
                             payload["strategy_task_windows"][sid] = windows
-                            next_at = next_task_check(
-                                windows, deadline_context.observed_at,
-                                interval=self.db.settings.realtime_interval).isoformat()
-                            if payload["next_evaluation_at"] is None or next_at < payload["next_evaluation_at"]:
+                            saved = task_receipt(unit, sid, cn_today())
+                            if (saved.get("contract") != CONTRACT or saved.get("runtime_identity") !=
+                                    payload["daily_identities"][sid]["runtime_identity"]):
+                                saved = {}
+                            payload["strategy_task_receipts"][sid] = saved
+                            payload["strategy_task_generations"][sid] = unit.get("strategy_monitoring", sid)["generation"]
+                            planning = plan(windows, saved.get("tasks", {}), deadline_context.observed_at,
+                                            trading=published_trading_day(cn_today()))
+                            from app.services.strategy_monitor_tasks import wait_for_repairs
+                            wait_for_repairs(planning, saved, self.market)
+                            payload["strategy_task_plans"][sid] = planning
+                            next_at = planning["next_at"]
+                            if next_at and (payload["next_evaluation_at"] is None or next_at < payload["next_evaluation_at"]):
                                 payload["next_evaluation_at"] = next_at
                             payload["sell_rosters"][sid] = sell_roster(unit, sid, cn_today())
-                            if any(window_state(windows, kind, deadline_context.observed_at) == "running"
-                                   for kind in ("buy", "sell")):
+                            if planning["actions"]:
                                 payload["strategy_task_ids"].append(sid)
+                            # New custom monitoring is driven solely by the dated phase planner.
+                            payload["late_task_scopes"][sid] = f"{sid}:{runtime_identity(strategy, payload['overrides'].get(sid) or {})}"
+                            continue
                         if strategy.execution_backend == "minute_filter":
                             end = entry_deadline(catalog, catalog.get(sid),
                                                  payload["overrides"].get(sid), deadline_context,
@@ -284,31 +324,6 @@ class FullWorker:
                                         payload["late_task_at"] = next_at
                                     if sid not in payload["late_task_strategy_ids"]:
                                         payload["late_task_strategy_ids"].append(sid)
-                        from app.strategy.s01_signals import next_entry_evaluation_time
-
-                        s01_pending = next_entry_evaluation_time(
-                            catalog, strategy, payload["overrides"].get(sid), deadline_context)
-                        if s01_pending is not None:
-                            s01_pending = as_cn_datetime(s01_pending).isoformat()
-                            if payload["next_evaluation_at"] is None or s01_pending < payload["next_evaluation_at"]:
-                                payload["next_evaluation_at"] = s01_pending
-                # Removing an ordinary rule stops computation, but a saved
-                # unconfirmed day still needs its terminal deadline receipt.
-                for sid, strategy in catalog._strategies.items():
-                    if (sid in payload["daily_identities"] or strategy.execution_backend != "minute_filter"
-                            or unit.get("strategy_monitoring", sid, {}).get("enabled") is False
-                            or not late_columns.intersection(catalog._effective_signals(
-                                payload["overrides"].get(sid, {}), "entry_signals", strategy.entry_signals))):
-                        continue
-                    identity = capture_identity(catalog, unit, sid, overrides=payload["overrides"].get(sid),
-                                                timeframe="1m")
-                    if StrategyResults(unit).read(identity, str(cn_today())) is None:
-                        continue
-                    end = entry_deadline(catalog, strategy, payload["overrides"].get(sid),
-                                         deadline_context, expired_only=False)
-                    if end is not None:
-                        payload["daily_identities"][sid] = asdict(identity)
-                        payload["entry_deadlines"][sid] = end.isoformat()
             for sid in {r.get("strategy_id") for r in rules} & {"s02"}:
                 try:
                     payload["previous_states"][sid] = previous_daily_state(unit, sid, cn_today())
@@ -401,6 +416,19 @@ class FullWorker:
                     and as_cn_datetime(datetime.fromisoformat(payload["late_task_at"])).timestamp() <= now)
         task_due = task_due or bool(payload.get("strategy_task_ids"))
         result = None
+        # Custom strategy jobs never enter quote-driven monitor evaluation.
+        custom_ids = set(payload.get("strategy_task_windows", {}))
+        regular = [r for r in payload["rules"] if r.get("strategy_id") not in custom_ids]
+        if payload.get("strategy_task_ids"):
+            payload["evaluation_started_at"] = now
+            from app.multitenancy.monitor_compute import evaluate_strategy_phases
+            result = evaluate_strategy_phases(payload, self.repo, self.executor)
+            from app.services.strategy_monitor_tasks import request_phase_repairs
+            request_phase_repairs(payload, result["results"], self.market, cn_now())
+        payload["rules"] = regular + [r for r in payload["rules"] if r.get("strategy_id") in
+                                    payload.get("strategy_task_ids", [])]
+        original_rules = payload["rules"]
+        payload["rules"] = regular
         if ((fresh and changed) or task_due) and payload["rules"]:
             payload["evaluation_started_at"] = now
             payload["late_task_only"] = task_due and not fresh
@@ -410,12 +438,34 @@ class FullWorker:
                     timer = threading.Timer(self.db.settings.worker_timeout, cancelled.set)
                     timer.start()
                     try:
-                        result = self.executor.execute(payload, cancel=cancelled)
+                        try:
+                            ordinary_result = self.executor.execute(payload, cancel=cancelled)
+                        except Exception as exc:
+                            if result is None:
+                                raise
+                            logger.exception("ordinary monitor failed; completed custom phases retained")
+                            ordinary_result = {
+                                "results": {}, "execution_events": [],
+                                "state": {**payload["state"], "ordinary_compute_error": str(exc)},
+                                "events": [{"type": "monitor_calculation_failed", "source": "system",
+                                    "severity": "warning", "ts": int(now * 1000),
+                                    "message": f"普通监控计算失败: {exc}; 已完成策略阶段保留"}],
+                            }
                     finally:
                         timer.cancel()
                 else:
                     # Built-in expressions use the explicit group snapshot.
-                    result = evaluate_snapshot({**payload, "signals": []}, self.repo)
+                    ordinary_result = evaluate_snapshot({**payload, "signals": []}, self.repo)
+            if result is None:
+                result = ordinary_result
+            else:
+                result["events"].extend(ordinary_result["events"])
+                result["execution_events"].extend(ordinary_result.get("execution_events", []))
+                result["results"].update(ordinary_result["results"])
+                custom_tasks = result["state"].get("engine", {}).get("late_session_tasks", {})
+                result["state"] = ordinary_result["state"]
+                result["state"].setdefault("engine", {})["late_session_tasks"] = custom_tasks
+        payload["rules"] = original_rules
         computed, computed_at = time.perf_counter(), time.time()
         release = snapshot.get("public_release") or {}
         latency = {
@@ -451,6 +501,9 @@ class FullWorker:
                     )
                     from app.services.strategy_monitor_tasks import fence_tasks
                     for sid, daily in result["results"].items():
+                        if sid in payload.get("strategy_task_generations", {}):
+                            from app.services.strategy_monitor_tasks import assert_generation
+                            assert_generation(unit, sid, payload["strategy_task_generations"][sid])
                         rejected = fence_tasks(
                             daily, payload.get("strategy_task_windows", {}).get(sid, {}),
                             datetime.fromtimestamp(time.time(), UTC))
@@ -494,6 +547,7 @@ class FullWorker:
                             if (sid in payload.get("daily_identities", {})
                                     and ((result_status(daily)["state"] == "success"
                                           and not daily.get("showing_last_success"))
+                                         or daily.get("monitor_contract") == "strategy_monitor_v2"
                                          or (daily.get("monitor_tasks") or {}).get("sell", {}).get("state")
                                          in ("success", "failed"))):
                                 record = ResultIdentity(**payload["daily_identities"][sid])
@@ -505,24 +559,22 @@ class FullWorker:
                                     DailyStockPools(unit).save(record, daily["daily_stock_pool"],
                                         started_at=sequence * 1000000)
                             if daily.get("monitor_tasks"):
+                                from app.services.strategy_monitor_state import CONTRACT
                                 unit.put("strategy_monitor_task_runs", f"{sid}:{daily['as_of']}", {
                                     "as_of": daily["as_of"], "strategy_id": sid,
                                     "tasks": daily["monitor_tasks"], "updated_at": int(now * 1000),
+                                    "contract": CONTRACT, "runtime_identity": daily.get("runtime_identity"),
+                                    "generation": payload.get("strategy_task_generations", {}).get(sid),
                                 })
-                            from app.multitenancy.critical_schedule import record_completion
-
-                            record_completion(
-                                unit, sid, daily, now=datetime.fromtimestamp(time.time(), UTC),
-                                fingerprint=fingerprint(conn, include_state=False),
-                            )
                             result["results"][sid] = merge_result(previous_results.get(sid), daily)
                             # Timings describe the current attempt and stay out of the archive.
                             result["results"][sid]["latency"] = latency
                         unit.put("monitor_results", "default", {
-                            "sequence": sequence, "results": result["results"],
+                            "sequence": sequence, "results": {**previous_results, **result["results"]},
                             "fingerprint": fingerprint(conn, include_state=False),
                         })
-                        append_event(conn, tenant_id, "strategy_results_updated", {"ts": int(now * 1000)})
+                        append_event(conn, tenant_id, "strategy_results_updated", {
+                            "ts": int(now * 1000), "strategy_ids": sorted(result["results"])})
                 from app.market_time import CN_TZ
                 from app.services.strategy_results import ResultIdentity, StrategyResults
                 from app.strategy.execution_status import status, successful_zero_receipt

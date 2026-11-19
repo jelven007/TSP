@@ -27,6 +27,29 @@ const preferences = {
 } as const
 
 describe('buildDataScheduleItems', () => {
+  it('shows both evening maintenance tasks at Beijing 21:00 with the automatic switch', () => {
+    for (const enabled of [true, false]) {
+      const items = buildDataScheduleItems({
+        preferences: { data_sync_auto_enabled: enabled },
+        financialAvailable: true,
+        depthAvailable: true,
+        extConfigs: [],
+      })
+      expect(items.find(item => item.id === 'financial-metrics')).toMatchObject({
+        label: '财务数据',
+        detail: expect.stringContaining('财务指标、利润表、资产负债表、现金流量表和历史股本'),
+        schedule: '每天 21:00（北京时间）',
+        state: enabled ? 'enabled' : 'disabled',
+      })
+      expect(items.find(item => item.id === 'related-market-data')).toMatchObject({
+        label: '相关市场数据维护',
+        detail: expect.stringContaining('资金流、公告索引和历史ST状态'),
+        schedule: '每天 21:00（北京时间）',
+        state: enabled ? 'enabled' : 'disabled',
+      })
+    }
+  })
+
   it('classifies each data task once and reports its automatic collection cycle', () => {
     const items = buildDataScheduleItems({
       preferences,
@@ -63,6 +86,7 @@ describe('buildDataScheduleItems', () => {
       'daily-pipeline',
       'depth',
       'financial-metrics',
+      'related-market-data',
       'capability-reprobe',
       'ext:concept',
       'ext:industry',
@@ -81,6 +105,7 @@ describe('buildDataScheduleItems', () => {
       'kline',
       'kline',
       'market',
+      'maintenance',
       'maintenance',
       'maintenance',
       'extension',
@@ -118,7 +143,7 @@ describe('buildDataScheduleItems', () => {
     expect(items.filter(item => item.category === 'kline').at(-1)).toMatchObject({
       id: 'daily-pipeline', label: '盘后数据管理', schedule: '启动后 · 交易日 15:35', state: 'enabled',
     })
-    expect(items.find(item => item.id === 'financial-metrics')?.label).toBe('财务指标')
+    expect(items.find(item => item.id === 'financial-metrics')?.label).toBe('财务数据')
     expect(items.find(item => item.id === 'capability-reprobe')?.label).toBe('数据源能力')
   })
 

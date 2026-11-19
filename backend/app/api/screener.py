@@ -354,20 +354,26 @@ def _history_payload(request, as_of, asset_type, timeframe, *, strategy_id=None,
     )
     day = str(as_of)
     engine = _strategy_engine(request)
+    from app.services.daily_selections import signal_strategy
+
     signal_ids = {
         identity.strategy_id for identity in identities
-        if engine.get(identity.strategy_id).meta.get("result_sections") == "signals"
+        if signal_strategy(engine.get(identity.strategy_id))
     }
     summaries = store.summaries(identities, day, signal_strategy_ids=signal_ids)
     from app.market_time import cn_today
     realtime = {}
     if day == str(cn_today()):
         if store.tenant:
-            from app.multitenancy.runtime import fingerprint
             with store.storage.transaction(write=False) as unit:
+                from app.multitenancy.runtime import fingerprint
                 live = strategy_results.StrategyResults(unit).monitor_snapshot(now_ms=time.time() * 1000)
-                if live and live["fingerprint"] == fingerprint(unit.connection, include_state=False):
+                if live and live.get("fingerprint") == fingerprint(unit.connection, include_state=False):
                     realtime = live["results"]
+                else:
+                    live = unit.get("monitor_results", "default")
+                    if live:
+                        realtime = _guarded_live_results(unit, live, day)
         else:
             monitor = getattr(request.app.state, "monitor_engine", None)
             if monitor is not None:
@@ -444,6 +450,10 @@ def _with_execution_status(request, results, day, *, identities=()):
         for sid in set(output) | {identity.strategy_id for identity in identities}:
             expected = next((item.runtime_identity for item in identities if item.strategy_id == sid), None)
             previous = output.get(sid)
+            from app.services.strategy_monitor_state import CONTRACT
+            if (previous and previous.get("monitor_contract") == CONTRACT
+                    and (not expected or previous.get("runtime_identity") == expected)):
+                continue
             if previous and (not expected or previous.get("runtime_identity") == expected):
                 completed = with_zero_completion(
                     previous, unit.get("critical_strategy_runs", f"{sid}:{day}", {}), sid,
@@ -468,7 +478,7 @@ def _with_execution_status(request, results, day, *, identities=()):
                 continue
             if previous is None or previous.get("as_of") != day:
                 continue
-            # The dated review is independent of the original expired live attempt.
+            # A saved review describes the dated data, while the original live attempt remains expired.
             if (attempt.get("state") == "expired"
                     and (previous.get("repair_provenance") or {}).get("kind") == "post_close_signal_review_v1"
                     and previous.get("runtime_identity") == expected
@@ -482,6 +492,19 @@ def _with_execution_status(request, results, day, *, identities=()):
                 current_result["entry_deadline_at"] = attempt.get("entry_deadline_at")
             output[sid] = merge_result(previous, current_result)
     return output
+
+
+def _guarded_live_results(unit, live, day):
+    """Dated monitor receipts outlive quote freshness; ordinary live views do not."""
+    import time
+
+    from app.multitenancy.runtime import fingerprint
+    from app.services.strategy_monitor_state import CONTRACT
+    fresh = (live.get("fingerprint") == fingerprint(unit.connection, include_state=False)
+             and 0 <= time.time() * 1000 - live.get("sequence", 0) < 30_000)
+    return {sid: value for sid, value in live.get("results", {}).items()
+            if value.get("as_of") == day
+            and (fresh or value.get("monitor_contract") == CONTRACT)}
 
 
 @router.get("/result-history/{strategy_id}")
@@ -577,15 +600,21 @@ def _cached_with_realtime(request: Request) -> dict:
         cached = {"as_of": None, "results": {}, "updated_at": None}
 
     if isinstance(data_dir, TenantDocuments):
-        from app.multitenancy.runtime import fingerprint
-
         with data_dir.transaction(write=False) as unit:
+            from app.multitenancy.runtime import fingerprint
+
             realtime = strategy_results.StrategyResults(unit).monitor_snapshot(now_ms=time.time() * 1000)
-            if realtime and realtime["fingerprint"] == fingerprint(unit.connection, include_state=False):
-                cached = {**cached, "results": {**cached["results"], **realtime["results"]},
+            if realtime and realtime.get("fingerprint") == fingerprint(unit.connection, include_state=False):
+                results = realtime["results"]
+            else:
+                realtime = unit.get("monitor_results", "default")
+                from app.market_time import cn_today
+                results = _guarded_live_results(unit, realtime, str(cn_today())) if realtime else {}
+            if realtime:
+                cached = {**cached, "results": {**cached["results"], **results},
                           "updated_at": realtime["sequence"],
                           "as_of": cached["as_of"] or max(
-                              (value.get("as_of") for value in realtime["results"].values() if value.get("as_of")),
+                              (value.get("as_of") for value in results.values() if value.get("as_of")),
                               default=None,
                           )}
         return {**cached, "results": _with_execution_status(request, cached["results"], cached["as_of"])}
@@ -717,6 +746,9 @@ def get_cached_result(
         "state": raw_result.get("state"),
         "portfolio_scope": raw_result.get("portfolio_scope"),
         "execution_error": raw_result.get("execution_error"),
+        "monitor_contract": raw_result.get("monitor_contract"),
+        "monitor_tasks": raw_result.get("monitor_tasks"),
+        "monitor_executed_signals": raw_result.get("monitor_executed_signals"),
     }
 
     ever_rows = None

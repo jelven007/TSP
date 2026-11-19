@@ -196,7 +196,7 @@ def test_candidate_uses_saved_source_with_only_explicit_section_opt_in():
     import ast
 
     root = Path(__file__).resolve().parents[2]
-    saved = ast.parse((Path(__file__).parent / "fixtures" / "s01_available_minutes.py").read_text())
+    saved = ast.parse((root / "backend/tests/fixtures/s01_available_minutes.py").read_text())
     candidate = ast.parse((root / "examples/strategies/s01_signal_sections.py").read_text())
     assignment = candidate.body.pop()
     assert ast.unparse(assignment) == "META['result_sections'] = 'signals'"
@@ -225,7 +225,7 @@ def test_saved_candidate_freezes_previous_session_and_confirms_available_minutes
         get_daily_close_inputs=lambda *_: (ctx.current, ctx.current.select("symbol", "close"))))
     monkeypatch.setattr(service, "_load_enriched_history", lambda *_: ctx.daily_history)
     frozen = compute_selections(engine, service, ctx.current["date"][0], ctx.as_of, [sid], {},
-                                now=datetime(2026, 8, 24, 16))
+                                now=datetime(2026, 8, 24, 20))
     assert frozen["errors"] == {}
     assert [row["symbol"] for row in frozen["selections"][sid]["rows"]] == ["600001.SH"]
     assert frozen["selections"][sid]["scheduled_for"].endswith("20:00:00+08:00")
