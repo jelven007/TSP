@@ -1,15 +1,15 @@
 # 完整产品单机多租户部署
 
-2026-11-14用户最新要求只将自选页的列目录、顺序与显示状态保存为初始化默认，
-共58项列设置，不包含具体股票、股票分组或成员归属。
-使用[本次列默认文件](../../deliverables/operations/watchlist-defaults-sync-20261114/watchlist-columns-defaults.json)，
-先将其复制至独立平台配置目录的`watchlist-columns-defaults.json`，再在API环境文件设置
+初始化使用部署者提供的受控配置和数据。自选列默认文件只包含列目录、顺序与显隐，
+不包含具体股票、分组或成员归属，不依赖仓库中的历史导出文件。
+将实际列默认文件放在独立平台配置目录，并设置API环境变量
 `TSP_CELL_BOOTSTRAP_WATCHLIST_COLUMNS_PATH=/platform-config/watchlist-columns-defaults.json`。
-文件需可由运行UID读取，并随初始化配置及完整备份保留；不发布到公共行情目录。
-新账户空间首次provision在控制状态ready前合并缺省列设置，业务空间保持空白；
-文件缺失或无效会保留可重试的pending状态。已有空间不会在启动时重置，
-已有个人列设置保留，普通注册用户也仅获得通用列目录。未配置路径时使用原列默认。
-本次双端运行及完整数据对账见[同步回执](../../deliverables/operations/watchlist-defaults-sync-20261114/report.md)。
+文件采用`format_version=2`及`columns`数组，由
+[`watchlist_defaults.Snapshot`](../../backend/app/multitenancy/watchlist_defaults.py)校验，
+须可由运行UID读取，随受控配置及完整备份保留，不发布到公共行情目录。
+新空间provision在ready前合并缺省列设置；文件无效或缺失保留可重试pending。
+已有个人列设置不重置，未配置路径使用原默认；资料清理不修改用户配置及业务数据。
+其他配置入口见[运维手册](../../docs/operations.md#configuration)。
 
 生产开发与六类文档追踪见[工程规范](../../docs/reference/engineering.md#engineering)、
 [本地变更映射](../../docs/reference/engineering.md#trace)。

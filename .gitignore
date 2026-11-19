@@ -66,6 +66,7 @@ backend/user_prompts/
 # ===== AI IDE =====
 .trae/
 .zcode/
+.claude/artifacts/
 
 # ===== TypeScript build cache =====
 frontend/tsconfig*.tsbuildinfo
@@ -92,7 +93,10 @@ data/strategies/custom/
 .tools/
 .screenshots/
 .trae-html-share-packages/
-deliverables/
+deliverables/*
+!deliverables/README.md
+reports/
+screenshots/
 backend._recheck*.py
 backend/_verify*.py
 backend/_desktop_run.log
