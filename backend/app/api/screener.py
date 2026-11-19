@@ -2,13 +2,11 @@
 from __future__ import annotations
 
 import contextlib
-import glob as _glob
 import logging
 import math
-import os
 import time
 from dataclasses import asdict, replace
-from datetime import date, datetime
+from datetime import date
 from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
@@ -16,9 +14,18 @@ from pydantic import BaseModel
 
 from app.api import contracts
 from app.config import settings
-from app.db_safe import is_valid_ext_ident, quote_ident
+from app.db_safe import quote_ident
 from app.multitenancy.documents import TenantDocuments
 from app.services import strategy_cache, strategy_results, strategy_run_queue
+from app.services.ext_values import (
+    _ext_value_map_cache as _ext_value_map_cache,
+)
+from app.services.ext_values import (
+    load_ext_value_maps as _load_ext_value_maps,
+)
+from app.services.ext_values import (
+    parse_ext_columns as _parse_ext_columns,
+)
 from app.services.screener import ScreenerService
 from app.services.strategy_resources import limit_local_strategy, local_slot
 from app.strategy import config as strategy_config
@@ -121,99 +128,6 @@ def _one_word_limit_expr(status_main: str, columns: list[str]) -> Any:
         & (pl.col("high") == pl.col("low"))
         & (pl.col("low") == pl.col("close"))
     ).fill_null(False)
-
-
-def _safe_ext_value(value: Any) -> Any:
-    if isinstance(value, float) and not math.isfinite(value):
-        return None
-    if isinstance(value, (date, datetime)):
-        return value.isoformat()
-    return value
-
-
-# 标识符安全原语 (转义 + 白名单) 集中在 app.db_safe, 见 Issue #150 注入防护。
-
-
-# ── 扩展列 value_map 缓存 ────────────────────────────────────────────
-# 每次请求 _load_ext_value_maps 都会重新从磁盘读 ext parquet 并重建 {symbol: value}。
-# 用底层 parquet 文件的 (路径, mtime) 签名做 memoize: 文件未变则复用上次的 map,
-# parquet 被重写 (mtime 变化) 时自动失效重算。仅缓存基于 config 的快照/时序路径,
-# 无 config 的 DuckDB view 回退路径不缓存 (少见)。
-_ext_value_map_cache: dict[tuple[str, str], tuple[Any, dict[str, Any]]] = {}
-
-
-def _ext_parquet_signature(cfg, data_dir) -> Optional[tuple]:
-    """该扩展配置底层 parquet 文件的 (路径, mtime) 签名; 出错返回 None (禁用缓存)。"""
-    try:
-        from app.api.ext_data import _parquet_glob
-        pattern = _parquet_glob(cfg, data_dir)
-        files = sorted(_glob.glob(pattern, recursive=True))
-        if not files:
-            return None
-        return tuple((f, os.path.getmtime(f)) for f in files)
-    except Exception:  # noqa: BLE001
-        return None
-
-
-def _load_ext_value_maps(repo, ext_columns: Optional[str]) -> dict[str, dict[str, Any]]:
-    """按请求加载扩展列，返回 {输出列名: {symbol: value}}。
-
-    策略结果缓存是共享文件，不能被不同 ext_columns 组合污染；因此扩展列只在
-    返回前通过该投影映射追加到结果副本中。
-
-    基于 config 的路径按 parquet 文件 mtime 签名 memoize, 文件未变时跳过磁盘重读。
-    """
-    ext_specs = _parse_ext_columns(ext_columns) if ext_columns else []
-    if not ext_specs:
-        return {}
-
-    import polars as pl
-
-    from app.api.ext_data import _read_ext_dataframe
-    from app.services.ext_data import ExtConfigStore
-
-    db = repo.store.db
-    data_dir = repo.store.data_dir
-    ext_store = ExtConfigStore(data_dir)
-    configs = {c.id: c for c in ext_store.load_all()}
-    value_maps: dict[str, dict[str, Any]] = {}
-
-    for config_id, field_name in ext_specs:
-        out_col = f"{config_id}__{field_name}"
-        cfg = configs.get(config_id)
-        cache_key = (config_id, field_name)
-        sig = _ext_parquet_signature(cfg, data_dir) if cfg else None
-        try:
-            if cfg:
-                # 命中缓存 (文件签名一致) → 复用, 免去磁盘重读
-                cached = _ext_value_map_cache.get(cache_key)
-                if cached is not None and sig is not None and cached[0] == sig:
-                    value_maps[out_col] = cached[1]
-                    continue
-                # 时序扩展表只取最新分区，避免历史分区把同一 symbol JOIN 放大。
-                ext_df, _ = _read_ext_dataframe(cfg, data_dir)
-            else:
-                view_name = f"ext_{config_id}"
-                ext_df = pl.from_arrow(db.query(
-                    f"SELECT symbol, {quote_ident(field_name)} FROM {view_name}"
-                ).arrow())
-
-            if ext_df.is_empty() or "symbol" not in ext_df.columns or field_name not in ext_df.columns:
-                continue
-
-            ext_df = ext_df.select(["symbol", field_name]).unique(subset=["symbol"], keep="last")
-            vmap = {
-                str(row["symbol"]): _safe_ext_value(row.get(field_name))
-                for row in ext_df.to_dicts()
-                if row.get("symbol")
-            }
-            value_maps[out_col] = vmap
-            if cfg and sig is not None:
-                _ext_value_map_cache[cache_key] = (sig, vmap)
-        except Exception as e:  # noqa: BLE001
-            logger.debug("screener ext column join skipped for %s.%s: %s", config_id, field_name, e)
-
-    return value_maps
 
 
 def _row_with_ext(row: dict, ext_values: dict[str, dict[str, Any]], symbol: Optional[str] = None) -> dict:
@@ -1505,21 +1419,3 @@ def limit_ladder(
         "sealed_counts_up": sealed_counts_up,
         "sealed_counts_down": sealed_counts_down,
     }
-
-
-def _parse_ext_columns(ext_columns: str) -> list[tuple[str, str]]:
-    """解析 'config_id1.field1,config_id2.field2' 为 [(config_id, field_name), ...]。"""
-    result = []
-    for part in ext_columns.split(","):
-        part = part.strip()
-        if "." not in part:
-            continue
-        config_id, field_name = part.split(".", 1)
-        config_id = config_id.strip()
-        field_name = field_name.strip()
-        if not config_id or not field_name:
-            continue
-        if not is_valid_ext_ident(config_id) or "\x00" in field_name:
-            continue
-        result.append((config_id, field_name))
-    return result

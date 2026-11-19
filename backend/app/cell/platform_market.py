@@ -36,6 +36,22 @@ def _authorize(authorization: str | None) -> None:
         raise HTTPException(401, "platform_authentication_required")
 
 
+@router.get("/observability")
+def observability(authorization: Annotated[str | None, Header()] = None):
+    """Read metrics from this platform process using the existing internal token."""
+    _authorize(authorization)
+    from app.services.observability import http_metrics_snapshot, runtime_observability_snapshot
+    from app.services.public_query_cache import public_query_cache
+
+    http = http_metrics_snapshot()
+    runtime = runtime_observability_snapshot()
+    return {
+        "process": http["process"], "totals": http["totals"],
+        "runtime_process": runtime["process"], "stages": runtime["stages"],
+        "public_query_cache": public_query_cache.snapshot(),
+    }
+
+
 class MinutePriorityPlan(BaseModel):
     model_config = ConfigDict(extra="forbid")
     owner: str = Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$")

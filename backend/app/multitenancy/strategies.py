@@ -190,9 +190,9 @@ class TenantStrategyEngine(StrategyEngine):
         definition = response["definition"]
         if definition["meta"]["id"] != sid or definition["source"] != source:
             raise ValueError("策略声明与保存目标不一致")
-        from app.api.strategy import _missing_custom_signals
+        from app.strategy.custom_signals import missing_custom_signals
 
-        missing = _missing_custom_signals(self.documents, definition["required_features"])
+        missing = missing_custom_signals(self.documents, definition["required_features"])
         if missing:
             raise ValueError("策略引用了未定义的自定义信号: " + ", ".join(missing))
         if verify_access is not None:

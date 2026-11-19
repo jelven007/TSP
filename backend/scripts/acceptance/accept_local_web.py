@@ -111,6 +111,7 @@ def isolated_app(root: Path, resources: ExitStack):
     preferences.save({
         "data_sync_auto_enabled": False, "realtime_quotes_enabled": False,
         "minute_intraday_refresh": False,
+        "onboarding_completed": True,
     })
     # On-demand chart requests also go through the fixture, not remote providers.
     provider = RustdxProvider()

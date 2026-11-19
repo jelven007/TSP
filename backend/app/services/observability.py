@@ -122,6 +122,7 @@ class _HttpMetrics:
     def reset(self) -> None:
         with self._lock:
             self._started_at = datetime.now(UTC)
+            self._instance_id = uuid4().hex
             self._started_monotonic = time.monotonic()
             self._in_flight = 0
             self._totals = self._new_entry()
@@ -217,6 +218,10 @@ class _HttpMetrics:
                 "p50": _percentile_from_histogram(histogram, requests, 0.50, duration_max_ms),
                 "p95": _percentile_from_histogram(histogram, requests, 0.95, duration_max_ms),
                 "p99": _percentile_from_histogram(histogram, requests, 0.99, duration_max_ms),
+                "histogram": {
+                    "bounds_ms": list(_DURATION_BUCKET_BOUNDS_MS),
+                    "counts": list(histogram),
+                },
             },
         }
 
@@ -232,6 +237,7 @@ class _HttpMetrics:
             ]
             return {
                 "process": {
+                    "instance_id": self._instance_id,
                     "started_at": self._started_at.isoformat(timespec="seconds").replace(
                         "+00:00", "Z"
                     ),
@@ -253,6 +259,7 @@ _RUNTIME_STAGES = frozenset({
     "public.refresh_wait", "public.refresh", "public.publish_wait", "public.publish",
     "public.binding_check", "public.binding_prepare", "public.binding_commit",
     "monitor.prepare", "monitor.compute", "monitor.commit", "compute.queue", "compute.sandbox",
+    "compute.spawn", "compute.first_output", "compute.process", "compute.cleanup",
 })
 
 
@@ -281,12 +288,21 @@ def observe_runtime_duration(stage: str, duration_ms: float, *, failed: bool = F
 
 
 def runtime_metrics_snapshot() -> dict[str, Any]:
+    return runtime_observability_snapshot()["stages"]
+
+
+def runtime_observability_snapshot() -> dict[str, Any]:
+    """Return stage counts and reset identity from the same locked snapshot."""
+    snapshot = _runtime_metrics.snapshot()
     return {
-        item["route"]: {
-            "calls": item["requests"], "failures": item["errors"],
-            "duration_ms": item["duration_ms"],
-        }
-        for item in _runtime_metrics.snapshot()["routes"]
+        "process": snapshot["process"],
+        "stages": {
+            item["route"]: {
+                "calls": item["requests"], "failures": item["errors"],
+                "duration_ms": item["duration_ms"],
+            }
+            for item in snapshot["routes"]
+        },
     }
 
 

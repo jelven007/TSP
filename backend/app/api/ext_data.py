@@ -222,10 +222,9 @@ def _parquet_glob(config: ExtConfig, data_dir: Path) -> str:
     snapshot: 'data/ext_data/{id}/*.parquet'（只有 part.parquet）
     timeseries: 'data/ext_data/{id}/timeseries/**/*.parquet'
     """
-    cfg_dir = data_dir / "ext_data" / config.id
-    if config.mode == "snapshot":
-        return str(cfg_dir / "*.parquet")
-    return str(cfg_dir / "timeseries" / "**" / "*.parquet")
+    from app.services.ext_values import parquet_glob
+
+    return parquet_glob(config, data_dir)
 
 
 def _safe_json_value(value):
@@ -272,7 +271,15 @@ def _read_ext_dataframe(
         path = cfg_dir / "part.parquet"
         if not path.exists():
             return pl.DataFrame(), None
-        return pl.read_parquet(path), _latest_sync_date(config, data_dir)
+        from app.services.ext_values import read_latest_ext_dataframe
+
+        frame, _ = read_latest_ext_dataframe(config, data_dir)
+        return frame, _latest_sync_date(config, data_dir)
+
+    if not snapshot_date and not start_date and not end_date:
+        from app.services.ext_values import read_latest_ext_dataframe
+
+        return read_latest_ext_dataframe(config, data_dir)
 
     base = cfg_dir / "timeseries"
     if not base.exists():
@@ -319,10 +326,6 @@ def _read_ext_dataframe(
         # 缺列自动补 null 并取超类型; 单分区时无需 concat
         df = pl.concat(frames, how="diagonal") if len(frames) > 1 else frames[0]
         return df, f"{selected[0].name[5:]}..{selected[-1].name[5:]}"
-
-    latest = partitions[-1]
-    latest_date = latest.name[5:]
-    return pl.read_parquet(latest / "part.parquet"), latest_date
 
 
 def _with_instrument_name(df: pl.DataFrame, data_dir: Path) -> pl.DataFrame:

@@ -17,7 +17,7 @@ from app.services.public_query_cache import (
 from app.services.public_query_cache import (
     invalidate_storage_cache as invalidate_storage_cache,
 )
-from app.services.public_query_cache import public_query_cache
+from app.services.public_query_cache import public_query_cache, public_query_checkpoint
 
 logger = logging.getLogger(__name__)
 
@@ -336,11 +336,13 @@ def _safe_aggregate_financials(repo) -> dict | None:
 
 def _scan_dir_stats(dirpath: Path) -> tuple[int, float]:
     """单次遍历统计目录下文件数和总大小(MB)。比 rglob+stat 快很多。"""
+    public_query_checkpoint()
     if not dirpath.exists():
         return 0, 0.0
     count = 0
     total = 0
     for entry in os.scandir(dirpath):
+        public_query_checkpoint()
         if entry.is_dir(follow_symlinks=False):
             c, s = _scan_dir_recursive(entry)
             count += c
@@ -360,6 +362,7 @@ def _scan_dir_recursive(entry: os.DirEntry) -> tuple[int, int]:
     total = 0
     try:
         for sub in os.scandir(entry.path):
+            public_query_checkpoint()
             if sub.is_dir(follow_symlinks=False):
                 c, s = _scan_dir_recursive(sub)
                 count += c
@@ -438,6 +441,7 @@ def _compute_storage(data_dir: Path) -> dict:
         stats["financials_revision_size_mb"] = revision_mb
     # 根目录散文件
     for entry in os.scandir(data_dir):
+        public_query_checkpoint()
         if entry.is_file(follow_symlinks=False):
             try:
                 total_size += entry.stat().st_size / 1048576

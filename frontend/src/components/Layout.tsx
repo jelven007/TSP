@@ -452,6 +452,7 @@ export function Layout() {
                   /* 普通菜单项 */
                   <NavLink
                     to={to}
+                    onClick={() => setDrawerOpen(false)}
                     title={railMode ? label : undefined}
                     className={({ isActive }) =>
                       cn(
@@ -498,6 +499,7 @@ export function Layout() {
                   <div className="mt-0.5 space-y-0.5">
                     <NavLink
                       to="/watchlist"
+                      onClick={() => setDrawerOpen(false)}
                       className={({ isActive }) => cn(
                         'flex items-center gap-2 rounded-btn py-1.5 pl-9 pr-3 text-[12px] transition-colors duration-150 ease-smooth md:pl-8 md:pr-2',
                         isActive && !location.search
@@ -525,6 +527,7 @@ export function Layout() {
                         <NavLink
                           key={group.id}
                           to={groupPath}
+                          onClick={() => setDrawerOpen(false)}
                           className={cn(
                             'flex items-center gap-2 rounded-btn py-1.5 pl-9 pr-3 text-[12px] transition-colors duration-150 ease-smooth md:pl-8 md:pr-2',
                             isGroupActive
@@ -559,6 +562,7 @@ export function Layout() {
             <ThemeToggle />
             <NavLink
               to="/settings"
+              onClick={() => setDrawerOpen(false)}
               title={railMode ? '设置' : undefined}
               className={({ isActive }) =>
                 cn(

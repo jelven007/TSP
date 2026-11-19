@@ -1,0 +1,6 @@
+{
+  "application_version_source": "VERSION",
+  "schema_target": 8,
+  "strategy_pool_definition": "strategy_scope_v4",
+  "scope": "source capabilities; deployment identity is verified separately"
+}

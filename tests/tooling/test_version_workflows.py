@@ -23,7 +23,26 @@ def workflow(name):
 
 
 def step_using(job, action):
-    return next(step for step in job["steps"] if step.get("uses") == action)
+    pins = json.loads((ROOT / ".github/action-pins.json").read_text())
+    return next(step for step in job["steps"] if step.get("uses") == pins[action])
+
+
+def test_external_workflow_actions_are_immutable_and_match_reviewed_pins():
+    pins = json.loads((ROOT / ".github/action-pins.json").read_text())
+    assert pins
+    for tag, pinned in pins.items():
+        assert tag.split("@")[0] == pinned.split("@")[0]
+        assert re.fullmatch(r"[^@]+@[0-9a-f]{40}", pinned)
+    seen = set()
+    for path in (ROOT / ".github/workflows").glob("*.yml"):
+        for job in workflow(path.name)["jobs"].values():
+            for item in [job, *job.get("steps", [])]:
+                action = item.get("uses")
+                if not action or action.startswith("./"):
+                    continue
+                assert action in pins.values(), (path.name, action)
+                seen.add(action)
+    assert seen == set(pins.values()), "remove unused pins or missing workflow coverage"
 
 
 @pytest.mark.parametrize("stored", ["v0.4.50", "0.4.50"])
@@ -171,7 +190,7 @@ def test_desktop_release_requires_explicit_version_without_stale_default():
 def test_version_tag_requires_successful_main_quality_gates():
     ci = workflow("ci.yml")
     tag = ci["jobs"]["tag"]
-    assert set(tag["needs"]) == {"version", "backend", "frontend", "containers"}
+    assert set(tag["needs"]) == {"version", "backend", "frontend", "browser", "containers"}
     assert tag["if"] == (
         "github.event_name == 'push' && github.ref == 'refs/heads/main'"
     )
@@ -232,7 +251,7 @@ def test_desktop_standalone_smoke_isolates_runtime_configuration():
 def test_docker_latest_only_promoted_for_current_main_after_build():
     ci = workflow("ci.yml")
     assert set(ci["jobs"]["promote"]["needs"]) == {
-        "version", "backend", "frontend", "containers", "tag",
+        "version", "backend", "frontend", "browser", "containers", "tag",
     }
     docker = workflow("docker.yml")
     for name in ("runtime", "compute"):
@@ -304,6 +323,20 @@ def test_dependency_layers_do_not_depend_on_readme_or_project_version():
         assert f"FROM ${{{arg}}}" in dockerfile
         assert arg in str(workflow("docker.yml")["jobs"]["runtime"])
     assert "USE_CN_MIRROR" in (ROOT / "deploy/full/Compute.Dockerfile").read_text()
+
+
+def test_release_images_request_sbom_and_full_provenance():
+    docker = workflow("docker.yml")
+    assert "--require-attestations" in str(docker["jobs"]["identity"])
+    for name in ("runtime", "compute"):
+        build = step_using(docker["jobs"][name], "docker/build-push-action@v6")["with"]
+        assert build.get("sbom") == "true"
+        assert build.get("provenance") == "mode=max"
+    freeze = next(step for step in docker["jobs"]["runtime"]["steps"]
+                  if step.get("id") == "inputs")["run"]
+    for lock in ("backend/uv.lock", "frontend/pnpm-lock.yaml",
+                 "backend/native/rustdx_native/Cargo.lock"):
+        assert lock in freeze
 
 
 def test_native_cache_survives_application_version_allocation_but_not_cargo_change(tmp_path):

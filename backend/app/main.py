@@ -63,6 +63,7 @@ from app.services.observability import (
     request_id_server_error,
 )
 from app.services.pipeline_jobs import JobPersistenceError
+from app.services.public_query_cache import CacheUnavailableError
 from app.services.quote_service import QuoteService
 from app.tickflow import client as tf_client
 from app.tickflow.policy import detect_capabilities
@@ -709,6 +710,17 @@ async def openapi_contract_view(tier: str = "a"):
         spec["paths"] = kept_paths
         spec["x-tier"] = "a"
     return JSONResponse(spec)
+
+
+@app.exception_handler(CacheUnavailableError)
+async def public_query_unavailable_handler(
+    _request: Request, _exc: CacheUnavailableError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=503,
+        headers={"Retry-After": "1"},
+        content={"detail": "公共数据查询繁忙, 请稍后重试", "code": "public_query_unavailable"},
+    )
 
 
 @app.exception_handler(CapabilityDenied)

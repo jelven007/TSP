@@ -287,28 +287,43 @@ function StockSearchBox({
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  useLayoutEffect(() => {
-    if (!open || !inputRef.current) return
+  const placePopup = useCallback(() => {
+    if (!inputRef.current) return
     const rect = inputRef.current.getBoundingClientRect()
-    setPopupPosition({
+    if (rect.bottom <= 0 || rect.top >= window.innerHeight
+      || rect.right <= 0 || rect.left >= window.innerWidth) {
+      setOpen(false)
+      return
+    }
+    const next = {
       top: rect.bottom + 4,
       left: Math.max(8, Math.min(rect.right - 288, window.innerWidth - 296)),
-    })
-  }, [open])
+    }
+    setPopupPosition(previous => previous?.top === next.top && previous?.left === next.left
+      ? previous : next)
+  }, [])
+
+  useLayoutEffect(() => {
+    if (open) placePopup()
+  }, [open, placePopup])
 
   useEffect(() => {
     if (!open) return
-    const close = (event: Event) => {
+    const reposition = (event: Event) => {
       if (popupRef.current && event.target instanceof Node && popupRef.current.contains(event.target)) return
-      setOpen(false)
+      // 聚焦时输入框扩宽可能滚动窄屏工具栏，跟随锚点而不是吞掉搜索结果。
+      placePopup()
     }
-    window.addEventListener('scroll', close, true)
-    window.addEventListener('resize', close)
+    window.addEventListener('scroll', reposition, { capture: true, passive: true })
+    window.addEventListener('resize', reposition)
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(placePopup)
+    if (inputRef.current) observer?.observe(inputRef.current)
     return () => {
-      window.removeEventListener('scroll', close, true)
-      window.removeEventListener('resize', close)
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+      observer?.disconnect()
     }
-  }, [open])
+  }, [open, placePopup])
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Escape') { setOpen(false); return }

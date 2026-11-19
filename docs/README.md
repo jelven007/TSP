@@ -1,5 +1,9 @@
 # Tick Stock Platform（TSP）文档中心
 
+当前源码与运行身份的区分见[版本基线](version-baseline.md)，
+最新工程调整见[工程优化说明](engineering-optimization.md)。
+以下按日期保留历史入口，其中“当前”“候选”均对应记录当时。
+
 [2026-11-18新授权4小时升级候选](upgrade-20261118-four-hour.md)记录完整池、可空信号、
 三任务编排与两端同步；超时继续，最终状态按真实发布、部署及清理回执签收。
 

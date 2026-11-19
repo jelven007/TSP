@@ -71,8 +71,27 @@ def check(argv: list[str], timeout: int, *, post: bool = False) -> str:
     return object_hash(value)
 
 
+def timed_check(record: dict, path: Path, step: str, kind: str,
+                argv: list[str], timeout: int, *, post: bool = False) -> str:
+    row = {"step": step, "kind": kind, "status": "running", "started_at": timestamp()}
+    record.setdefault("evidence_checks", []).append(row)
+    atomic_json(path, record)
+    started = time.monotonic()
+    try:
+        result = check(argv, timeout, post=post)
+        row["status"] = "passed"
+        return result
+    except (ValueError, OSError, subprocess.TimeoutExpired):
+        row["status"] = "failed"
+        raise
+    finally:
+        row.update(ended_at=timestamp(), elapsed_seconds=round(time.monotonic() - started, 6))
+        atomic_json(path, record)
+
+
 def run(plan_path: Path, receipts: Path, *, reconcile: bool = False,
         resume_local: bool = False) -> dict:
+    preparation_at, preparation_started = timestamp(), time.monotonic()
     plan = json.loads(plan_path.read_text())
     validate(plan)
     for raw, digest in plan["inputs"].items():
@@ -98,10 +117,15 @@ def run(plan_path: Path, receipts: Path, *, reconcile: bool = False,
         record = json.loads(path.read_text()) if path.exists() else {
             "format": 1, "plan_sha256": fingerprint, "environment": plan["environment"],
             "revision": plan["revision"], "version": plan["version"], "steps": {},
-            "started_at": timestamp(),
+            "started_at": preparation_at,
         }
         if record["plan_sha256"] != fingerprint:
             raise ValueError("plan input changed; use a new receipt directory")
+        record.setdefault("evidence_checks", []).append({
+            "kind": "preparation", "status": "passed",
+            "started_at": preparation_at, "ended_at": timestamp(),
+            "elapsed_seconds": round(time.monotonic() - preparation_started, 6),
+        })
         record.update(status="running", attempt_started_at=timestamp())
         atomic_json(path, record)
         started = time.monotonic()
@@ -130,7 +154,8 @@ def run_steps(plan: dict, record: dict, path: Path, *, reconcile: bool) -> None:
         if old and old["base_input_sha256"] != base_input:
             raise ValueError("upstream input changed")
         if old and old["status"] == "passed":
-            if check(step["postcheck"], timeout, post=True) != old["output_sha256"]:
+            if timed_check(record, path, name, "resume", step["postcheck"],
+                           timeout, post=True) != old["output_sha256"]:
                 raise ValueError("postcheck identity changed; prior receipt is stale")
             predecessors[name] = old["output_sha256"]
             continue
@@ -138,14 +163,15 @@ def run_steps(plan: dict, record: dict, path: Path, *, reconcile: bool) -> None:
             if not reconcile:
                 raise ValueError("interrupted write requires --reconcile; action will not replay")
             started = time.monotonic()
-            output = check(step["postcheck"], timeout, post=True)
+            output = timed_check(record, path, name, "reconcile", step["postcheck"],
+                                 timeout, post=True)
             old.update(status="passed", reconciled=True, reconciled_at=timestamp(),
                        reconcile_elapsed_seconds=round(time.monotonic() - started, 6),
                        output_sha256=output)
             atomic_json(path, record)
             predecessors[name] = old["output_sha256"]
             continue
-        probe = check(step["probe"], timeout)
+        probe = timed_check(record, path, name, "probe", step["probe"], timeout)
         row = {"phase": step["phase"], "effect": step["effect"], "status": "running",
                "started_at": timestamp(), "base_input_sha256": base_input,
                "input_sha256": object_hash({"base": base_input, "probe": probe}),
@@ -161,7 +187,9 @@ def run_steps(plan: dict, record: dict, path: Path, *, reconcile: bool) -> None:
             if result.returncode:
                 row["returncode"] = result.returncode
                 raise ValueError("stage command failed")
-            row["output_sha256"] = check(step["postcheck"], timeout, post=True)
+            row["output_sha256"] = timed_check(
+                record, path, name, "postcheck", step["postcheck"], timeout, post=True,
+            )
             row["status"] = "passed"
         except (ValueError, OSError, subprocess.TimeoutExpired):
             row["status"] = "failed"

@@ -4,7 +4,12 @@ from datetime import UTC, datetime
 
 import pytest
 
-from scripts.operations.backup_full_host import BUSINESS_CHECKS, create_backup
+from scripts.operations.backup_full_host import (
+    BUSINESS_CHECKS,
+    create_backup,
+    file_evidence,
+    tree_evidence,
+)
 from scripts.operations.scheduled_full_backup import backup_age, scheduled_backup
 
 
@@ -82,12 +87,53 @@ def test_backup_age_distinguishes_missing_stale_and_unverified(tmp_path):
         "complete": True, "created_at": "2026-10-24T11:00:00+00:00",
         "restore_verification": {name: {"restored": True, "source_matched": True}
                                  for name in ("control", "data")},
-        "databases": {name: {"bytes": 5} for name in ("control", "data")},
     }
     for name in ("control", "data"):
         (directory / f"{name}.dump").write_bytes(b"PGDMP")
+    manifest["databases"] = {
+        name: file_evidence(directory / f"{name}.dump") for name in ("control", "data")
+    }
     (directory / "manifest.json").write_text(json.dumps(manifest))
     assert backup_age(tmp_path, now=now)["ready"] is False
     assert backup_age(tmp_path, now=now, max_hours=30)["ready"] is True
     (directory / "data.dump").write_bytes(b"bad")
     assert backup_age(tmp_path, now=now, max_hours=30)["invalid_backups"] == ["one"]
+
+
+@pytest.mark.parametrize("damaged", ["control", "data", "config", "market", "missing_hash"])
+def test_backup_age_rejects_same_size_corruption_and_unhashed_dumps(tmp_path, damaged):
+    directory = tmp_path / "one"
+    files = directory / "files"
+    files.mkdir(parents=True)
+    (files / "config").write_text("original")
+    market = files / "market"
+    market.mkdir()
+    (market / "daily").write_text("original")
+    for name in ("control", "data"):
+        (directory / f"{name}.dump").write_bytes(b"PGDMP-original")
+    manifest = {
+        "complete": True, "created_at": "2026-11-19T00:00:00+00:00",
+        "restore_verification": {
+            name: {"restored": True, "source_matched": True} for name in ("control", "data")
+        },
+        "databases": {name: file_evidence(directory / f"{name}.dump")
+                      for name in ("control", "data")},
+        "includes": {
+            "config": {"kind": "file", "evidence": file_evidence(files / "config")},
+            "market": {"kind": "directory", "evidence": tree_evidence(market)},
+        },
+    }
+    path = directory / "manifest.json"
+    path.write_text(json.dumps(manifest))
+    now = datetime(2026, 11, 19, 12, tzinfo=UTC)
+    assert backup_age(tmp_path, now=now)["ready"]
+    if damaged in ("control", "data"):
+        (directory / f"{damaged}.dump").write_bytes(b"PGDMP-modified")
+    elif damaged == "missing_hash":
+        del manifest["databases"]["control"]["sha256"]
+        path.write_text(json.dumps(manifest))
+    else:
+        (files / "config" if damaged == "config" else market / "daily").write_text("modified")
+    result = backup_age(tmp_path, now=now)
+    assert result["ready"] is False
+    assert result["invalid_backups"] == ["one"]

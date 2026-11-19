@@ -1,5 +1,23 @@
 # 发布流水线与固定执行入口
 
+2026-11-19 工程优化新增[离线计时汇总](../scripts/release/summarize_timings.py)；
+本轮尚未发布，原编排器的锁、输入核验、中断协调和保留规则不变。
+同一版本／提交取每个环境计划的最新 `receipt.json`：
+
+```bash
+python3 scripts/release/summarize_timings.py \
+  --receipt "$RELEASE_PRIVATE/local/receipt.json" \
+  --receipt "$RELEASE_PRIVATE/remote/receipt.json"
+```
+
+汇总保留失败 attempt，合并重叠的执行／协调区间，不将双端并行耗时简单相加。
+`pipeline_span_seconds` 从首份回执开始到末份结束，包含暂停，不包括此前准备；
+`recorded_step_active_seconds` 为已记录区间的并集；
+`unattributed_seconds` 包括未单列的 probe、恢复复验、等待等，不能解释为纯空闲。
+`phases.*.summed_elapsed_seconds` 是各次执行耗时之和，不能当作总墙钟时间。
+跨机器分析要求时钟对齐。工具拒绝重复回执、不同发布身份、无时区／倒退时间和负耗时，
+只读 JSON，不执行计划，不复制 argv、输出、私有路径或环境名称，不认证部署成功。
+
 2026-11-08本轮使用已合入远程0.4.52的固定流水线，见[统一候选](upgrade-20261108.md)。
 用户已恢复本地运行；本地写入仍须遵守暂停标记与显式恢复保护。
 下列2026-11-07开头的未提交/暂停描述保留为当时快照，不代表本轮状态。
@@ -174,6 +192,13 @@ audit为按实际顺序采集的事件列表，每条含`resource/at/actor_id/re
 审计不足继续逐条核实并阻断未解释变化，不以宽泛白名单代替证据。
 
 ## 验证与性能签收
+
+新流水线回执在 `evidence_checks` 中保留入参验证准备、探针、后置检查与恢复复验
+的起止及耗时，失败同样保留。汇总器对它们与步骤执行区间求并集，避免后置检查重复
+计时；调用流水线之前的人工或外部准备仍不在该范围。旧回执保持可读。
+镜像构建生成SPDX SBOM和SLSA来源证明，身份门禁使用
+`image_manifest.py --require-attestations`验证两种架构的摘要、大小和subject绑定。
+此检查未验证签名，不代表漏洞扫描通过；证明缺失时不能提升正式产物。
 
 先 `make check`，再 `make check-release PYTHON=<冻结环境Python> RUFF=<冻结环境Ruff>`，
 随后完整 `tests/tooling`；工作流使用actionlint单独校验。

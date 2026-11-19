@@ -33,7 +33,7 @@
 - `gateway`：单进程实时入口，仅开放 `/api/events`、`/api/events/ticket` 和健康端点；本地验签一次性租户票据，监听撤权和私有事件通知，并转发平台行情 marker，不挂载公共行情、平台配置或计算 socket。
 - `research`、`realtime`、`notifications`、`scheduled`：独立任务进程，分别处理受限研究、监控与模拟交易、通知 outbox、租户周度挖掘和每日复盘。
 - 主机计算 Broker：固定计算镜像、每租户一个，全机并发按策略预算及配置限制；仅 Broker 有 Docker 权限。API/Platform/Worker 只挂载 Unix socket。计算容器无网络、无凭据、UID 10001、只读公共文件。
-- PostgreSQL 16：控制库和业务库使用不同无继承关系的非 owner、非超级用户、非 BYPASSRLS 角色，均迁移到 schema v7；v7新增当日股票池及每日调度唤醒。
+- PostgreSQL 16：控制库和业务库使用不同无继承关系的非 owner、非超级用户、非 BYPASSRLS 角色，迁移目标均为 schema v8；v7新增当日股票池及每日调度唤醒，v8增加模拟账号删除级联和账号导入原件清理。
 
 ## 小规格单机候选
 
