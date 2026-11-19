@@ -82,7 +82,7 @@ def build_feature_frame(
         df = df.with_columns(pl.col("symbol").cast(pl.Utf8))
     dt_expr = pl.col("datetime")
     if df.schema["datetime"].time_zone is not None:
-        dt_expr = dt_expr.dt.convert_time_zone(CN_TZ.key).dt.replace_time_zone(None)
+        dt_expr = dt_expr.dt.convert_time_zone("Asia/Shanghai").dt.replace_time_zone(None)
     df = df.with_columns(dt_expr.alias("datetime"))
     if cutoff is not None:
         cut = _naive(cutoff)

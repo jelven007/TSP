@@ -168,7 +168,7 @@ def pending_evaluation_time(engine, strategy, overrides, context) -> datetime | 
     if latest is None and context.history is not None and "datetime" in context.history.columns:
         dt = pl.col("datetime")
         if context.history.schema["datetime"].time_zone:
-            dt = dt.dt.convert_time_zone(CN_TZ.key).dt.replace_time_zone(None)
+            dt = dt.dt.convert_time_zone("Asia/Shanghai").dt.replace_time_zone(None)
         latest = context.history.select(dt.alias("datetime")).filter(
             (pl.col("datetime").dt.date() == context.as_of)
             & (pl.col("datetime") <= observed))["datetime"].max()
@@ -495,7 +495,7 @@ def condition_inputs(context, sig: dict) -> dict:
             if "quote_ts" in prior_rows.columns or "quote_time_basis" in prior_rows.columns:
                 stamp = pl.col("quote_ts").cast(pl.Int64, strict=False) if "quote_ts" in prior_rows.columns else pl.lit(None)
                 basis = pl.col("quote_time_basis") if "quote_time_basis" in prior_rows.columns else pl.lit(None)
-                opening = pl.col("date").cast(pl.Datetime).dt.replace_time_zone(CN_TZ.key).dt.timestamp("ms")
+                opening = pl.col("date").cast(pl.Datetime).dt.replace_time_zone("Asia/Shanghai").dt.timestamp("ms")
                 batch = stamp.is_null() & basis.is_null()
                 finalized = (basis == "source_snapshot") & stamp.is_between(
                     opening + 15 * 3600000, opening + 24 * 3600000 - 1)
@@ -555,7 +555,7 @@ def _evaluate_optional(
         return result
     dt = pl.col("datetime")
     if minute_df.schema["datetime"].time_zone:
-        dt = dt.dt.convert_time_zone(CN_TZ.key).dt.replace_time_zone(None)
+        dt = dt.dt.convert_time_zone("Asia/Shanghai").dt.replace_time_zone(None)
     frame = minute_df.with_columns(dt.alias("datetime")).filter(
         pl.col("symbol").is_in(pool) & (pl.col("datetime").dt.date() == day)
         & ((pl.col("datetime").dt.time().is_between(time(9, 31), time(11, 30)))
