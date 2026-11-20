@@ -219,7 +219,7 @@ export function useQuoteStream(
             && (!ids?.length || !['strategy', 'day-view'].includes(String(query.queryKey[1]))
               || ids.includes(String(query.queryKey[2]))),
         }, { cancelRefetch: false })
-        qc.invalidateQueries({ queryKey: ['strategy-monitoring'] }, { cancelRefetch: false })
+        qc.invalidateQueries({ queryKey: QK.strategyMonitoring }, { cancelRefetch: false })
       })
 
       es.addEventListener('strategy_pool_updated', (event: MessageEvent) => {

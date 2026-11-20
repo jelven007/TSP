@@ -270,8 +270,11 @@ def monitoring_summary(engine, storage, *, now=None):
         errors = []
         try:
             windows = task_windows(engine, strategy, overrides.get(sid) or {})
+            signal_windows = task_windows(engine, strategy, overrides.get(sid) or {},
+                                          apply_entry_cutoff=False)
         except ValueError as exc:
             windows = {"buy": [], "sell": []}
+            signal_windows = windows
             errors.append(str(exc))
         saved = task_receipt(storage, sid, now.date()).get("tasks", {})
         tasks = {}
@@ -283,7 +286,9 @@ def monitoring_summary(engine, storage, *, now=None):
             elif state == "expired" and receipt.get("state") == "success":
                 state = "success"
             tasks[kind] = {**receipt, "state": state if enabled else "disabled",
-                           "windows": [{k: w[k] for k in ("start", "end")} for w in windows[kind]]}
+                           "windows": [{k: w[k] for k in ("start", "end")} for w in signal_windows[kind]]}
+            if any(w["end"] > "14:55:00" for w in signal_windows[kind]) and kind == "buy":
+                tasks[kind]["execution_deadline"] = "14:55:00"
         select = {**saved.get("select", {}), "windows": [{"start": "20:00:00", "end": "22:00:00"}]}
         select["state"] = "waiting"
         if published_trading_day(now.date()) is True:
@@ -341,7 +346,7 @@ def sell_roster(storage, sid, day):
                 "rows": result["sections"]["sell"]}
 
 
-def task_windows(engine, strategy, overrides):
+def task_windows(engine, strategy, overrides, *, apply_entry_cutoff=True):
     from app.strategy import custom_signals
     from app.strategy.s01_signals import optional_triggers, stored_definitions, trigger_definitions
 
@@ -380,7 +385,7 @@ def task_windows(engine, strategy, overrides):
             else:
                 start, end = params.get("start_time"), params.get("end_time") or params.get("fallback_time")
             if start and end:
-                if task == "buy":
+                if task == "buy" and apply_entry_cutoff:
                     end = min(time.fromisoformat(end), time(14, 55)).isoformat()
                 windows[task].append({"start": time.fromisoformat(start).isoformat(),
                                       "end": time.fromisoformat(end).isoformat(), "signal": sig})

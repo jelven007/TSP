@@ -317,6 +317,14 @@ class MinuteSignalReplayer:
             observed_at = pool_cutoff(self.strategy_engine, [strategy.meta["id"]],
                                       {strategy.meta["id"]: overrides}, day,
                                       datetime.combine(day, clock_time(15) if full_pool else clock_time.min))
+            pool_history = current if not current.is_empty() else None
+            if not current.is_empty() and "float_shares" in panel.columns:
+                # Capital is effective on T; prices and volume remain completed T-1 inputs.
+                capital = panel.filter(pl.col("date") == day).select("symbol", "float_shares")
+                pool_history = current.select(
+                    "symbol", *[name for name in ("name", "is_risk_warning",
+                    "instrument_status_known", "is_listed", "listing_age_days") if name in current.columns],
+                ).join(capital, on="symbol", how="left").with_columns(pl.lit(day).alias("date"))
             context = StrategyDataContext(
                 asset_type="stock",
                 timeframe="1m",
@@ -326,7 +334,7 @@ class MinuteSignalReplayer:
                 # earliest pool publication clock must not remove later bars.
                 history=history,
                 daily_history=daily_history if not daily_history.is_empty() else None,
-                pool_history=current if not current.is_empty() else None,
+                pool_history=pool_history,
                 pool_universe=pool_evidence(repo, day, observed_at=observed_at),
             )
             try:
@@ -386,7 +394,12 @@ class MinuteSignalReplayer:
             if full_pool:
                 # 入场回放保持旧兼容; 新现金账本消费诊断, 不把未知广度当成成功零信号。
                 from app.strategy import custom_signals
-                from app.strategy.late_session_strength import TEMPLATE, evaluate, previous_closes
+                from app.strategy.late_session_strength import (
+                    TEMPLATE,
+                    condition_inputs,
+                    evaluate,
+                    previous_closes,
+                )
 
                 if run_result.daily_stock_pool_error:
                     result.errors.append(f"{day}: {run_result.daily_stock_pool_error}")
@@ -397,6 +410,7 @@ class MinuteSignalReplayer:
                             history, sig, day=day,
                             pool_symbols=(run_result.daily_stock_pool or {}).get("symbols"),
                             prev_close=previous_closes(context),
+                            **condition_inputs(context, sig),
                         )
                         result.errors.extend(f"{day}: {msg}" for msg in evaluated.diagnostics
                                              if f"{day}: {msg}" not in result.errors)

@@ -457,6 +457,8 @@ class StrategyResults:
             errors = dict(current.get("section_errors") or {})
             if (current.get("section_statuses") or {}).get("sell") != "failed":
                 errors.pop("sell", None)
+            if (current.get("section_statuses") or {}).get("sell") in (None, "waiting", "unavailable"):
+                current["section_statuses"] = {**(current.get("section_statuses") or {}), "sell": "success"}
             current["section_errors"] = errors
             return current
         from app.strategy.basic_filter import previous_session

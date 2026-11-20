@@ -85,11 +85,15 @@ function SignalsBody({ highlight }: { highlight: string }) {
     onSuccess: () => {
       clearDeleteConfirm()
       qc.invalidateQueries({ queryKey: QK.customSignals })
+      qc.invalidateQueries({ queryKey: QK.strategyMonitoring })
     },
   })
 
   const toggleEnabled = (sig: CustomSignal) => {
-    api.customSignalSave({ ...sig, enabled: !sig.enabled }).then(() => qc.invalidateQueries({ queryKey: QK.customSignals }))
+    api.customSignalSave({ ...sig, enabled: !sig.enabled }).then(() => {
+      qc.invalidateQueries({ queryKey: QK.customSignals })
+      qc.invalidateQueries({ queryKey: QK.strategyMonitoring })
+    })
   }
 
   const handleDeleteClick = (sig: CustomSignal) => {

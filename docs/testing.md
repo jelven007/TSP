@@ -1,5 +1,15 @@
 # 测试与验收指南
 
+监控时钟／当日卖名单／S03零结果回归入口：
+`test_monitor_saved_clocks_regression`验证保存时段与14:55执行截止分开；
+`MonitorSignalRefresh.regression.test.tsx`验证显示及保存后查询失效；
+`test_today_sell_roster_regression`验证无补算读取当日已确认空或非空名单；
+`backtest/test_s03_turnover_replay_regression`验证T股本、T-1价格及缺条件失败；
+`test_research_runtime_reuse_regression`用隔离PostgreSQL验证构建变更不复用旧完成任务。
+两端页面仍须实际选择S02并覆盖今日、历史、无摘要／缺归档及卖／选／买切换；
+S03使用当前保存源码、信号、100万元及页面冻结费用验证实际成交、净值和完整交易。
+合法零命中应有完整输入证据，不能将全部缺条件包装成成功零结果。
+
 分钟价格与晚信号回放由`backtest/test_custom_minute_price_rule.py`、
 `test_s01_common_backtest.py`、`test_s01_equal_selected.py`及
 `test_backtest_stream_date_guard.py`覆盖：旧冻结兼容、逐分钟最低价且不重复滑点、

@@ -1073,6 +1073,7 @@ export interface CustomSignalAIGenerateResult {
 export interface StrategyMonitorTask {
   state: string
   windows: { start: string; end: string }[]
+  execution_deadline?: string
   target_date?: string
   count?: number
   errors?: string[]

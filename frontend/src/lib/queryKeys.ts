@@ -125,6 +125,7 @@ export const QK = {
 
   // Monitor (监控规则 + 触发记录)
   monitorRules:         ['monitor-rules'] as const,
+  strategyMonitoring:   ['strategy-monitoring'] as const,
   monitorRuleOptions:   ['monitor-rule-options'] as const,
   lots:                 ['lots'] as const,
   lotBatches:           ['lot-batches'] as const,
