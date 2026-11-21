@@ -1,6 +1,6 @@
 """Full monitor/trading events: persistence, fencing, replay and authorization."""
 import asyncio
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from types import SimpleNamespace
 
 import polars as pl
@@ -31,9 +31,18 @@ def owned(env, tmp_path, monkeypatch):
     context = env["identity"].context(account, None, "worker")
     documents = TenantDocuments(env["db"], context)
     other = TenantDocuments(env["db"], env["identity"].context(foreign, None, "foreign"))
-    today = cn_today()
+    today = date(2026, 11, 2)
     placed = datetime.combine(today, time(14), tzinfo=CN_TZ)
     clock = {"now": placed.timestamp() + 2}
+
+    class MarketClock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime.fromtimestamp(clock["now"], tz)
+
+    # cn_today and cn_now independently read datetime.now; freeze both, including
+    # callers that imported either function before the fixture started.
+    monkeypatch.setattr("app.market_time.datetime", MarketClock)
     monkeypatch.setattr(runtime.time, "time", lambda: clock["now"])
     monkeypatch.setattr(paper, "cn_now", lambda: placed)
     monkeypatch.setattr(paper_auto, "cn_now", lambda: placed)

@@ -71,6 +71,8 @@ def test_local_start_plus_fifteen_confirmation_and_restart_are_fixed(scan, tmp_p
     now = {"value": datetime(2026, 11, 2, 14, 30, 15, tzinfo=CN_TZ)}
     for module in ("app.market_time", "app.multitenancy.monitor_compute", "app.services.local_strategy_monitor"):
         monkeypatch.setattr(module + ".cn_now", lambda: now["value"])
+    for module in ("app.market_time", "app.strategy.monitor"):
+        monkeypatch.setattr(module + ".cn_today", lambda: now["value"].date())
     custom_signals.save_one(tmp_path, {
         "id": "trigger", "name": "尾盘", "kind": "entry", "timeframe": "intraday",
         "template": "late_session_strength", "enabled": True, "conditions": [],

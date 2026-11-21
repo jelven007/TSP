@@ -3,7 +3,7 @@
 import gzip
 import json
 from copy import deepcopy
-from datetime import datetime, time, timedelta
+from datetime import datetime, time
 from types import SimpleNamespace
 
 import pytest
@@ -15,6 +15,8 @@ from app.market_time import CN_TZ, cn_today
 from app.multitenancy.monitor_rules import Rules
 from app.multitenancy.runtime import fingerprint
 from app.services.strategy_results import ResultIdentity
+from app.strategy.basic_filter import previous_session
+from app.strategy.overnight_runtime import next_market_day
 
 
 def completion(day, runtime_identity="current"):
@@ -96,14 +98,14 @@ def test_completed_zero_is_materialized_and_confirms_tomorrow_empty_sell(owned):
     owned.documents.put("critical_strategy_runs", f"{sid}:{day}", completion(day))
     store = StrategyResults(owned.documents)
     DailySelections(owned.documents).save(key, {
-        "as_of": str(day), "source_date": str(day - timedelta(days=1)),
+        "as_of": str(day), "source_date": str(previous_session(day)),
         "rows": [{"symbol": "600000.SH"}],
     }, started_at=1)
     current = json.loads(gzip.decompress(store.day_view(sid, str(day))[1]))["result"]
     assert current["section_statuses"]["buy"] == "success"
     assert current["selection_only"] is False
     assert current["sections"]["select"] == [{"symbol": "600000.SH"}]
-    tomorrow = day + timedelta(days=1)
+    tomorrow = next_market_day(day)
     future = DailySelections(owned.documents).save(key, {
         "as_of": str(tomorrow), "source_date": str(day), "rows": [],
     }, started_at=2)["result"]
@@ -123,7 +125,7 @@ def test_archived_selection_maps_its_identity_before_zero_status_overlay(owned, 
                          "stock", "1m", runtime_identity="current")
     store = StrategyResults(owned.documents)
     DailySelections(owned.documents).save(key, {
-        "as_of": str(day), "source_date": str(day - timedelta(days=1)), "rows": [],
+        "as_of": str(day), "source_date": str(previous_session(day)), "rows": [],
     }, started_at=1)
     with owned.documents.transaction() as unit:
         archived = unit.records("strategy_result_history")[0]
@@ -159,11 +161,11 @@ def test_next_day_cached_archive_refreshes_sell_dependency_from_completed_zero(o
     from app.services.strategy_results import StrategyResults
 
     day = cn_today()
-    tomorrow = day + timedelta(days=1)
+    tomorrow = next_market_day(day)
     key = ResultIdentity("custom_test", "S02", "v1", "{}", "{}", "null",
                          "stock", "1m", runtime_identity="current")
     selected = DailySelections(owned.documents)
-    selected.save(key, {"as_of": str(day), "source_date": str(day - timedelta(days=1)), "rows": []}, started_at=1)
+    selected.save(key, {"as_of": str(day), "source_date": str(previous_session(day)), "rows": []}, started_at=1)
     selected.save(key, {"as_of": str(tomorrow), "source_date": str(day), "rows": []}, started_at=2)
     owned.documents.put("critical_strategy_runs", f"custom_test:{day}", completion(day))
     monkeypatch.setattr(screener, "_private_data_dir", lambda *_: owned.documents)
