@@ -161,7 +161,8 @@ def failed_task_results(payload, reason, now):
             pool = payload.get("daily_pool_snapshots", {}).get(sid) or {}
             result = evaluate(
                 None, sig, day=now.astimezone(CN_TZ).date(), pool_symbols=pool.get("symbols"),
-                prev_close={}, completed_through=now, task_state=state, input_error=reason)
+                prev_close={}, completed_through=now, task_state=state, input_error=reason,
+                selection=payload.get("selection_snapshots", {}).get(sid))
             quality[column] = {"stage": result.stage, "progress": result.progress}
         results[sid] = {"as_of": str(now.astimezone(CN_TZ).date()), "entry_data_quality": quality,
                         "rows": [], "total": 0, "entry_filter_error": reason}
@@ -406,7 +407,8 @@ def evaluate_strategy_phases(payload, repo, executor):
                 error = str(exc)
             calculated = evaluate(minutes, sig, day=now.date(), pool_symbols=pool.get("symbols"),
                                   prev_close=references, completed_through=now, task_state=state,
-                                  input_error=error, breadth_only=True)
+                                  input_error=error, breadth_only=True,
+                                  selection=payload.get("selection_snapshots", {}).get(sid))
             completed = cn_now()
             quality = asdict(calculated)
             quality["missing_count"] = len(calculated.missing_symbols)

@@ -9,7 +9,7 @@ import { CustomSignalDialog } from '@/components/signals/CustomSignalDialog'
 import { Skeleton } from '@/components/data/Skeleton'
 import { PageHeader } from '@/components/PageHeader'
 import { AnchorWrap } from '@/lib/useCardFlash'
-import { customSignalColumn, lateSessionSummary, morningLiquidationSummary } from '@/lib/customSignals'
+import { customSignalColumn, lateSessionSummary, morningLiquidationSummary, sortSignalsByName } from '@/lib/customSignals'
 import { isS01Signal, s01SignalSummary } from '@/lib/customSignals'
 
 type SignalSection = 'builtin' | 'custom'
@@ -50,7 +50,7 @@ function SignalsBody({ highlight }: { highlight: string }) {
   const resetDeleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fields = options.data?.fields ?? []
-  const signals = list.data?.signals ?? []
+  const signals = sortSignalsByName(list.data?.signals ?? [])
   const enabledCustomSignals = signals.filter(sig => sig.enabled).length
 
   useEffect(() => () => {

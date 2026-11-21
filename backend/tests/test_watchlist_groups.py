@@ -54,6 +54,48 @@ def test_group_lifecycle_preserves_watchlist_entries(monkeypatch, tmp_path):
     assert all(row["group_ids"] == [] for row in rows)
 
 
+def test_s03_is_first_and_preserves_other_groups_order(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    _, first = watchlist.create_group("一")
+    _, second = watchlist.create_group("二")
+    groups, fixed = watchlist.create_group("s03")
+    assert [group["id"] for group in groups] == [fixed["id"], first["id"], second["id"]]
+    assert watchlist.list_groups()[0]["protected"] is True
+    reordered = watchlist.reorder_groups([second["id"], first["id"], fixed["id"]])
+    assert [group["id"] for group in reordered] == [fixed["id"], second["id"], first["id"]]
+    assert watchlist.list_groups() == reordered
+
+
+def test_s03_cannot_be_deleted_or_renamed_and_keeps_members(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    _, fixed = watchlist.create_group("s03")
+    watchlist.add("600000.SH", "保留备注", group_id=fixed["id"])
+    before = watchlist.list_symbols()
+    revision = watchlist.revision()
+    with pytest.raises(HTTPException) as exc:
+        watchlist_api.delete_group(fixed["id"], _request())
+    assert exc.value.status_code == 409
+    assert "固定分组" in exc.value.detail
+    with pytest.raises(ValueError, match="固定分组"):
+        watchlist.rename_group(fixed["id"], "改名")
+    assert watchlist.list_symbols() == before
+    assert watchlist.revision() == revision
+    assert watchlist.list_groups()[0]["name"] == "s03"
+
+
+def test_existing_s03_keeps_id_color_and_members(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    path = tmp_path / "user_data" / "watchlist_groups.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        '[{"id":"other","name":"其他","color":"sky"},'
+        '{"id":"saved","name":"s03","color":"orange"}]', encoding="utf-8",
+    )
+    assert watchlist.list_groups()[0] == {
+        "id": "saved", "name": "s03", "color": "orange", "protected": True,
+    }
+
+
 def test_group_validation_and_assignment_errors(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "data_dir", tmp_path)
     _, created = watchlist.create_group("核心")

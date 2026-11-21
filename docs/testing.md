@@ -1,5 +1,14 @@
 # 测试与验收指南
 
+S03 A/B入场筛选定向入口为`test_entry_groups`：保存校验、AND/OR、双命中A优先、
+精确前日五维归档、缺值和重复成员隔离、全无可算成员失败、未来分钟排除、
+草稿变更使计算状态失效，以及分钟投影后排序与排名分不被ATR覆盖。
+`EntryGroups.test.tsx`验证名称自然排序、A/B编辑、保存重开和非法范围。
+结合原分钟信号、监控任务与五维预选测试；两端实际页面须核对
+`s03_早盘建仓/late_session_strength_s03`，保存后重载A/B及原时钟，
+策略页选择`s03/custom_mvxxcs03`检查卖／选／买、缺归档和历史显示。
+固定输入Compute验收只认证计算和排序，不认证收益回测或自然交易日成交。
+
 监控时钟／当日卖名单／S03零结果回归入口：
 `test_monitor_saved_clocks_regression`验证保存时段与14:55执行截止分开；
 `MonitorSignalRefresh.regression.test.tsx`验证显示及保存后查询失效；
@@ -55,6 +64,15 @@ Provider返回后取消、加工批次取消与修复等待均须回到同一任
 正常空名单、精确前／下一交易日、单策略失败隔离、补数完成后重试、窗口外不计算、
 重复执行不重复保存、取消及租约保护。S03须加载当前保存源码和覆盖信号验证
 每个交易日卖／选／买、买名单同步次交易日卖、默认关闭及重启持久化。
+`test_s03_daily_selection`另验普通20:00～21:00及S03专属21:00～22:00精确边界、
+冻结S02日期／20点计划／21点前生成、五维权重与实际比率、缺失不补分、单股隔离、
+同分代码排序与前30、公告发行人／日期／去重。Full PostgreSQL须验证两任务独立、
+依赖等待、重试复用冻结名单、Compute参数传递及S03迟到提交拒绝。
+`test_full_s03_watchlist_sync`在真实PostgreSQL验证排名替换、成功空组、
+共享/未分组信息及租户隔离、失败归档与组整体回滚、事务事件和截止后不清组。
+`test_s03_watchlist_sync`验证文件持久化、摘要幂等、失败恢复与只重试同步、
+缺组/未保存/重复/过多/较老名单保护；`useQuoteStream.sharing.test.tsx`
+验证实时行情关闭时业务事件仍刷新自选且普通策略事件不刷新自选。
 
 ## 当前功能回归矩阵
 
@@ -287,6 +305,10 @@ K线区间获取回归入口为`test_repair_kline.py`、`test_kline_periods_api.
 
 自选分组与监控启用按`FR-WATCHLIST-02/05`、`FR-STRATEGY-06`验证：
 `test_watchlist_groups.py`覆盖重复添加到不同组及旧文件重复证券合并，首条备注/日期保留；
+固定`s03`同时运行`test_watchlist_groups.py`与`test_full_watchlist_fixed_group.py`：
+检查文件和真实PostgreSQL的创建/读取排序、重排归位、删除/改名拒绝及成员/revision不变。
+`WatchlistGroups.test.tsx`检查固定组无删除/编辑/移动入口、不可拖动及相邻普通组上移禁用；
+两端实际页面须选中`s03`并重新加载，确认全部→未分组→s03→普通组及保存结果。
 `test_strategy_targets.py`、`test_full_strategy_targets.py`覆盖文件、真实PostgreSQL和HTTP
 清空409、失败不改数据/revision、其他租户与未引用分组可清空、共享证券保留其他组关系。
 `test_strategy_monitor_activation.py`覆盖首次启用、停用后成员变更再启用、重读失败保留停用

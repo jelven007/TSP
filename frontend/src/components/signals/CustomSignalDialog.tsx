@@ -11,6 +11,8 @@ import { QK } from '@/lib/queryKeys'
 import { LATE_SESSION_DEFAULTS, MORNING_LIQUIDATION_DEFAULTS, morningLiquidationDraft, lateSessionBarTime, lateSessionCheckTime, lateSessionLatestStartTime } from '@/lib/customSignals'
 import { isS01Signal, s01ExitDraft } from '@/lib/customSignals'
 import { S01SignalParamsEditor } from './S01SignalParamsEditor'
+import { EntryGroupsEditor } from './EntryGroupsEditor'
+import { validateEntryGroups } from '@/lib/entryGroups'
 
 interface Props {
   open: boolean
@@ -66,7 +68,7 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
 
   useEffect(() => {
     if (!open) return
-    const next = signal ? { ...signal, params: signal.params ? { ...signal.params } : undefined,
+    const next = signal ? { ...signal, params: signal.params ? structuredClone(signal.params) : undefined,
       conditions: signal.conditions.map(c => ({ ...c })) } : emptySignal(defaultKind)
     const delay = (next.params as Partial<LateSessionStrengthParams> | undefined)?.evaluation_delay_minutes
     if (next.template === 'late_session_strength' && (delay === undefined || delay === 0))
@@ -132,11 +134,12 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
           || lateDelaySeconds % 30 !== 0))
           throw new Error('确认延迟须为30～900秒且为30秒的整数倍')
         const latest = lateSessionLatestStartTime(lateDelaySeconds ?? 0)
-        const validTime = (at: string) => /^(?:1[34]:[0-5]\d:[0-5]\d|15:00:00)$/.test(at)
-        if (p.time != null && (!validTime(p.time) || p.time < '13:00:00' || p.time > latest))
-          throw new Error(`启动时间须为 13:00:00～${latest}，确认时间不得晚于15:00:00`)
-        if (p.end_time != null && (!validTime(p.end_time) || p.end_time < '13:00:00'))
-          throw new Error('结束时间须为 13:00:00～15:00:00')
+        const validTime = (at: string) => /^(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(at)
+          && ((at >= '09:30:00' && at <= '11:30:00') || (at >= '13:00:00' && at <= '15:00:00'))
+        if (p.time != null && (!validTime(p.time) || p.time > latest))
+          throw new Error(`启动时间须为 09:30:00～11:30:00、13:00:00～${latest}，确认时间不得晚于15:00:00`)
+        if (p.end_time != null && !validTime(p.end_time))
+          throw new Error('结束时间须为 09:30:00～11:30:00、13:00:00～15:00:00')
         if (p.time != null && p.end_time != null && p.end_time < lateSessionCheckTime(p))
           throw new Error('结束时间不得早于确认时间')
         if (![p.change_min_pct, p.change_max_pct, p.pool_up_min_pct, p.amount_min_100m,
@@ -148,6 +151,7 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
         if (![p.ma5_1m_count, p.ma5_5m_count].every(value =>
           value == null || (Number.isInteger(value) && value >= 1 && value <= 100)))
           throw new Error('MA5 数量须为1～100的整数')
+        validateEntryGroups(p.entry_groups)
       }
       for (const c of d.conditions) {
         if (!c.left || !c.op || c.right === '') throw new Error('条件填写不完整')
@@ -190,7 +194,7 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
             <div className="modal-header flex items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold text-foreground">{editing ? '编辑自定义信号' : '新建自定义信号'}</h3>
-                <p className="mt-1 text-[11px] text-muted">标识保存后不可修改。{morning ? '早盘清仓用于持仓次交易日的出场判断。' : lateSession ? '尾盘走强用于分钟策略，全部条件同时满足时触发。' : '多条件同时满足时触发。'}</p>
+                <p className="mt-1 text-[11px] text-muted">标识保存后不可修改。{morning ? '早盘清仓用于持仓次交易日的出场判断。' : lateSession ? '分钟入场先检查共用条件，再检查已启用的A/B分组。' : '多条件同时满足时触发。'}</p>
               </div>
               <button onClick={onClose} className="modal-close" aria-label="关闭弹窗">
                 <X className="h-4 w-4" />
@@ -300,7 +304,7 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                           params: { ...lateParams, time: time || null } }))}
                         className="w-full" buttonClassName="h-9 w-full justify-start" />
                       <p className="text-[10px] leading-4 text-muted">
-                        有效时段起点；K线截止 {lateSessionBarTime(lateParams.time)}。留空按当前已完成分钟。
+                        交易时段09:30～11:30、13:00～15:00；K线截止 {lateSessionBarTime(lateParams.time)}。留空按当前已完成分钟。
                       </p>
                     </label>
                     <label className="space-y-1.5">
@@ -359,13 +363,15 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                       </p>
                     </label>
                   </div>
+                  <EntryGroupsEditor value={lateParams.entry_groups}
+                    onChange={entry_groups => setDraft(d => ({ ...d, params: { ...lateParams, entry_groups } }))} />
                   {signal?.template === 'late_session_strength'
                     && ((signal.params as LateSessionStrengthParams)?.evaluation_delay_minutes === undefined
                       || (signal.params as LateSessionStrengthParams)?.evaluation_delay_minutes === 0) && (
                     <p className="text-[11px] leading-5 text-amber-400">此信号原为无延迟旧定义，保存时采用上方所选确认延迟。</p>
                   )}
                   <div className="space-y-1 text-[10px] leading-4 text-muted">
-                    <p>参数留空不生效；启用条件全部达标才触发，未达标则结束当天任务。</p>
+                    <p>参数留空不生效；共用条件全部达标，且已启用的A/B分组至少一组达标才触发；未达标则结束当天任务。</p>
                     <p>先解决阻塞再继续重试，同一原因告警去重；重试不改变启动数据。MA5不跨午休或交易日。</p>
                   </div>
                 </div>

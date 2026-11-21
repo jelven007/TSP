@@ -17,6 +17,7 @@ class CellSettings(BaseSettings):
     deployment_exposure: str = Field(default="local", pattern=r"^(local|public)$")
     bootstrap_admin_password: SecretStr = SecretStr("")
     bootstrap_watchlist_columns_path: Path | None = None
+    bootstrap_business_defaults_path: Path | None = None
     session_ttl_seconds: int = Field(default=86400, ge=300, le=2592000)
     market_url: str = ""
     market_token: SecretStr = SecretStr("")

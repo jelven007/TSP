@@ -79,7 +79,7 @@ it('creates and edits the late-session entry preset with all configurable defaul
   const savedCount = save.mock.calls.length
   await act(async () => [...host.querySelectorAll('button')].find(b => b.textContent?.includes('保存'))!.click())
   expect(save.mock.calls.length).toBe(savedCount)
-  expect(host.textContent).toContain('13:00:00～14:59:30')
+  expect(host.textContent).toContain('09:30:00～11:30:00、13:00:00～14:59:30')
   await act(async () => render({ ...stored, params: { ...stored.params, time: '14:59:31' } }))
   await act(async () => [...host.querySelectorAll('button')].find(b => b.textContent?.includes('保存'))!.click())
   expect(save.mock.calls.length).toBe(savedCount)

@@ -107,6 +107,7 @@ class QuoteSubscriber:
         self._max_reviews = max_reviews
         self._quote_updated = False
         self._strategy_results_updated = False
+        self._watchlist_changed = False
         self._depth_updated = False
         self._alerts: list[dict] = []
         self._reviews: list[str] = []
@@ -122,12 +123,14 @@ class QuoteSubscriber:
             out = {
                 "quote_updated": self._quote_updated,
                 "strategy_results_updated": self._strategy_results_updated,
+                "watchlist_changed": self._watchlist_changed,
                 "depth_updated": self._depth_updated,
                 "alerts": self._alerts,
                 "reviews": self._reviews,
             }
             self._quote_updated = False
             self._strategy_results_updated = False
+            self._watchlist_changed = False
             self._depth_updated = False
             self._alerts = []
             self._reviews = []
@@ -165,9 +168,10 @@ class QuoteSubscriber:
             self._quote_updated = True
             self._event.set()
 
-    def notify_strategy_results(self) -> None:
+    def notify_strategy_results(self, *, watchlist_changed: bool = False) -> None:
         with self._lock:
             self._strategy_results_updated = True
+            self._watchlist_changed |= watchlist_changed
             self._event.set()
 
     def notify_depth(self) -> None:
@@ -517,10 +521,10 @@ class QuoteService:
         for sub in self._snapshot_subscribers():
             sub.notify_quote()
 
-    def notify_strategy_results_updated(self) -> None:
-        """策略监控完成实时结果更新后调用，仅刷新策略页结果缓存。"""
+    def notify_strategy_results_updated(self, *, watchlist_changed: bool = False) -> None:
+        """Notify result updates and optional committed watchlist replacement."""
         for sub in self._snapshot_subscribers():
-            sub.notify_strategy_results()
+            sub.notify_strategy_results(watchlist_changed=watchlist_changed)
 
     def notify_depth_updated(self) -> None:
         """五档盘口修正完成后调用: 通知 SSE 推送 depth_updated, 触发连板梯队刷新。

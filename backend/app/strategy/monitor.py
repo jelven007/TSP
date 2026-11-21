@@ -2261,7 +2261,8 @@ class MonitorRuleEngine:
         for event_type, symbols in changes.items():
             if event_type not in notify_events or not symbols:
                 continue
-            symbol_list = sorted(symbols)
+            symbol_list = sorted(symbols, key=lambda symbol: (
+                row_map.get(symbol, {}).get("entry_priority") or float("inf"), symbol))
             individual = []
             for symbol in symbol_list:
                 row = row_map.get(symbol, {})

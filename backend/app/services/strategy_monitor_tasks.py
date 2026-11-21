@@ -181,12 +181,16 @@ def selection_repairs(market, repo, owner, generations, job, errors, *, engine=N
     repairs = {}
     source = date.fromisoformat(job["source_date"])
     for sid in errors:
+        from app.services.selection_clock import S03_ID, window_text
+        if sid == S03_ID and ("S02" in errors[sid] or "扩展" in errors[sid] or "财务" in errors[sid]):
+            repairs[sid] = {"state": "waiting_data", "error": errors[sid]}
+            continue
         try:
             if engine is None or storage is None:
                 raise ValueError("修复缺少策略范围定义")
             symbols = trusted_scope(engine, repo, storage, sid, source,
                                     (overrides or {}).get(sid))["symbols"]
-            bars = max(1, engine.minute_daily_history_bars(
+            bars = max(65 if sid == S03_ID else 1, engine.minute_daily_history_bars(
                 [sid], overrides_map=overrides or {}))
             dates = [source]
             for _ in range(min(bars, 500) - 1):
@@ -197,7 +201,7 @@ def selection_repairs(market, repo, owner, generations, job, errors, *, engine=N
         repairs[sid] = request_input_repair(
             market, owner=owner, sid=sid, generation=generations[sid],
             day=source, phase="select", attempt=job["attempts"],
-            symbols=symbols, deadline=f"{source}T22:00:00+08:00",
+            symbols=symbols, deadline=f"{source}T{window_text(sid)[1]}+08:00",
             daily_dates=sorted(dates))
     return repairs
 
@@ -211,17 +215,20 @@ def selection_receipts(storage, job, now):
     results = {}
     errors = job.get("errors") or {}
     for sid in set(job.get("completed") or []) | set(errors):
+        from app.services.selection_clock import window_for, window_text
+        start, end = window_for(sid)
+        start_text, end_text = window_text(sid)
         old = task_receipt(storage, sid, job["source_date"])
         previous = old.get("tasks", {}).get("select", {})
         if finished(previous):
-            if (not time(20) <= now.time().replace(tzinfo=None) <= time(22)
+            if (not start <= now.time().replace(tzinfo=None) <= end
                     or (sid not in (job.get("selections") or {}) and sid not in errors)):
                 continue
             previous = {**previous, "state": "failed", "terminal": False}
         source = str(job["source_date"])
         action = {"phase": "expire" if job.get("state") == "expired" else "select",
-                  "expired_phase": "select", "scheduled_at": f"{source}T20:00:00+08:00",
-                  "retry_until": f"{source}T22:00:00+08:00"}
+                  "expired_phase": "select", "scheduled_at": f"{source}T{start_text}+08:00",
+                  "retry_until": f"{source}T{end_text}+08:00"}
         selected = (job.get("selections") or {}).get(sid) or {}
         coverage = selected.get("coverage") or {}
         from app.strategy.version import digest
@@ -235,11 +242,13 @@ def selection_receipts(storage, job, now):
             continue
         task = receipt(previous, action, now, passed=sid not in errors,
             errors=[errors[sid]] if sid in errors else [], details={
-                "windows": [{"start": "20:00:00", "end": "22:00:00"}],
+                "windows": [{"start": start_text, "end": end_text}],
                 "target_date": job["as_of"], "count": len(selected.get("rows", [])),
                 "pool_total": coverage.get("scope_total"), "pool_usable": coverage.get("available_daily"),
                 "missing_count": len(coverage.get("missing_symbols", [])),
                 "invalid_symbols": coverage.get("invalid_symbols", {}),
+                "candidate_total": coverage.get("candidate_total"),
+                "scorable_total": coverage.get("scorable_total"),
                 "warnings": selected.get("warnings", []),
                 "repair": (job.get("repairs") or {}).get(sid), "job_signature": job_signature})
         results[sid] = {"as_of": job["source_date"], "monitor_tasks": {"select": task}}
@@ -289,17 +298,26 @@ def monitoring_summary(engine, storage, *, now=None):
                            "windows": [{k: w[k] for k in ("start", "end")} for w in signal_windows[kind]]}
             if any(w["end"] > "14:55:00" for w in signal_windows[kind]) and kind == "buy":
                 tasks[kind]["execution_deadline"] = "14:55:00"
-        select = {**saved.get("select", {}), "windows": [{"start": "20:00:00", "end": "22:00:00"}]}
+        from app.services.selection_clock import window_for, window_text
+        start, end = window_for(sid)
+        start_text, end_text = window_text(sid)
+        select = {**saved.get("select", {}), "windows": [{"start": start_text, "end": end_text}]}
         select["state"] = "waiting"
         if published_trading_day(now.date()) is True:
             try:
-                window = due_window(now.replace(hour=20, minute=0, second=0), monitored_only=True)
+                window = due_window(now.replace(hour=start.hour, minute=0, second=0, microsecond=0),
+                                    monitored_only=True, strategy_id=sid)
                 select["target_date"] = str(window[1])
                 if DailySelections(storage).read(sid, window[1]) is not None:
                     select["state"] = "success"
-                elif now.time().replace(tzinfo=None) > time(22):
+                    from app.services.selection_clock import S03_ID
+                    if sid == S03_ID:
+                        sync = DailySelections(storage).job(str(window[1]) + ":s03").get("watchlist_sync", {})
+                        if sync.get("state") == "failed":
+                            select.update(state="failed", errors=[sync["error"]], terminal=False)
+                elif now.time().replace(tzinfo=None) > end:
                     select["state"] = "expired"
-                elif now.time().replace(tzinfo=None) >= time(20):
+                elif now.time().replace(tzinfo=None) >= start:
                     previous = saved.get("select", {})
                     select["state"] = "failed" if previous.get("errors") else "running"
                     select["terminal"] = False
@@ -369,7 +387,7 @@ def task_windows(engine, strategy, overrides, *, apply_entry_cutoff=True):
             if sig.get("template") == "late_session_strength":
                 from app.strategy.late_session_strength import parameters
                 params = parameters(sig)
-                start, end = params["time"] or "13:00:00", params.get("end_time") or "14:55:00"
+                start, end = params["time"] or "09:30:00", params.get("end_time") or "14:55:00"
             elif sig.get("template") == "morning_liquidation":
                 from app.strategy.morning_liquidation import parameters
                 params = parameters(sig)

@@ -26,10 +26,15 @@ def replay(repo, storage, sig, *, strategy_id, start, end, symbols):
             day += timedelta(days=1)
             continue
         universe = pool["symbols"]
+        selection = None
+        if params.get("entry_groups") is not None:
+            from app.services.daily_selections import DailySelections
+
+            selection = DailySelections(storage).read(strategy_id, day)
         daily = pl.DataFrame()
         if needs_previous_close(sig) or params["volume_ratio_min"] is not None:
             load_prior = getattr(repo, "get_last_traded_closes", None)
-            if params["volume_ratio_min"] is None and callable(load_prior):
+            if params.get("entry_groups") is None and params["volume_ratio_min"] is None and callable(load_prior):
                 daily = load_prior(universe, day)
             else:
                 from app.strategy.basic_filter import previous_session
@@ -74,13 +79,14 @@ def replay(repo, storage, sig, *, strategy_id, start, end, symbols):
                 point_frame = minute.filter(pl.col("datetime") <= observed - timedelta(
                     minutes=params["evaluation_delay_minutes"] or 0))
             result = evaluate(point_frame, sig, day=day, pool_symbols=universe, prev_close=previous,
-                              completed_through=observed, **inputs)
+                              completed_through=observed, selection=selection, **inputs)
             diagnostics.extend({"date": str(day), "message": message} for message in result.diagnostics)
             label = datetime.fromisoformat(result.progress["bar_at"]) if result.progress["bar_at"] else None
             if label is None:
                 continue
             available_at = evaluation_time(sig, day, completed_through=label)
             triggers.extend({"date": str(day), "time": str(available_at.time()), "symbol": symbol,
+                             **result.entry_matches.get(symbol, {}),
                              **({"bar_time": str(label.time())} if available_at > label else {})}
                             for symbol in result.symbols if symbol in symbols)
         day += timedelta(days=1)

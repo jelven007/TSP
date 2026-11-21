@@ -30,6 +30,44 @@ async function render(result: ScreenerResult) {
 }
 
 describe('StrategyDailyResults', () => {
+  it('keeps historical S03 score labels and does not invent five-dimensional columns', async () => {
+    const rows = [{ symbol: '600001.SH', name: '旧归档', score: 100,
+      atr14_previous_close: .05, atr_rank: 1 }]
+    await render({
+      as_of: '2026-11-20', strategy: 'custom_mvxxcs03', rows: [], total: 0, elapsed_ms: 0,
+      section_mode: 'signals', sections: { sell: [], select: rows, buy: [] },
+    })
+    await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1].click())
+    const headers = [...host.querySelectorAll('th')].map(th => th.textContent)
+    expect(headers).toContain('选股评分')
+    expect(headers).toContain('ATR14÷昨收')
+    expect(headers).not.toContain('综合分')
+    expect(headers).not.toContain('技术分')
+  })
+  it('shows S03 five-dimensional archive scores and own window without reordering the saved ranking', async () => {
+    const rows = [{ symbol: '600002.SH', name: '第一只', score: 85, tech_score: 90,
+      fund_score: 80, emotion_score: 85, fundamental_score: 70, news_score: 60 },
+      { symbol: '600001.SH', name: '第二只', score: 70, tech_score: 70,
+        fund_score: 60, emotion_score: 80, fundamental_score: 50, news_score: 50 }]
+    await render({
+      as_of: '2026-11-23', strategy: 'custom_mvxxcs03', rows: [], total: 0, elapsed_ms: 0,
+      section_mode: 'signals', sections: { sell: [], select: rows, buy: [] },
+      selection_snapshot: { as_of: '2026-11-23', source_date: '2026-11-20',
+        generated_at: '2026-11-20T21:10:00+08:00', rows,
+        scoring_policy: 's03_five_dimensions_v1', coverage: { candidate_total: 36, scorable_total: 35 } },
+    })
+    await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1].click())
+    expect(host.textContent).toContain('21:00～22:00')
+    expect(host.textContent).toContain('技术×40%')
+    const headers = [...host.querySelectorAll('th')].map(th => th.textContent)
+    for (const label of ['综合分', '技术分', '资金分', '情绪分', '基本面分', '消息分']) {
+      expect(headers).toContain(label)
+    }
+    expect(headers).not.toContain('ATR14÷昨收')
+    const symbols = [...host.querySelectorAll('tbody tr')].map(tr => tr.textContent)
+    expect(symbols[0]).toContain('600002.SH')
+    expect(symbols[1]).toContain('600001.SH')
+  })
   it('shows S01 saved cumulative metrics and keeps stock navigation in all tabs', async () => {
     const row = { symbol: '600001.SH', name: '第一只', current_return: .025,
       current_range: .031, amount: 210000000, score: .014 }

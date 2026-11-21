@@ -98,13 +98,13 @@ def test_full_schedule_waits_retries_and_is_idempotent_and_tenant_private(env, t
         service.runtime.close()
 
 
-@pytest.mark.parametrize("clock", [(20, 0), (20, 47), (21, 59)])
+@pytest.mark.parametrize("clock", [(20, 0), (20, 47), (20, 59)])
 def test_all_custom_strategies_recover_window_start_without_archive(env, tmp_path, clock):
     from app.services.daily_selections import DailySelections
     from app.services.strategy_monitor_tasks import set_monitoring, task_receipt
     _, documents = own(env)
     source(documents, tmp_path)
-    # Different arbitrary IDs prove that the scheduler has no S03-specific gate.
+    # Ordinary custom IDs share the 20:00-21:00 window.
     for sid in ("custom_alpha", "custom_beta"):
         code = CODE.replace("custom_test", sid)
         (tmp_path / (sid + ".py")).write_text(code)
@@ -307,6 +307,91 @@ def test_nightly_mainline_waits_until_platform_repair_finishes(env, tmp_path):
         service.daily_selections(documents, snapshot, None, NOW, lease)
         assert len(calls) == 1
         assert store.read("custom_test", TARGET) is not None
+    finally:
+        from app.cell.scheduler import Scheduler
+        Scheduler(env["db"]).finish(lease, None)
+        service.runtime.close()
+
+
+def s03_source(documents, tmp_path):
+    from app.services.strategy_monitor_tasks import set_monitoring
+    sid = "custom_mvxxcs03"
+    code = CODE.replace("custom_test", sid)
+    (tmp_path / "s03.py").write_text(code)
+    definition = definition_payload(StrategyEngine([tmp_path]).get(sid))
+    documents.put("strategy_sources", sid, {
+        "id": sid, "source": "custom", "code": code, "definition": definition})
+    set_monitoring(documents, sid, "s03", True)
+
+
+def save_s02(documents, *, rows=None, started_at=1, generated_at=None):
+    from app.services.daily_selections import DailySelections
+    identity = ResultIdentity("custom_mvxxcp88", "s02", "v1", "{}", "{}", "null", "stock", "1m")
+    return DailySelections(documents).save(identity, {
+        **selected(), "rows": [{"symbol": "600001.SH"}] if rows is None else rows,
+        "generated_at": generated_at or NOW.replace(minute=12).isoformat(),
+    }, started_at=started_at)
+
+
+def test_s03_own_window_waits_freezes_and_reuses_dependency_across_retry(env, tmp_path):
+    from app.services.daily_selections import DailySelections
+    from app.services.strategy_monitor_tasks import task_receipt
+    _, documents = own(env)
+    source(documents, tmp_path)
+    s03_source(documents, tmp_path)
+    sid, calls = "custom_mvxxcs03", []
+    def execute(task):
+        calls.append(task)
+        if len(calls) == 1:
+            return {"selections": {}, "errors": {sid: "fixture retry"}}
+        return {"selections": {sid: {**selected(), "scheduled_for": NOW.replace(hour=21).isoformat(),
+                                    "generated_at": NOW.replace(hour=21, minute=2).isoformat()}},
+                "errors": {}}
+    service = TenantSchedules(env["db"], None, executor=SimpleNamespace(execute=execute))
+    lease = claim(env, documents)
+    store, ready = DailySelections(documents), {"settlement_days": ["2026-10-30"]}
+    try:
+        service.daily_selections(documents, ready, None, NOW.replace(hour=21, minute=1), lease)
+        assert calls == []
+        assert store.job(str(TARGET))["state"] == "expired"
+        assert store.job(str(TARGET) + ":s03")["state"] == "waiting_data"
+        save_s02(documents)
+        service.daily_selections(documents, ready, None, NOW.replace(hour=21, minute=2), lease)
+        assert calls[0]["strategy_ids"] == [sid]
+        frozen = calls[0]["source_selection"]
+        assert frozen["snapshot"]["rows"] == [{"symbol": "600001.SH"}]
+        save_s02(documents, rows=[{"symbol": "999999.SH"}], started_at=2,
+                 generated_at=NOW.replace(hour=21, minute=3).isoformat())
+        service.daily_selections(documents, ready, None, NOW.replace(hour=21, minute=4), lease)
+        assert calls[1]["source_selection"] == frozen
+        assert calls[1]["as_of"] == str(TARGET)
+        assert store.job(str(TARGET) + ":s03")["state"] == "succeeded"
+        assert store.read(sid, TARGET) is not None
+        receipt = task_receipt(documents, sid, NOW.date())["tasks"]["select"]
+        assert receipt["windows"] == [{"start": "21:00:00", "end": "22:00:00"}]
+        assert receipt["retry_until"] == "2026-10-30T22:00:00+08:00"
+    finally:
+        from app.cell.scheduler import Scheduler
+        Scheduler(env["db"]).finish(lease, None)
+        service.runtime.close()
+
+
+def test_s03_rejects_commit_after_own_deadline(env, tmp_path):
+    from app.services.daily_selections import DailySelections
+    _, documents = own(env)
+    s03_source(documents, tmp_path)
+    save_s02(documents)
+    sid = "custom_mvxxcs03"
+    service = TenantSchedules(env["db"], None, executor=SimpleNamespace(execute=lambda task: {
+        "selections": {sid: selected()}, "errors": {}}))
+    service.selection_now = lambda: NOW.replace(hour=22, second=1)
+    lease = claim(env, documents)
+    try:
+        with pytest.raises(AccessError):
+            service.daily_selections(documents, {"settlement_days": ["2026-10-30"]},
+                                     None, NOW.replace(hour=21), lease)
+        assert DailySelections(documents).read(sid, TARGET) is None
+        assert DailySelections(documents).job(str(TARGET) + ":s03")["state"] == "failed"
     finally:
         from app.cell.scheduler import Scheduler
         Scheduler(env["db"]).finish(lease, None)

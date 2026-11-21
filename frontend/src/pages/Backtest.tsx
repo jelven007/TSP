@@ -1,9 +1,11 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { BookmarkCheck, FlaskConical, History, ShieldCheck } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { PageHeader } from '@/components/PageHeader'
-import { type ResearchCandidate } from '@/lib/api'
-import { multitenancyEnabled } from '@/lib/accountSession'
+import { api, type ResearchCandidate } from '@/lib/api'
+import { accountScope, multitenancyEnabled } from '@/lib/accountSession'
+import { QK } from '@/lib/queryKeys'
 
 const ResearchCandidatesDialog = lazy(() => import('./backtest/ResearchCandidatesDialog').then(module => ({ default: module.ResearchCandidatesDialog })))
 const RobustnessValidation = lazy(() => import('./backtest/RobustnessValidation').then(module => ({ default: module.RobustnessValidation })))
@@ -32,6 +34,14 @@ export function Backtest() {
   const requestedTab = searchParams.get('tab')
   const [candidatesOpen, setCandidatesOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const needsDefaults = multitenancyEnabled()
+  const defaults = useQuery({
+    queryKey: QK.businessInitializationDefaults(accountScope()),
+    queryFn: api.businessInitializationDefaults,
+    enabled: needsDefaults,
+    staleTime: Infinity,
+    retry: false,
+  })
   // 候选「载入复测」: 弹窗选定 → 关闭弹窗切到策略页 → StrategyBacktest 消费后清空
   const [pendingLoad, setPendingLoad] = useState<ResearchCandidate | null>(null)
 
@@ -117,8 +127,19 @@ export function Backtest() {
 
       <main className="page-content min-h-0 flex-1">
         <Suspense fallback={<div role="status" className="py-8 text-center text-sm text-muted">加载中…</div>}>
-        {activeTab === 'strategy' && (
+        {activeTab === 'strategy' && needsDefaults && defaults.isPending && (
+          <div role="status" className="py-8 text-center text-sm text-muted">加载回测默认设置…</div>
+        )}
+        {activeTab === 'strategy' && needsDefaults && defaults.isError && (
+          <div role="alert" className="py-8 text-center text-sm">
+            <p>回测默认设置加载失败。</p>
+            <button type="button" className="mt-2 text-accent" onClick={() => void defaults.refetch()}>重试</button>
+          </div>
+        )}
+        {activeTab === 'strategy' && (!needsDefaults || defaults.isSuccess) && (
           <StrategyBacktest
+            key={accountScope()}
+            initializationDefaults={defaults.data?.backtest}
             loadCandidate={pendingLoad}
             onLoadConsumed={() => setPendingLoad(null)}
           />

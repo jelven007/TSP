@@ -31,8 +31,8 @@ def test_custom_monitor_switch_saves_all_directions_without_running(tmp_path, mo
 @pytest.mark.parametrize("stamp,expected", [
     ("2026-10-30T19:59:59", None),
     ("2026-10-30T20:00:00", (date(2026, 10, 30), date(2026, 11, 2))),
-    ("2026-10-30T22:00:00", (date(2026, 10, 30), date(2026, 11, 2))),
-    ("2026-10-30T22:00:01", None),
+    ("2026-10-30T21:00:00", (date(2026, 10, 30), date(2026, 11, 2))),
+    ("2026-10-30T21:00:01", None),
     ("2026-10-31T20:00:00", None),
     ("2026-11-02T08:00:00", None),
 ])
@@ -122,3 +122,16 @@ def test_buy_task_window_and_status_match_real_time_cutoff_without_changing_save
     now = datetime(2026, 11, 20, 14, 55, tzinfo=CN_TZ)
     assert window_state(windows, "buy", now) == "running"
     assert window_state(windows, "buy", now.replace(second=1)) == "expired"
+
+
+def test_cleared_late_start_allows_morning_monitoring_and_keeps_live_cutoff(monkeypatch):
+    from app.services.strategy_monitor_tasks import task_windows, window_state
+    signal = {"id": "late", "enabled": True, "template": "late_session_strength", "params": {
+        "time": None, "end_time": None, "evaluation_delay_minutes": .5}}
+    monkeypatch.setattr("app.strategy.s01_signals.optional_triggers", lambda _: True)
+    monkeypatch.setattr("app.strategy.s01_signals.trigger_definitions",
+                        lambda *_a, **_k: {"entry": [signal], "exit": []})
+    windows = task_windows(None, None, {})
+    assert windows["buy"][0]["start"] == "09:30:00"
+    assert windows["buy"][0]["end"] == "14:55:00"
+    assert window_state(windows, "buy", datetime(2026, 11, 20, 10, 30, tzinfo=CN_TZ)) == "running"

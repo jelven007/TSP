@@ -337,7 +337,7 @@ it.each(['custom_mvxxcs01', 'custom_mvxxcp88'])('toggles %s without data, date c
   dataState.latest = null
   monitorTasks.mockResolvedValue({ strategies: [{
     strategy_id: sid, enabled: false, as_of: '2026-11-02', tasks: {
-      select: { state: 'disabled', windows: [{ start: '20:00:00', end: '22:00:00' }] },
+      select: { state: 'disabled', windows: [{ start: '20:00:00', end: '21:00:00' }] },
       buy: { state: 'disabled', windows: [{ start: '14:30:00', end: '14:55:00' }] },
       sell: { state: 'disabled', windows: [{ start: '09:30:00', end: '11:30:00' }] },
     },
@@ -346,7 +346,7 @@ it.each(['custom_mvxxcs01', 'custom_mvxxcp88'])('toggles %s without data, date c
   const name = sid.endsWith('cs01') ? 's01' : '自定义S02'
   await act(async () => button(name).click())
   await flush()
-  expect(host.textContent).toContain('20:00:00～22:00:00')
+  expect(host.textContent).toContain('20:00:00～21:00:00')
   await act(async () => monitor(name).click())
   await flush()
   expect(monitorToggle).toHaveBeenCalledWith(sid, true)

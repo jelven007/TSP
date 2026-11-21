@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, useLocation } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, expect, it, vi } from 'vitest'
 
 const loaded = vi.hoisted(() => ({ views: [] as string[] }))
@@ -26,7 +27,13 @@ vi.mock('./backtest/ResearchCandidatesDialog', () => { loaded.views.push('candid
 vi.mock('./backtest/ResearchHistoryDialog', () => { loaded.views.push('history'); return {
   ResearchHistoryDialog: () => <div role="dialog">saved history</div>,
 } })
-vi.mock('@/lib/accountSession', () => ({ multitenancyEnabled: () => true }))
+vi.mock('@/lib/accountSession', () => ({
+  multitenancyEnabled: () => true,
+  accountScope: () => 'research-page-test',
+}))
+vi.mock('@/lib/api', () => ({
+  api: { businessInitializationDefaults: vi.fn().mockResolvedValue({ backtest: {} }) },
+}))
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 let root: Root | undefined
 let node: HTMLDivElement
@@ -34,7 +41,12 @@ function Location() { return <output>{useLocation().search}</output> }
 async function mount(Page: () => React.ReactNode, url: string) {
   node = document.createElement('div'); document.body.append(node)
   root = createRoot(node)
-  await act(async () => root!.render(<MemoryRouter initialEntries={[url]}><Page /><Location /></MemoryRouter>))
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  await act(async () => root!.render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[url]}><Page /><Location /></MemoryRouter>
+    </QueryClientProvider>,
+  ))
 }
 async function click(text: string) {
   const button = [...node.querySelectorAll('button')].find(b => b.textContent === text)!

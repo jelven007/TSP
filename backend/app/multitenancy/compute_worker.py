@@ -93,6 +93,7 @@ def execute(payload: dict, private_root: Path) -> dict:
                 engine, ScreenerService(repo), date.fromisoformat(payload["source_date"]),
                 date.fromisoformat(payload["as_of"]), payload["strategy_ids"],
                 payload.get("overrides_map", {}),
+                source_selection=payload.get("source_selection"),
             )
         if kind == "monitor":
             from app.multitenancy.monitor_compute import evaluate_snapshot

@@ -27,14 +27,17 @@ DEFAULT_PARAMS = {
 
 def optional_definition(sig: dict) -> bool:
     raw = sig.get("params") or {}
-    return isinstance(raw, dict) and (bool(OPTIONAL_KEYS & raw.keys())
+    return isinstance(raw, dict) and ("entry_groups" in raw or bool(OPTIONAL_KEYS & raw.keys())
                                      or any(value is None for value in raw.values()))
 
 
 def parameters(sig: dict) -> dict:
     raw = sig.get("params") or {}
-    if not isinstance(raw, dict) or set(raw) - set(DEFAULT_PARAMS):
+    if not isinstance(raw, dict) or set(raw) - (set(DEFAULT_PARAMS) | {"entry_groups"}):
         raise ValueError("尾盘走强参数格式错误或包含未知参数")
+    from app.strategy.entry_groups import validate
+
+    validate(raw.get("entry_groups"))
     params = {**DEFAULT_PARAMS, **raw}
     # Frozen six-field definitions keep their original scheduled minute.
     delay = raw.get("evaluation_delay_minutes", 0)
@@ -45,18 +48,17 @@ def parameters(sig: dict) -> dict:
     params["evaluation_delay_minutes"] = delay
     if optional_definition(sig):
         return _optional_parameters(params, raw)
-    earliest = time(13) if delay else time(13, 1)
     latest = (datetime.combine(date.min, time(15)) - timedelta(minutes=delay)).time()
     try:
         at = time.fromisoformat(params["time"])
         if (at.strftime("%H:%M:%S") != params["time"] or at.tzinfo
                 or (delay == 0 and at.second)):
             raise ValueError
-        if not earliest <= at <= latest:
+        if not ((time(9, 30) <= at <= time(11, 30)) or (time(13) <= at <= latest)):
             raise ValueError
     except (TypeError, ValueError):
         raise ValueError(
-            f"尾盘走强启动时间须为午后 {earliest}~{latest}; "
+            f"尾盘走强启动时间须为北京时间09:30:00~11:30:00、13:00:00~{latest}; "
             "延迟确认定义支持秒, 无延迟旧定义秒数须为 00"
         ) from None
     for key in ("change_min_pct", "change_max_pct", "pool_up_min_pct"):
@@ -82,10 +84,11 @@ def _optional_parameters(params: dict, raw: dict) -> dict:
             continue
         try:
             at = time.fromisoformat(value)
-            if at.tzinfo or at.strftime("%H:%M:%S") != value or not time(13) <= at <= time(15):
+            if (at.tzinfo or at.strftime("%H:%M:%S") != value
+                    or not ((time(9, 30) <= at <= time(11, 30)) or (time(13) <= at <= time(15)))):
                 raise ValueError
         except (TypeError, ValueError):
-            raise ValueError(f"{key} 须为北京时间13:00:00~15:00:00") from None
+            raise ValueError(f"{key} 须为北京时间09:30:00~11:30:00、13:00:00~15:00:00") from None
     if params["time"] is not None:
         confirmation = datetime.combine(date.min, time.fromisoformat(params["time"])) + timedelta(minutes=delay or 0)
         if confirmation.date() != date.min or confirmation.time() > time(15):
@@ -233,6 +236,8 @@ class Evaluation:
     pool_up_pct_upper: float | None = None
     warnings: list[str] = field(default_factory=list)
     progress: dict = field(default_factory=dict)
+    entry_matches: dict = field(default_factory=dict)
+    entry_group_errors: dict = field(default_factory=dict)
 
 
 def progress_plan(sig: dict, day: date, observed: datetime | None = None,
@@ -359,7 +364,9 @@ def _evaluate_legacy(
         dt = dt.dt.convert_time_zone("Asia/Shanghai").dt.replace_time_zone(None)
     frame = minute_df.with_columns(dt.alias("datetime")).filter(
         pl.col("symbol").is_in(pool) & (pl.col("datetime").dt.date() == day)
-        & (pl.col("datetime") <= at) & (pl.col("datetime").dt.time() > time(13)))
+        & (pl.col("datetime") <= at)
+        & (pl.col("datetime").dt.time().is_between(time(9, 31), time(11, 30))
+           | pl.col("datetime").dt.time().is_between(time(13, 1), time(15))))
     quotes = frame.filter(pl.col("datetime") == at)
     quotes_by_symbol = quotes.partition_by("symbol", as_dict=True)
     returns: dict[str, float] = {}
@@ -452,8 +459,10 @@ def _evaluate_legacy(
 
 
 def needs_previous_close(sig: dict) -> bool:
+    from app.strategy.entry_groups import needs_previous
+
     params = parameters(sig)
-    return any(params[key] is not None for key in (
+    return needs_previous(params.get("entry_groups")) or any(params[key] is not None for key in (
         "pool_up_min_pct", "change_min_pct", "change_max_pct", "amplitude_max_pct"))
 
 
@@ -533,6 +542,7 @@ def _evaluate_optional(
     float_shares: dict[str, float] | None = None,
     previous_volume_mean: dict[str, float] | None = None,
     breadth_only: bool = False, skip_breadth: bool = False,
+    selection: dict | None = None,
 ) -> Evaluation:
     params = parameters(sig)
     result = Evaluation(progress=progress_plan(sig, day, completed_through,
@@ -700,7 +710,22 @@ def _evaluate_optional(
             steps[step_key].update(state="failed", reason=result.diagnostics[-1])
             return result
         candidates &= rising
-    result.symbols = sorted(candidates)
+    if params.get("entry_groups") is not None:
+        from app.strategy.entry_groups import match
+
+        matches, errors, coverage = match(params["entry_groups"], selection, frame,
+            day=day, at=at, candidates=candidates, previous=prev_close)
+        result.entry_matches, result.entry_group_errors = matches, errors
+        result.progress["entry_groups"] = coverage
+        if coverage["total"] and not coverage["usable"]:
+            result.stage = "waiting_data"
+            result.diagnostics.append("A/B入场筛选: 全部候选缺少可计算的分组数据")
+            return result
+        result.symbols = list(matches)
+        if errors:
+            result.warnings.append(f"A/B入场筛选: {len(errors)}只股票存在分组数据缺失, 详见异常记录")
+    else:
+        result.symbols = sorted(candidates)
     return result
 
 
@@ -713,6 +738,7 @@ def evaluate(
     task_state: dict | None = None,
     input_error: str | None = None,
     breadth_only: bool = False,
+    selection: dict | None = None,
 ) -> Evaluation:
     """Two-stage receipts; storage owners commit task_state with the result."""
     if not optional_definition(sig):
@@ -747,10 +773,12 @@ def evaluate(
     confirm_at = evaluation_time(sig, day)
     inputs = dict(day=day, pool_symbols=pool_symbols, prev_close=prev_close,
                   completed_through=observed, diagnostic_symbols=diagnostic_symbols,
-                  float_shares=float_shares, previous_volume_mean=previous_volume_mean)
+                  float_shares=float_shares, previous_volume_mean=previous_volume_mean,
+                  selection=selection)
     identity = hashlib.sha256(json.dumps(
         [str(day), sig.get("id"), params, sorted(set(pool_symbols or [])),
-         None if start else str(bar_time(sig, day, completed_through=observed))],
+         None if start else str(bar_time(sig, day, completed_through=observed)),
+         selection if params.get("entry_groups") is not None else None],
         sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     if state.get("identity") != identity:
         state.clear()

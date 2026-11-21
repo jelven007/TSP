@@ -11,6 +11,7 @@ vi.mock('@/lib/useSharedQueries', () => ({ usePreferences: () => ({ data: {} }) 
 vi.mock('@/lib/accountSession', () => ({ hasPermission: () => false }))
 
 const groups: WatchlistGroup[] = [
+  { id: 'fixed', name: 's03', color: 'sky', protected: true },
   { id: 'core', name: '核心/观察:组', color: 'sky', referenced_by: ['demo'] },
   { id: 'other', name: '其他', color: 'teal' },
   { id: 'empty', name: '空组', color: 'blue' },
@@ -62,7 +63,7 @@ async function render(selected = 'all') {
     <QueryClientProvider client={client}>
       <WatchlistGroupBar groups={groups} counts={{ core: 3, other: 2, empty: 0 }}
         selected={selected} total={5} onSelect={vi.fn()} onCreate={vi.fn()}
-        onRename={vi.fn()} onDelete={vi.fn()} />
+        onRename={vi.fn()} onDelete={vi.fn()} onReorder={vi.fn()} />
     </QueryClientProvider>,
   ))
   await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="管理自选分组"]')!.click())
@@ -75,6 +76,21 @@ function exportButton() {
   expect(button, 'The group manager should offer CSV export').toBeDefined()
   return button!
 }
+
+it('keeps s03 after ungrouped with no edit, delete or move controls', async () => {
+  await render()
+  const tabs = [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+  expect(tabs.slice(0, 3).map(tab => tab.querySelector('span:not([class])')?.textContent)).toEqual([
+    '全部', '未分组', 's03',
+  ])
+  expect(tabs[2].draggable).toBe(false)
+  const row = document.querySelector('input[value="fixed"]')!.parentElement!
+  expect(row.querySelector('[title="删除分组"]')).toBeNull()
+  expect(row.querySelector('[title="编辑分组"]')).toBeNull()
+  expect(row.querySelector('[title="上移"]')).toBeNull()
+  expect(row.querySelector('[title="下移"]')).toBeNull()
+  expect(document.querySelector<HTMLButtonElement>('[aria-label="上移分组 核心/观察:组"]')?.disabled).toBe(true)
+})
 
 async function select(groupId: string) {
   const radio = document.querySelector<HTMLInputElement>(`input[type="radio"][value="${groupId}"]`)

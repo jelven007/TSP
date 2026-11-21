@@ -150,7 +150,39 @@ it('selects and reloads a functional second-precision late-session start', async
   const savedCount = f.save.mock.calls.length
   await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent?.includes('保存'))!.click())
   expect(f.save.mock.calls.length).toBe(savedCount)
-  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('13:00:00～14:58:30')
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('09:30:00～11:30:00、13:00:00～14:58:30')
+})
+
+it('selects morning start and end, saves exact seconds, and reloads the template', async () => {
+  const f = await fixture({
+    id: 'morning_late', name: '尾盘走强.分钟入场', kind: 'entry', timeframe: 'intraday',
+    template: 'late_session_strength', conditions: [], enabled: true,
+    params: { time: '14:30:00', end_time: null, evaluation_delay_minutes: .5,
+      change_min_pct: .4, change_max_pct: 4, pool_up_min_pct: 60,
+      ma5_1m_count: 7, ma5_5m_count: 4 },
+  })
+  await f.select('启动时间', '10:30:20')
+  await f.select('结束时间', '11:30:00')
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('10:30:50')
+  await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent?.includes('保存'))!.click())
+  expect(f.save).toHaveBeenCalledWith(expect.objectContaining({
+    params: expect.objectContaining({ time: '10:30:20', end_time: '11:30:00', evaluation_delay_minutes: .5 }),
+  }), { createOnly: false })
+  await f.render(f.save.mock.calls[0][0])
+  expect(f.time('启动时间').textContent).toBe('10:30:20')
+  expect(f.time('结束时间').textContent).toBe('11:30:00')
+  for (const [name, value, error] of [
+    ['启动时间', '09:29:59', '启动时间须为'],
+    ['启动时间', '12:00:00', '启动时间须为'],
+    ['结束时间', '12:00:00', '结束时间须为'],
+    ['结束时间', '10:30:49', '结束时间不得早于确认时间'],
+  ]) {
+    await f.render({ ...f.save.mock.calls[0][0] })
+    await f.select(name, value)
+    await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent?.includes('保存'))!.click())
+    expect(f.save).toHaveBeenCalledTimes(1)
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(error)
+  }
 })
 
 it('clears both late-session clocks through the picker and reopens them empty', async () => {

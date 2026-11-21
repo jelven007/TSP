@@ -24,7 +24,7 @@ it('shows the saved signal period together with its earlier live execution deadl
       buy: { state: 'expired', windows: [{ start: '14:50:00', end: '15:00:00' }],
         execution_deadline: '14:55:00' },
       sell: { state: 'waiting', windows: [{ start: '11:00:00', end: '11:30:00' }] },
-      select: { state: 'waiting', windows: [{ start: '20:00:00', end: '22:00:00' }] },
+      select: { state: 'waiting', windows: [{ start: '20:00:00', end: '21:00:00' }] },
     },
   } as StrategyMonitoring
   try {

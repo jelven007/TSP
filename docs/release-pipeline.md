@@ -12,8 +12,8 @@
 不能认证完整源码已同步。升级签收要求无未处理冲突的同步回执、
 HEAD等于正式SHA及`check_version.py`通过；版本、锁文件和现行文档一并核对。
 
-2026-11-19 工程优化新增[离线计时汇总](../scripts/release/summarize_timings.py)；
-本轮尚未发布，原编排器的锁、输入核验、中断协调和保留规则不变。
+[离线计时汇总](../scripts/release/summarize_timings.py)读取编排回执；
+编排器的锁、输入核验、中断协调和保留规则继续生效。
 同一版本／提交取每个环境计划的最新 `receipt.json`：
 
 ```bash
@@ -39,7 +39,7 @@ python3 scripts/release/summarize_timings.py \
 首次标签缺失仅以 Registry HTTP 404 且明确 `MANIFEST_UNKNOWN` 确认；
 Buildx 的模糊 `not found` 不作缺失事实源。已存在标签读取实际 manifest 字节
 核对 SHA-256 及响应 digest；权限/网络失败、非法或混合错误与标签冲突仍阻断。
-本次验证（历史报告已移出仓库）保留首轮失败身份。
+失败尝试的身份和日志保留在该次发布的受控证据中。
 
 主线 `ci.yml` 的 Version Job 分配一次版本并输出完整40位SHA；
 Backend、Frontend和可复用 `docker.yml` 均检出该SHA并行执行。

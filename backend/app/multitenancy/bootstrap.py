@@ -83,6 +83,15 @@ def business_settings(request: Request) -> dict:
     return _settings(require(request, "business:read"))
 
 
+@router.get("/initialization-defaults")
+def business_initialization_defaults(request: Request) -> dict:
+    from app.multitenancy.business_defaults import initialization_defaults
+    from app.multitenancy.documents import private_storage
+
+    account = require(request, "business:read")
+    return initialization_defaults(request.app.state.account_identity, account, private_storage(request))
+
+
 @router.get("/preferences")
 def business_preferences(request: Request) -> dict:
     return _preferences(request, require(request, "business:read"))

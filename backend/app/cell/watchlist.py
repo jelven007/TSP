@@ -6,6 +6,7 @@ from psycopg.errors import UniqueViolation
 
 from app.cell.context import AccessError, TenantContext
 from app.cell.database import Databases
+from app.services.watchlist import ensure_group_mutable, ordered_groups
 
 
 class Watchlist:
@@ -27,9 +28,9 @@ class Watchlist:
 
     @staticmethod
     def _groups(conn) -> list[dict]:
-        return conn.execute(
+        return ordered_groups(conn.execute(
             "SELECT id, name, color FROM business.watchlist_groups ORDER BY position, id"
-        ).fetchall()
+        ).fetchall())
 
     @staticmethod
     def _audit(conn, context: TenantContext, action: str, target: str) -> None:
@@ -102,6 +103,10 @@ class Watchlist:
                     "SELECT 1 FROM business.watchlist_groups WHERE id = %s", (group_id,)
                 ).fetchone()
                 if exists:
+                    try:
+                        ensure_group_mutable(group_id, self._groups(conn))
+                    except ValueError as exc:
+                        raise AccessError(409, str(exc)) from exc
                     conn.execute(
                         "UPDATE business.watchlist_groups SET name = %s, color = %s WHERE id = %s",
                         (name, color, group_id),
@@ -124,6 +129,7 @@ class Watchlist:
             self._lock(conn)
             from app.strategy.targets import ensure_deletable, sql_references
             try:
+                ensure_group_mutable(group_id, self._groups(conn))
                 ensure_deletable(group_id, sql_references(conn))
             except ValueError as exc:
                 raise AccessError(409, str(exc)) from exc
@@ -140,6 +146,8 @@ class Watchlist:
             existing = {row["id"] for row in self._groups(conn)}
             if len(ordered_ids) != len(existing) or set(ordered_ids) != existing:
                 raise AccessError(422, "invalid_group_order")
+            by_id = {group["id"]: group for group in self._groups(conn)}
+            ordered_ids = [group["id"] for group in ordered_groups([by_id[gid] for gid in ordered_ids])]
             for position, group_id in enumerate(ordered_ids):
                 conn.execute(
                     "UPDATE business.watchlist_groups SET position = %s WHERE id = %s",

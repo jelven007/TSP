@@ -125,7 +125,7 @@ def test_nightly_summary_requires_normal_archive_instead_of_terminal_receipt(tmp
     task_receipt(tmp_path,"custom_test","2026-11-19",{"tasks":{
         "select":{"state":"success","terminal":True}}})
     rows=monitoring_summary(engine,tmp_path,
-        now=datetime(2026,11,19,21,59,tzinfo=CN_TZ))["strategies"]
+        now=datetime(2026,11,19,20,59,tzinfo=CN_TZ))["strategies"]
     selected=rows[0]["tasks"]["select"]
     assert selected["state"]=="running"
     assert selected["terminal"] is False

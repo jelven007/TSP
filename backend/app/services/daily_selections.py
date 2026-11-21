@@ -10,7 +10,7 @@ from datetime import time as clock_time
 
 from app.cell.context import AccessError
 from app.market_time import as_cn_datetime, cn_now, published_trading_days
-from app.services.selection_clock import SELECTION_TIME, SELECTION_TIME_TEXT
+from app.services.selection_clock import S03_ID, SELECTION_TIME, SELECTION_TIME_TEXT, window_for
 from app.services.strategy_results import ResultIdentity, StrategyResults, _encode
 
 DEFINITION_VERSION = "postclose_selection_v1"
@@ -24,15 +24,16 @@ def signal_strategy(strategy):
             or supports_signal_sections(strategy))
 
 
-def due_window(now=None, *, monitored_only=False):
+def due_window(now=None, *, monitored_only=False, strategy_id=None):
     """Recover only the latest post-close window, before its target session opens."""
     now = as_cn_datetime(now or cn_now())
     if monitored_only:
         from app.market_time import published_trading_day
         from app.strategy.overnight_runtime import next_market_day
 
+        start, end = window_for(strategy_id)
         if (published_trading_day(now.date()) is not True
-                or not SELECTION_TIME <= now.time().replace(tzinfo=None) <= clock_time(22)):
+                or not start <= now.time().replace(tzinfo=None) <= end):
             return None
         return now.date(), next_market_day(now.date())
     days = sorted(day for year in (now.year - 1, now.year, now.year + 1)
@@ -114,11 +115,23 @@ class DailySelections:
             return json.loads(row[0]) if row else {}
 
 
-def compute_selections(engine, service, source, target, ids, overrides, *, now=None):
+def compute_selections(engine, service, source, target, ids, overrides, *, now=None,
+                       source_selection=None):
     from app.services.daily_pool_schedule import scheduled_for
     from app.strategy.engine import _sanitize
     from app.strategy.signal_price_suggestions import price_reference
     from app.strategy.signal_sections import select_rows
+    results, errors = {}, {}
+    if S03_ID in ids:
+        from app.services.s03_selection import compute_selection
+        try:
+            results[S03_ID] = compute_selection(
+                engine, service, source, target, overrides, source_selection, now or cn_now())
+        except (ValueError, OSError) as exc:
+            errors[S03_ID] = str(exc)
+        ids = [sid for sid in ids if sid != S03_ID]
+    if not ids:
+        return {"selections": results, "errors": errors}
     context = service.build_selection_context(engine, source, target, ids, overrides_map=overrides)
     reference = (price_reference(context) if any(
         not engine.get(sid).meta.get("minute_execution") for sid in ids) else None)
@@ -142,7 +155,6 @@ def compute_selections(engine, service, source, target, ids, overrides, *, now=N
         scope_context = replace(context, as_of=source,
                                 current=instruments.with_columns(pl.lit(source).alias("date")),
                                 pool_universe=universe)
-    results, errors = {}, {}
     for sid in ids:
         try:
             coverage = None
@@ -190,6 +202,14 @@ def compute_selections(engine, service, source, target, ids, overrides, *, now=N
 
 
 def generate_scheduled_local(engine, service, storage, *, now=None, repair=None):
+    responses = [_generate_scheduled_group(engine, service, storage, now=now, repair=repair,
+                                          strategy_id=sid) for sid in (None, S03_ID)]
+    return {"saved": [sid for response in responses for sid in response["saved"]],
+            "errors": {sid: error for response in responses for sid, error in response["errors"].items()},
+            **({"watchlist_changed": True} if any(r.get("watchlist_changed") for r in responses) else {})}
+
+
+def _generate_scheduled_group(engine, service, storage, *, now=None, repair=None, strategy_id=None):
     from app.services.strategy_results import capture_identities, execution_snapshot
     from app.strategy.config import list_overrides
     from app.strategy.version import digest
@@ -205,8 +225,10 @@ def generate_scheduled_local(engine, service, storage, *, now=None, repair=None)
         selection_repairs,
         task_receipt,
     )
-    expired = now.time().replace(tzinfo=None) > clock_time(22) and published_trading_day(now.date()) is True
-    window = due_window(now.replace(hour=20, minute=0, second=0) if expired else now, monitored_only=True)
+    start, end = window_for(strategy_id)
+    expired = now.time().replace(tzinfo=None) > end and published_trading_day(now.date()) is True
+    window = due_window(now.replace(hour=start.hour, minute=0, second=0, microsecond=0)
+                        if expired else now, monitored_only=True, strategy_id=strategy_id)
     if window is None or not _scheduled_lock.acquire(blocking=False):
         return {"saved": [], "errors": {}}
     try:
@@ -218,7 +240,9 @@ def generate_scheduled_local(engine, service, storage, *, now=None, repair=None)
         active = monitored_ids(storage)
         lifecycles = {sid: monitoring_state(storage, sid) for sid in active}
         ids = [sid for sid, strategy in engine._strategies.items() if sid in active and signal_strategy(strategy)
-               and not strategy.meta.get("research_only")]
+               and not strategy.meta.get("research_only")
+               and (sid == S03_ID) == (strategy_id == S03_ID)]
+        job_key = str(target) + (":s03" if strategy_id == S03_ID else "")
         # Only the saved result proves completion during the execution window.
         pending = [sid for sid in ids if store.read(sid, target) is None and
                    (not expired or not finished(
@@ -226,14 +250,32 @@ def generate_scheduled_local(engine, service, storage, *, now=None, repair=None)
         if expired and pending:
             job = {"source_date": str(source), "as_of": str(target), "state": "expired",
                    "errors": {sid: "盘后选股时段已结束, 尚无成功归档" for sid in pending}}
-            store.job(str(target), job)
+            store.job(job_key, job)
             selection_receipts(storage, job, now)
             return {"saved": [], "errors": job["errors"]}
         if not pending:
+            if strategy_id == S03_ID and S03_ID in ids and not expired:
+                from app.services.s03_watchlist import WatchlistSyncError, sync_archived_selection
+                selected = store.read(S03_ID, target)
+                try:
+                    receipt = sync_archived_selection(storage, selected, now)
+                except WatchlistSyncError as exc:
+                    failed = {**store.job(job_key), "source_date": str(source), "as_of": str(target),
+                              "state": "failed", "completed": [], "errors": {S03_ID: str(exc)},
+                              "watchlist_sync": {"state": "failed", "error": str(exc)}}
+                    store.job(job_key, failed)
+                    selection_receipts(storage, failed, now)
+                    return {"saved": [], "errors": failed["errors"]}
+                if receipt:
+                    recovered = {**store.job(job_key), "source_date": str(source), "as_of": str(target),
+                                 "state": "succeeded", "completed": [S03_ID], "errors": {},
+                                 "selections": {S03_ID: selected}, "watchlist_sync": receipt}
+                    store.job(job_key, recovered)
+                    selection_receipts(storage, recovered, now)
+                    return {"saved": [], "errors": {}, "watchlist_changed": True}
             return {"saved": [], "errors": {}}
         identities = capture_identities(engine, storage, pending, overrides_map=overrides, timeframe="all")
         marker = digest({sid: identity.fingerprint for sid, identity in identities.items()})
-        job_key = str(target)
         old = store.job(job_key)
         repairs = {sid: value for sid, value in (old.get("repairs") or {}).items() if sid in pending}
         blocked = pending_selection_repairs(repair, repairs) if repair else set()
@@ -248,14 +290,23 @@ def generate_scheduled_local(engine, service, storage, *, now=None, repair=None)
                "state": "running", "started_at": started_at, "attempts": old.get("attempts", 0) + 1}
         store.job(job_key, job)
         def repair_errors(errors):
+            errors = {sid: message for sid, message in errors.items()
+                      if not message.startswith("S03自选分组更新失败")}
             return {**repairs, **selection_repairs(
                 repair, service.repo, "standalone", {sid: lifecycles[sid]["generation"] for sid in pending},
                 job, errors, engine=engine, storage=storage, overrides=overrides)} if repair else repairs
         try:
+            if strategy_id == S03_ID:
+                from app.services.s03_selection import freeze_source
+                from app.services.selection_clock import S02_ID
+                dependency = job.get("source_selection") or freeze_source(store.read(S02_ID, target), source, target)
+                job["source_selection"] = dependency
+                store.job(job_key, job)
             ready = json.loads((service.repo.store.data_dir / "settlement_ready.json").read_text())
             if ready.get("day") != str(source):
                 raise ValueError(f"等待{source}盘后完整数据")
-            response = compute_selections(engine, service, source, target, pending, overrides, now=now)
+            response = compute_selections(engine, service, source, target, pending, overrides, now=now,
+                                          source_selection=job.get("source_selection"))
         except (OSError, ValueError) as exc:
             errors = {sid: str(exc) for sid in pending}
             failed = {**job, "state": "waiting_data", "errors": {**blocked_errors, **errors},
@@ -271,6 +322,7 @@ def generate_scheduled_local(engine, service, storage, *, now=None, repair=None)
             selection_receipts(storage, failed, now)
             return {"saved": [], "errors": errors}
         saved, errors = [], dict(response["errors"])
+        watchlist_sync = None
         for sid, selected in response["selections"].items():
             try:
                 # Do not archive results computed against a changed user configuration.
@@ -280,9 +332,13 @@ def generate_scheduled_local(engine, service, storage, *, now=None, repair=None)
                         or sid not in monitored_ids(storage)
                         or monitoring_state(storage, sid) != lifecycles[sid]
                         or due_window(now + timedelta(seconds=time.monotonic() - attempt_start),
-                                      monitored_only=True) != window):
+                                      monitored_only=True, strategy_id=sid) != window):
                     raise ValueError("预选配置或监控窗口已更新, 旧计算已丢弃")
                 store.save(identities[sid], selected, started_at=started_at)
+                if sid == S03_ID:
+                    from app.services.s03_watchlist import sync_archived_selection
+                    watchlist_sync = sync_archived_selection(storage, store.read(sid, target),
+                        now + timedelta(seconds=time.monotonic() - attempt_start))
                 saved.append(sid)
             except (AccessError, KeyError, ValueError, RuntimeError) as exc:
                 errors[sid] = str(exc)
@@ -290,8 +346,13 @@ def generate_scheduled_local(engine, service, storage, *, now=None, repair=None)
                            "completed": sorted(set(ids) - all_pending | set(saved)),
                            "errors": {**blocked_errors, **errors}, "repairs": repair_errors(errors),
                            "selections": response["selections"], "finished_at": time.time_ns()}
+        if watchlist_sync:
+            completed["watchlist_sync"] = watchlist_sync
+        elif S03_ID in errors and errors[S03_ID].startswith("S03自选分组更新失败"):
+            completed["watchlist_sync"] = {"state": "failed", "error": errors[S03_ID]}
         store.job(job_key, completed)
         selection_receipts(storage, completed, now)
-        return {"saved": saved, "errors": errors}
+        return {"saved": saved, "errors": errors,
+                **({"watchlist_changed": True} if watchlist_sync else {})}
     finally:
         _scheduled_lock.release()

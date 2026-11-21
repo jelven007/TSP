@@ -9,6 +9,7 @@ import type { StrategyResultHistoryFilters } from './api'
 // ===== Query Key 工厂 =====
 
 export const QK = {
+  businessInitializationDefaults: (scope: string) => ['business-initialization-defaults', scope] as const,
   backtestTradeNames: (symbols: string[]) => ['backtest-trade-names', symbols] as const,
   // 全局 / 共享 (Layout 预取)
   capabilities:   ['capabilities'] as const,

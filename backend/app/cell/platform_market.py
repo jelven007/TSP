@@ -101,9 +101,11 @@ def monitor_repair(request: Request, value: MonitorRepairRequest,
     except ValueError:
         raise HTTPException(422, "invalid_repair_window") from None
     deadline = as_cn_datetime(value.retry_until)
+    from app.services.selection_clock import window_for
+    latest = window_for(value.strategy_id)[1] if value.phase == "select" else clock_time(22)
     if (value.day != now.date() or published_trading_day(value.day) is not True
             or deadline.date() != value.day or deadline <= now
-            or deadline.time().replace(tzinfo=None) > clock_time(22)
+            or deadline.time().replace(tzinfo=None) > latest
             or any(day > value.day for day in value.daily_dates)
             or any(not re.fullmatch(SYMBOL_PATTERN, symbol) for symbol in value.symbols)
             or (end and (end > now.time().replace(tzinfo=None) or not clock_time(9, 30) <= end <= clock_time(15)))):
