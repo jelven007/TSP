@@ -282,8 +282,7 @@ def run_overnight(service, config, strategy, params, overrides, *,
         issues = research_preflight(
             replace(config, stamp_tax_pct=params["stamp_tax"]), provenance,
             status_quality(panel, config.start, config.end))
-        output.stats["warnings"] = [*issues, "当前证券目录及已记录ST排除; 完整历史证券池与公司行为未经认证",
-                                   "此结果重建买入撮合, 冻结190笔买入账本的历史收益需单独核验"]
+        output.stats["warnings"] = [*issues, "当前证券目录及已记录ST排除; 完整历史证券池与公司行为未经认证"]
         if config.strict_research and issues:
             return finish("严格研究校验未通过: " + "; ".join(issues))
         minute_dates = set(repo.list_minute_dates(config.start, config.end, "stock"))
@@ -418,7 +417,7 @@ def run_overnight(service, config, strategy, params, overrides, *,
                 cycle_notional = pos.get("sell_notional", sale["notional"])
                 cycle_value = pos.get("sell_value", sale["value"])
                 record = TradeRecord(
-                    symbol=symbol, entry_date=pos["entry_date"], exit_date=day,
+                    symbol=symbol, name=pos["name"], entry_date=pos["entry_date"], exit_date=day,
                     entry_price=pos["entry_notional"] / pos["shares"],
                     exit_price=cycle_notional / pos["shares"],
                     pnl_pct=cycle_value / pos["entry_value"] - 1,
@@ -583,7 +582,8 @@ def run_overnight(service, config, strategy, params, overrides, *,
                     cash -= buy["value"]
                     fills.extend(buy["fills"])
                     positions[symbol] = {
-                        "symbol": symbol, "entry_date": day, "sell_date": sell_date,
+                        "symbol": symbol, "name": row.get("name") or "",
+                        "entry_date": day, "sell_date": sell_date,
                         "shares": buy["shares"], "remaining": buy["shares"],
                         "entry_notional": buy["notional"], "entry_value": buy["value"],
                         "entry_nav": nav, "entry_budget": budget,

@@ -10,6 +10,16 @@ from app.backtest.strategy import BacktestResultPolicy, StrategyBacktestConfig
 from app.strategy import custom_signals
 
 
+def test_overnight_names_survive_positions_and_completed_trades(tmp_path):
+    result = replay(tmp_path, exit_signal=True)
+    assert result.error is None
+    assert result.trades
+    assert {trade["name"] for trade in result.trades} == {"正常股票"}
+    positions = replay(tmp_path, exit_signal=False).stats["execution"]["remaining_positions"]
+    assert positions
+    assert {position["name"] for position in positions} == {"正常股票"}
+
+
 def replay(tmp_path, *, count=2, retained=False, partial=False, scores=None,
            exit_signal=False, **settings):
     subject = service(tmp_path, count, retained=retained, partial=partial)

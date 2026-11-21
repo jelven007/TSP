@@ -157,18 +157,27 @@ def test_no_valid_timed_market_is_waiting_instead_of_successful_zero(scan):
     assert result.total == 0
 
 
-def test_independent_timed_native_or_keeps_earlier_confirmed_evidence(scan):
+def test_timed_native_entries_wait_for_every_point_and_share_confirmation(scan):
     engine, _, ctx, _ = scan
     ctx.observed_at = datetime(2026, 8, 25, 14, 44)
     early = {**ENTRY, "id": "early", "params": {**ENTRY["params"], "market_min_valid": 2,
              "time": "14:40:00", "evaluation_delay_minutes": .5,
              "market_validity": "price_amount_prev_close_v2"}}
     later = {**early, "id": ENTRY["id"], "params": {**early["params"], "time": "14:45:00"}}
+    names = ["csgi_" + later["id"], "csgi_" + early["id"]]
     with custom_signals.private_signal_registry([early, later, EXIT]):
-        result = engine.run("s01", ctx, overrides={"entry_signals": [
-            "csgi_" + later["id"], "csgi_" + early["id"]]})
+        waiting = engine.run("s01", ctx, overrides={"entry_signals": names})
+        assert waiting.section_statuses["buy"] == "waiting"
+        assert waiting.entry_signal_hits == []
+        ctx.observed_at = datetime(2026, 8, 25, 14, 46)
+        separate = engine.run("s01", ctx, overrides={"entry_signals": names})
+        assert separate.entry_signal_hits == []
+        assert separate.total == 0
+    aligned = {**later, "params": dict(early["params"])}
+    with custom_signals.private_signal_registry([early, aligned, EXIT]):
+        result = engine.run("s01", ctx, overrides={"entry_signals": names})
     assert result.section_statuses["buy"] == "success"
-    assert result.entry_signal_hits == [{"symbol": "600001.SH", "signals": ["csgi_early"],
+    assert result.entry_signal_hits == [{"symbol": "600001.SH", "signals": names,
                                         "evaluated_at": datetime(2026, 8, 25, 14, 40, 30)}]
     assert result.rows[0]["last_datetime"] == datetime(2026, 8, 25, 14, 40)
     assert result.rows[0]["entry_evaluated_at"] == datetime(2026, 8, 25, 14, 40, 30)

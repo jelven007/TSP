@@ -1,5 +1,6 @@
 """Account mutations preserve ledgers; deletion owns the complete account scope."""
 import json
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 
@@ -86,7 +87,8 @@ def test_initial_capital_is_locked_after_activity(tmp_path, activity, monkeypatc
     assert paper.get_account(tmp_path)["cash"] == before["cash"]
 
 
-def test_delete_cascades_account_but_preserves_other_account_and_shared_sources(tmp_path, monkeypatch):
+@pytest.mark.parametrize("prune_due", [False, True])
+def test_delete_cascades_account_but_preserves_other_account_and_shared_sources(tmp_path, monkeypatch, prune_due):
     monkeypatch.setattr(paper, "cn_today", lambda: DAY)
     for aid in ("delete", "other"):
         paper.create_account(tmp_path, 200_000, account_id=aid)
@@ -101,11 +103,14 @@ def test_delete_cascades_account_but_preserves_other_account_and_shared_sources(
             path = paper._root(tmp_path, aid) / kind
             path.mkdir(exist_ok=True)
             (path / "record.json").write_text("{}")
-    alert_store.append_many(tmp_path, [
-        {"ts": 1, "source": "paper", "account_id": "delete"},
-        {"ts": 2, "source": "paper", "account_id": "other"},
-        {"ts": 3, "source": "strategy", "account_id": "delete"},
-    ])
+    timestamp = int(time.time() * 1000)
+    events = [
+        {"ts": timestamp, "source": "paper", "account_id": "delete"},
+        {"ts": timestamp + 1, "source": "paper", "account_id": "other"},
+        {"ts": timestamp + 2, "source": "strategy", "account_id": "delete"},
+    ]
+    monkeypatch.setattr(alert_store, "_write_count", alert_store.PRUNE_EVERY - len(events) if prune_due else 0)
+    alert_store.append_many(tmp_path, events)
     other_before = {p.relative_to(paper._root(tmp_path, "other")): p.read_bytes()
                     for p in paper._root(tmp_path, "other").rglob("*") if p.is_file()}
     assert paper.delete_account(tmp_path, "delete") is True
@@ -187,15 +192,19 @@ def test_failed_delete_restores_account_and_alerts(tmp_path, monkeypatch, failur
     assert alert_store._path(tmp_path).read_bytes() == alerts_before
 
 
-def test_late_paper_alerts_after_delete_are_discarded(tmp_path):
+@pytest.mark.parametrize("prune_due", [False, True])
+def test_late_paper_alerts_after_delete_are_discarded(tmp_path, monkeypatch, prune_due):
     paper.create_account(tmp_path, 200_000)
     paper.delete_account(tmp_path)
+    timestamp = int(time.time() * 1000)
+    strategy_event = {"ts": timestamp + 1, "source": "strategy"}
+    monkeypatch.setattr(alert_store, "_write_count", alert_store.PRUNE_EVERY - 1 if prune_due else 0)
     alert_store.append_many(tmp_path, [
-        {"ts": 1, "source": "paper", "account_id": "default"},
-        {"ts": 2, "source": "strategy"},
+        {"ts": timestamp, "source": "paper", "account_id": "default"},
+        strategy_event,
     ])
     remaining = [json.loads(line) for line in alert_store._path(tmp_path).read_text().splitlines()]
-    assert remaining == [{"ts": 2, "source": "strategy"}]
+    assert remaining == [strategy_event]
 
 
 def test_account_change_events_require_paper_permission(tmp_path, monkeypatch):

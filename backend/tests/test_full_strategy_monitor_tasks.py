@@ -208,7 +208,8 @@ def test_unrelated_monitor_failure_cannot_erase_completed_custom_phase(owned, tm
         "monitor_runtime", "default")["ordinary_compute_error"]
 
 
-def test_real_worker_fifteen_seconds_confirmation_later_ticks_and_restart(owned, scan, monkeypatch):
+@pytest.mark.parametrize("frozen_quote", [False, True])
+def test_real_worker_fifteen_seconds_confirmation_later_ticks_and_restart(owned, scan, monkeypatch, tmp_path, frozen_quote):
     from copy import deepcopy
     from dataclasses import replace
     from datetime import datetime, time
@@ -248,6 +249,16 @@ def test_real_worker_fifteen_seconds_confirmation_later_ticks_and_restart(owned,
     DailySelections(owned.documents).save(identity, {
         "as_of": str(day), "source_date": str(previous_session(day)),
         "rows": context.current.filter(pl.col("symbol").str.starts_with("600")).to_dicts()}, started_at=1)
+    if frozen_quote:
+        from app.services.strategy_results import StrategyResults
+        StrategyResults(owned.documents).save(identity, {
+            "as_of": str(day), "section_mode": "signals", "rows": [], "total": 0,
+            "sections": {"select": [], "buy": [], "sell": []},
+            "section_statuses": {"buy": "unconfigured", "sell": "unconfigured"},
+            "monitor_contract": "strategy_monitor_v2",
+            "monitor_tasks": {kind: {"state": "unconfigured", "terminal": False}
+                              for kind in ("buy", "sell")},
+        }, started_at=int(start.timestamp() * 1_000_000_000))
     calls, reads = [], []
     owned.repo.get_minute_batch = lambda *_a, **_k: reads.append(True) or context.history
     monkeypatch.setattr(ScreenerService, "_load_enriched_history", lambda *_: context.daily_history)
@@ -259,6 +270,8 @@ def test_real_worker_fifteen_seconds_confirmation_later_ticks_and_restart(owned,
     monkeypatch.setattr("app.market_time.cn_now", lambda: datetime.fromtimestamp(owned.clock["now"], CN_TZ))
     prepare = owned.worker.prepare
     def preparing(*args):
+        if frozen_quote:
+            args[1]["sequence"] = int((start.timestamp() - 60) * 1000)
         account, access, payload, observed = prepare(*args)
         symbols = context.current["symbol"].to_list()
         payload["daily_pool_snapshots"] = {"custom_test": {
@@ -267,7 +280,9 @@ def test_real_worker_fifteen_seconds_confirmation_later_ticks_and_restart(owned,
     monkeypatch.setattr(owned.worker, "prepare", preparing)
     def execute(payload, **_kwargs):
         calls.append(payload)
-        return monitor_compute.evaluate_snapshot(payload, owned.repo, engine, owned.documents)
+        # The real sandbox receives explicit inputs, never tenant documents.
+        with custom_signals.private_signal_registry(payload["signals"]):
+            return monitor_compute.evaluate_snapshot(payload, owned.repo, engine, tmp_path / "sandbox")
     owned.worker.executor = SimpleNamespace(execute=execute)
     tenant = owned.documents.context.tenant_id
     for second in (14, 15):

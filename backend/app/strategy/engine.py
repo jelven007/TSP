@@ -1482,6 +1482,23 @@ class StrategyEngine:
             # 在命中结果上事后联表, 避免把 enriched 列铺到全市场分钟行上。
             if current is not None and not current.is_empty():
                 df = self._join_basic_columns(df, current)
+            # Daily entry points use the exact completed T-1 row, even when the
+            # minute strategy projects only its trigger/display columns.
+            daily = context.daily_history
+            if daily is not None and not daily.is_empty() and "date" in daily.columns:
+                from app.strategy.basic_filter import previous_session
+
+                daily_signals = {
+                    name if name.startswith(("signal_", "csg_")) else f"signal_{name}"
+                    for name in entry_signals if not name.startswith("csgi_")
+                }
+                missing = sorted((daily_signals & set(daily.columns)) - set(df.columns))
+                if missing:
+                    reference = daily.filter(pl.col("date") == previous_session(as_of))
+                    df = df.join(
+                        reference.select("symbol", *missing).unique("symbol", keep="last"),
+                        on="symbol", how="left",
+                    )
             if selectable and scoring:
                 from app.strategy.basic_filter import previous_session
                 names = [name for name, weight in scoring.items()
@@ -1612,6 +1629,10 @@ class StrategyEngine:
                 conflicts.append(conflict)
             df = df.filter(~pl.any_horizontal(conflicts).fill_null(False))
 
+        # Selected entry points must all be true on this exact candidate row.
+        if entry_signals:
+            df = df.filter(self._entry_signal_mask(df, entry_signals))
+
         # Stage 3: 评分
         if s.meta.get("scoring_mode") == "strategy" and (
             "score" not in df.columns or not (
@@ -1620,7 +1641,7 @@ class StrategyEngine:
         ):
             raise ValueError("策略排名缺少有效score")
         df = self._apply_scoring(df, scoring, scoring_directions)
-        entry_signal_hits = self._collect_signal_hits(df, entry_signals)
+        entry_signal_hits = self._collect_signal_hits(df, entry_signals, require_all=True)
         if not entry_signals and (
             s.filter_history_fn or s.filter_fn or s.execution_backend == "minute_filter"
         ):
@@ -1679,7 +1700,20 @@ class StrategyEngine:
         return list(default or [])
 
     @staticmethod
-    def _collect_signal_hits(df: pl.DataFrame, signals: list[str]) -> list[dict]:
+    def _entry_signal_mask(df: pl.DataFrame, signals: list[str]) -> pl.Expr:
+        columns = [
+            name if name.startswith(("signal_", "csg_", "csgi_")) else f"signal_{name}"
+            for name in signals
+        ]
+        return pl.all_horizontal(
+            pl.col(name).fill_null(False) if name in df.columns else pl.lit(False)
+            for name in columns
+        )
+
+    @staticmethod
+    def _collect_signal_hits(
+        df: pl.DataFrame, signals: list[str], *, require_all: bool = False,
+    ) -> list[dict]:
         if df.is_empty() or not signals or "symbol" not in df.columns:
             return []
         resolved = [
@@ -1693,7 +1727,9 @@ class StrategyEngine:
         ]
         if not available:
             return []
-        hit_df = df.filter(pl.any_horizontal(pl.col(column).fill_null(False) for _, column in available))
+        mask = (StrategyEngine._entry_signal_mask(df, signals) if require_all else
+                pl.any_horizontal(pl.col(column).fill_null(False) for _, column in available))
+        hit_df = df.filter(mask)
         return [
             {
                 "symbol": str(row["symbol"]),

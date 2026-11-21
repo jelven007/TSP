@@ -391,7 +391,7 @@ def timed_entry(signal, history, context, params, *, candidates_only=False):
 
 
 def entry_frame(engine, strategy, candidates, history, context, params, definitions):
-    """OR across independent native thresholds and completed generic trigger events."""
+    """Intersect independent entry points for one stock at one evaluation time."""
     from datetime import datetime, time
 
     import polars as pl
@@ -402,6 +402,7 @@ def entry_frame(engine, strategy, candidates, history, context, params, definiti
         return candidates
     output = candidates
     timed_frames = []
+    entry_points = []
     daily = daily_signal_frame(context, definitions)
     if not daily.is_empty():
         output = output.join(daily, on="symbol", how="left")
@@ -431,6 +432,11 @@ def entry_frame(engine, strategy, candidates, history, context, params, definiti
                 timed_frames.append(native)
             output = output.with_columns(pl.col("symbol").is_in(
                 native["symbol"].to_list()).alias(column))
+            if len(definitions) > 1:
+                if "entry_evaluated_at" not in native.columns:
+                    native = native.with_columns(
+                        pl.lit(entry_clock(sig, context.as_of)[2]).alias("entry_evaluated_at"))
+                entry_points.append(native.select("symbol", "entry_evaluated_at"))
         elif sig.get("timeframe") == "intraday":
             if column not in history.columns:
                 raise ValueError("S01触发器缺少信号数据: " + column)
@@ -452,14 +458,29 @@ def entry_frame(engine, strategy, candidates, history, context, params, definiti
                                        | (pl.col("entry_evaluated_at") <= confirmed_through))
             hits = source.filter(pl.col(column).fill_null(False))["symbol"].unique().to_list()
             output = output.with_columns(pl.col("symbol").is_in(hits).alias(column))
+            if len(definitions) > 1:
+                at = (pl.coalesce("entry_evaluated_at", "datetime")
+                      if "entry_evaluated_at" in source.columns else pl.col("datetime"))
+                entry_points.append(source.filter(pl.col(column).fill_null(False)).select(
+                    "symbol", at.alias("entry_evaluated_at")))
             if sig.get("template") == "late_session_strength" and "entry_evaluated_at" in source.columns:
                 timing = source.filter(pl.col(column).fill_null(False)).sort("datetime").unique(
                     "symbol", keep="first", maintain_order=True).select(
                         "symbol", pl.col("datetime").alias("last_datetime"), "entry_evaluated_at")
                 timed_frames.append(output.drop("last_datetime", "entry_evaluated_at", strict=False).join(
                     timing, on="symbol", how="inner"))
-    output = output.filter(pl.any_horizontal(
+    output = output.filter(pl.all_horizontal(
         pl.col(s["column"]).fill_null(False) for s in definitions))
+    if entry_points:
+        keys = ["symbol", "entry_evaluated_at"]
+        common = entry_points[0].unique(keys)
+        for points in entry_points[1:]:
+            common = common.join(points.unique(keys), on=keys, how="inner")
+        common = common.sort("entry_evaluated_at").unique(
+            "symbol", keep="first", maintain_order=True)
+        output = output.join(common.select("symbol"), on="symbol", how="inner")
+        # A native timed snapshot must correspond to the common confirmation.
+        timed_frames = [frame.join(common, on=keys, how="inner") for frame in timed_frames]
     if timed_frames:
         names = [s["column"] for s in definitions]
         timed = pl.concat(timed_frames, how="diagonal_relaxed").sort(

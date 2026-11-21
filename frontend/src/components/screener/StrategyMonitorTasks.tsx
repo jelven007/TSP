@@ -36,6 +36,9 @@ export function StrategyMonitorTasks({ value, pending = false, onToggle }: {
                 </span>
               </div>
               <p className="mt-0.5 text-[10px] text-muted">{descriptions[kind]}</p>
+              {task.execution_deadline && <p className="text-[10px] text-muted">
+                实时入场截止：{task.execution_deadline}
+              </p>}
               {task.completed_at && <p className="text-[10px] text-muted">完成：{task.completed_at}</p>}
               {!!task.errors?.length && <p className="mt-1 break-words text-danger">{task.errors.join('；')}</p>}
             </div>

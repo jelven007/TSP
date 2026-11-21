@@ -6,6 +6,16 @@ import hashlib
 import json
 
 DISPLAY_FIELDS = frozenset({"name", "description", "tags", "label"})
+ENTRY_TRIGGER_POLICY_VERSION = "all_selected_v1"
+
+
+def entry_trigger_policy(strategy, overrides: dict) -> dict:
+    from app.strategy.engine import StrategyEngine
+
+    selected = StrategyEngine._effective_signals(
+        overrides, "entry_signals", getattr(strategy, "entry_signals", []),
+    )
+    return {"entry_trigger_policy": ENTRY_TRIGGER_POLICY_VERSION} if selected else {}
 
 
 def digest(value) -> str:
@@ -50,6 +60,7 @@ def runtime_identity(strategy, overrides: dict) -> str:
     from app.strategy.engine import StrategyEngine
 
     return digest({
+        **entry_trigger_policy(strategy, overrides),
         "logic": getattr(strategy, "logic_version", ""),
         "params": StrategyEngine.resolve_params(strategy, overrides=overrides),
         "overrides": {key: value for key, value in overrides.items()

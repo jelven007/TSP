@@ -639,6 +639,7 @@ def _evaluate_optional(
         aggregates = {row["symbol"]: row for row in frame.group_by("symbol").agg(expressions).iter_rows(named=True)}
     from app.market_time import trading_minutes_elapsed_from_dt
 
+    condition_candidates = set(candidates)
     for symbol in list(candidates):
         row = aggregates.get(symbol, {})
         values = {}
@@ -670,7 +671,7 @@ def _evaluate_optional(
     if steps["change"]["state"] != "skipped":
         _receipt(steps["change"], started, total=len(cohort), processed=len(cohort),
                  passed=len(candidates & cohort), missing=len(missing & cohort), pool_passed=len(candidates))
-    if set(prices) <= missing:
+    if set(prices) <= missing or (condition_candidates and condition_candidates <= missing):
         result.diagnostics.append("尾盘走强: 全部有效价格成员缺少启用的个股条件数据")
         steps["change"].update(state="failed", reason=result.diagnostics[-1])
         return result

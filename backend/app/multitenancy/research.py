@@ -118,8 +118,17 @@ class ResearchJobs:
         if payload.get("tenant_id") != self.context.tenant_id:
             raise AccessError(403, "任务租户不一致")
         kind = payload["kind"]
+        execution_runtime = None
+        if kind in {"backtest", "optimize", "walkforward"}:
+            from app.services.research_snapshot import _runtime_identity
+
+            # Parameter-identical experiments from an older engine are distinct.
+            # Frozen replays retain their recorded build requirement.
+            execution_runtime = payload.get("expected_runtime") or _runtime_identity()
         sig = key or signature(payload)
         snapshot = dict(payload)
+        if execution_runtime is not None:
+            snapshot["execution_runtime"] = execution_runtime
         snapshot["config"] = {key: value for key, value in payload.get("config", {}).items() if key != "run_id"}
         snapshot_digest = signature(snapshot)
         identity = AccountIdentity(self.db)
@@ -173,6 +182,7 @@ class ResearchJobs:
                 "created_at": now, "started_at": None, "finished_at": None,
             }
             if kind in {"backtest", "optimize", "walkforward"}:
+                metadata["execution_runtime"] = execution_runtime
                 metadata["research"] = {
                     "schema_version": 1, "job_id": job_id, "input_snapshot": snapshot_digest,
                     "public_release_id": payload.get("public_release_id"),

@@ -24,7 +24,9 @@ DAILY_ENTRY = {
     "id": "daily_entry", "name": "前日买点", "kind": "entry", "enabled": True,
     "conditions": [{"left": "close", "op": ">", "right": "9"}],
 }
-ALL = [ENTRY, EXIT, MINUTE_ENTRY, MINUTE_EXIT, DAILY_ENTRY]
+NEVER_DAILY = {**DAILY_ENTRY, "id": "never_daily",
+               "conditions": [{"left": "close", "op": ">", "right": "100"}]}
+ALL = [ENTRY, EXIT, MINUTE_ENTRY, MINUTE_EXIT, DAILY_ENTRY, NEVER_DAILY]
 
 
 def optional(engine):
@@ -92,7 +94,7 @@ def test_clearing_entry_removes_native_signal_thresholds_and_clearing_exit_remov
 
 
 @pytest.mark.parametrize("other", ["csgi_other_entry", "csg_daily_entry", "signal_macd_golden"])
-def test_multiple_entry_signals_use_or_and_report_only_actual_hits(other):
+def test_multiple_entry_signals_require_all_selected_hits(other):
     e = StrategyEngine([BUILTINS])
     optional(e)
     ctx = context(price=10.5)
@@ -100,8 +102,8 @@ def test_multiple_entry_signals_use_or_and_report_only_actual_hits(other):
     with custom_signals.private_signal_registry(ALL):
         result = e.run("s01", ctx, overrides={
             "entry_signals": ["csgi_" + ENTRY["id"], other], "exit_signals": []})
-    assert result.total == 1
-    assert result.entry_signal_hits == [{"symbol": "600001.SH", "signals": [other]}]
+    assert result.total == 0
+    assert result.entry_signal_hits == []
 
 
 def test_multiple_native_entries_do_not_merge_thresholds_and_generic_false_blocks_buy():
@@ -111,7 +113,8 @@ def test_multiple_native_entries_do_not_merge_thresholds_and_generic_false_block
     never = {**MINUTE_ENTRY, "conditions": [{"left": "price", "op": ">", "right": "100"}]}
     with custom_signals.private_signal_registry([ENTRY, EXIT, tighter, never]):
         result = e.run("s01", context(), overrides={"entry_signals": ["csgi_tight", "csgi_" + ENTRY["id"]]})
-        assert result.entry_signal_hits == [{"symbol": "600001.SH", "signals": ["csgi_" + ENTRY["id"]]}]
+        assert result.total == 0
+        assert result.entry_signal_hits == []
         result = e.run("s01", context(), overrides={"entry_signals": ["csgi_other_entry"]})
         assert result.total == 0
 
@@ -135,6 +138,7 @@ def test_generic_exit_replaces_native_guard_and_first_hit_of_multiple_exits_wins
     ({"entry_signals": [], "exit_signals": []}, True, False),
     ({"entry_signals": ["csgi_other_entry"], "exit_signals": ["csgi_other_exit"]}, True, True),
     ({"entry_signals": ["csg_daily_entry"], "exit_signals": []}, True, False),
+    ({"entry_signals": ["csg_daily_entry", "csg_never_daily"], "exit_signals": []}, False, False),
 ])
 def test_optional_backtest_orders_use_frozen_selection(tmp_path, selection, buys, sells):
     from app.backtest.strategy import BacktestResultPolicy, StrategyBacktestConfig
@@ -151,11 +155,47 @@ def test_optional_backtest_orders_use_frozen_selection(tmp_path, selection, buys
     assert any(f["side"] == "sell" for f in result.fills) == sells
     assert result.config["entry_signals"] == selection["entry_signals"]
     assert result.config["exit_signals"] == selection["exit_signals"]
-    if not sells:
+    if buys and not sells:
         assert result.stats["execution"]["remaining_positions"]
-    else:
+    elif sells:
         assert result.signals[0]["signals"] == ["csgi_other_exit"]
         assert result.signals[0]["signal_bar"] == 576
+
+
+def test_all_native_and_daily_entry_signals_pass_without_merging_parameters():
+    e = StrategyEngine([BUILTINS])
+    optional(e)
+    second = {**ENTRY, "id": "second", "params": {**ENTRY["params"], "current_return_min": .01}}
+    names = ["csgi_" + ENTRY["id"], "csgi_second", "csg_daily_entry"]
+    with custom_signals.private_signal_registry([*ALL, second]):
+        result = e.run("s01", context(), overrides={"entry_signals": names, "exit_signals": []})
+    assert result.total == 1
+    assert result.entry_signal_hits[0]["signals"] == names
+
+
+@pytest.mark.parametrize("same_time", [False, True])
+def test_multiple_minute_entries_cannot_combine_hits_from_different_minutes(same_time):
+    from app.strategy.s01_signals import entry_frame
+
+    e = StrategyEngine([BUILTINS])
+    s = optional(e)
+    ctx = context()
+    first = datetime(2026, 8, 25, 14, 30)
+    second = datetime(2026, 8, 25, 14, 31)
+    candidates = pl.DataFrame({"symbol": ["600001.SH"], "close": [10.25],
+                               "last_datetime": [second]})
+    history = pl.DataFrame({
+        "symbol": ["600001.SH"] * 2, "datetime": [first, second],
+        "csgi_one": [True, False], "csgi_two": [same_time, not same_time],
+    })
+    result = entry_frame(e, s, candidates, history, ctx, {}, [
+        {"column": "csgi_one", "timeframe": "intraday"},
+        {"column": "csgi_two", "timeframe": "intraday"},
+    ])
+    assert result.height == int(same_time)
+    if same_time:
+        # Historical trigger evidence cannot move the candidate's price clock back.
+        assert result["last_datetime"].item() == second
 
 
 def test_default_optional_native_selection_retains_original_timing_and_values(tmp_path):

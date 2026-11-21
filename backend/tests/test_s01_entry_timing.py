@@ -61,18 +61,23 @@ def test_environment_starts_before_stock_confirmation_and_never_uses_future_bars
         assert result.rows[0]["entry_evaluated_at"] == datetime(2026, 8, 25, 14, 46)
 
 
-def test_timed_native_and_other_entry_keep_independent_or_semantics():
+@pytest.mark.parametrize("maximum,expected", [(.021, False), (.04, True)])
+def test_timed_native_and_daily_entry_require_both_independent_conditions(maximum, expected):
     from test_s01_optional_triggers import DAILY_ENTRY
 
     e = StrategyEngine([BUILTINS])
     optional(e)
     ctx = context(end=890)
     ctx.observed_at = datetime(2026, 8, 25, 14, 46)
-    sig = timed(current_return_max=.021)
+    sig = timed(current_return_max=maximum)
+    names = ["csgi_" + ENTRY["id"], "csg_daily_entry"]
     with custom_signals.private_signal_registry([sig, EXIT, DAILY_ENTRY]):
-        result = e.run("s01", ctx, overrides={"entry_signals": [
-            "csgi_" + ENTRY["id"], "csg_daily_entry"]})
-    assert result.entry_signal_hits == [{"symbol": "600001.SH", "signals": ["csg_daily_entry"]}]
+        result = e.run("s01", ctx, overrides={"entry_signals": names})
+    assert bool(result.rows) is expected
+    assert result.entry_signal_hits == ([{
+        "symbol": "600001.SH", "signals": names,
+        "evaluated_at": datetime(2026, 8, 25, 14, 46),
+    }] if expected else [])
 
 
 def test_next_pulse_visits_start_then_confirmation(tmp_path):

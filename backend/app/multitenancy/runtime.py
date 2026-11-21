@@ -552,7 +552,12 @@ class FullWorker:
                                          in ("success", "failed"))):
                                 record = ResultIdentity(**payload["daily_identities"][sid])
                                 if daily.get("sections") is not None:
-                                    saved = StrategyResults(unit).save(record, daily, started_at=sequence * 1000000)
+                                    # Dated phases run without a new quote; archive
+                                    # their attempt order, not the frozen quote clock.
+                                    archive_started = (int(started_at * 1_000_000_000)
+                                        if daily.get("monitor_contract") == "strategy_monitor_v2"
+                                        else sequence * 1000000)
+                                    saved = StrategyResults(unit).save(record, daily, started_at=archive_started)
                                     daily.update(saved["result"])
                                 elif daily.get("daily_stock_pool") is not None:
                                     from app.services.daily_stock_pools import DailyStockPools
