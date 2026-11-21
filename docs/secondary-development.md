@@ -14,7 +14,7 @@ Worker解码、结果配置、分钟与隔夜容量内核；不能提前使用�
 metadata记录`execution_runtime`，原冻结input及`expected_runtime`兼容保持。
 分钟候选投影后的日线入场信号须从精确T-1完成态日线按代码补入，
 保留已有信号列；不能用T日收盘、最近非空日期或分钟行缺列代替实际日线条件。
-S03同版本热补丁验收见`.claude/artifacts/fixes/s03-minute-daily-signals.md`。
+相关回归入口与验收边界见[测试指南](testing.md)。
 
 监控通知及回测说明的当前实现：`failure_events`按策略/日期/任务状态去重，
 内部信号和阶段是同一逻辑任务的诊断；历史API原始通知保留，页面有界归并。
@@ -41,7 +41,22 @@ S03同版本热补丁验收见`.claude/artifacts/fixes/s03-minute-daily-signals.
 行情派发判定时钟通过`evaluation_started_at`冻结，沙箱加载耗时不能重新使同份输入过期；
 提交授权、租约、配置指纹、实时截止及交易行情重验保持。
 
-新内部契约为`strategy_monitor_v2`：选20:00～22:00，买分广度及确认阶段，
+新内部契约为`strategy_monitor_v2`：普通选20:00～21:00，S03专属选21:00～22:00，
+以`selection_clock.window_for(strategy_id)`统一调度、提交与修复截止。
+S03冻结同源日与目标日的S02在20:00～21:00成功生成的名单；五维评分取前30，
+分钟信号可选`params.entry_groups={a,b}`。每组`enabled`为布尔，其余为可空阈值；
+允许键及单位见`strategy.entry_groups.FIELDS`与[S03参考](reference/s03.md)。
+沿现有自定义信号保存/验证/失效入口，无新增API或存储表。非法范围、未知键、
+两组均关闭或启用组全空在保存前拒绝；旧定义不自动添加分组。
+引擎从`selection_snapshots[strategy_id]`传入精确前日归档，排序列跨分钟投影恢复，
+并保留分组优先序、五维原分和策略原排名分；扩展不得用ATR再次覆盖分组序。
+独立任务键为`目标日:s03`，重试沿用`source_selection`及摘要，详见[参考](reference/s03.md)。
+S03新五维归档调用内部`services.s03_watchlist.sync_archived_selection(storage,snapshot,now)`；
+只消费当前窗口内已保存的S03归档，按摘要幂等替换固定组，无新增HTTP接口。
+Full必须在归档事务内调用；Standalone分组失败后只恢复同步、不重算已保存评分。
+更新回执保存组ID、归档摘要、日期、删除及写入计数，异常通过原任务回执上报。
+发布业务事件的`watchlist_changed`标志须在提交之后，前端只据此刷新自选查询。
+买分广度及确认阶段，
 每个交易日分别生成卖／选／买任务；窗口内启动及开启即时核查所有已开启的自定义／AI策略。
 正常精确日期归档（含空名单）才证明预选完成；缺失或失败回到原修复／重试链。
 Full schema 9新增监控文档事务唤醒和Worker启动检查，旧迁移校验和保持；
@@ -292,6 +307,8 @@ Full复用`strategy_sources/strategy_overrides`的JSON及`watchlist_group_items`
 既有插槽/注册契约保持原定义，源码更新不代表运行环境已经升级。
 管理分组CSV导出属于L3局部交互，位于`WatchlistGroups.tsx`，复用当前账户的
 `api.watchlistList()`完整清单与`group_ids`成员关系，不增加插槽或后端API。
+分组列表的可选`protected`字段标识固定`s03`；扩展显示或重排时须保留它位于
+普通分组前的契约，禁止提供删除、改名或移动入口；后端仍在各存储入口独立保护。
 升级保留选中分组、默认仅代码单列、完整导出和卸载后的迟到响应保护；不能用
 `watchlist.toolbar`的已筛选`symbols`替代完整成员，也不将股票列表当作完整用户备份。
 

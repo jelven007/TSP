@@ -179,7 +179,7 @@ def test_local_window_start_recovers_missing_archive_despite_terminal_receipt(
     monkeypatch.setattr(daily_selections, "compute_selections", lambda *_a, **_k:
         calls.append(1) or {"selections": {"custom_test": snapshot()}, "errors": {}})
     service = SimpleNamespace(repo=SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path)))
-    now = datetime(2026, 10, 30, 21, 37, tzinfo=CN)
+    now = datetime(2026, 10, 30, 20, 37, tzinfo=CN)
     assert daily_selections.generate_scheduled_local(engine, service, tmp_path, now=now) == {
         "saved": ["custom_test"], "errors": {}}
     saved = task_receipt(tmp_path, "custom_test", SOURCE)["tasks"]

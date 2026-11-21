@@ -321,6 +321,9 @@ async def _application_lifespan(app: FastAPI):
             try:
                 status = generate_scheduled_local(strategy_engine, _screener_svc, store.data_dir,
                     repair=getattr(strategy_engine, "_monitor_repair", None))
+                if status["saved"] or status.get("watchlist_changed"):
+                    app.state.quote_service.notify_strategy_results_updated(
+                        watchlist_changed=bool(status.get("watchlist_changed")))
                 if status["errors"]:
                     logger.warning("postclose selection deferred: %d strategies", len(status["errors"]))
             except Exception:

@@ -110,14 +110,13 @@ API/Gateway/Worker 文件中设 `TSP_CELL_MARKET_URL=http://platform:3018`、`TS
 
 2026-11-14用户最新要求只将自选页的列目录、顺序与显示状态保存为初始化默认，
 共58项列设置，不包含具体股票、股票分组或成员归属。
-使用（旧过程附件已清理），
-先将其复制至独立平台配置目录的`watchlist-columns-defaults.json`，再在API环境文件设置
+将核验过的列默认配置复制至独立平台配置目录的`watchlist-columns-defaults.json`，再在API环境文件设置
 `TSP_CELL_BOOTSTRAP_WATCHLIST_COLUMNS_PATH=/platform-config/watchlist-columns-defaults.json`。
 文件需可由运行UID读取，并随初始化配置及完整备份保留；不发布到公共行情目录。
 新账户空间首次provision在控制状态ready前合并缺省列设置，业务空间保持空白；
 文件缺失或无效会保留可重试的pending状态。已有空间不会在启动时重置，
 已有个人列设置保留，普通注册用户也仅获得通用列目录。未配置路径时使用原列默认。
-本次双端运行及完整数据对账见（旧过程附件已清理）。
+各端实际初始化及数据对账结果记录在当次[验收交付](../../deliverables/README.md)。
 
 1. 备份两个 PostgreSQL 库、原 `data/user_data`、策略/研究/模拟交易目录、平台配置、镜像及 Nginx 配置，记录可恢复路径。
 2. 对独立候选库执行原 `app.cell.admin migrate --target-version 7`，分别指定 control/business runtime 角色并登记 Cell。API 首次启动使用已有运行权限，按初始化配置自动创建缺失的管理员和注册口令，开放注册与密码找回，不重置已改密码/口令；`bootstrap-full-identity` 仍可用于提前初始化。API 不执行建库或 schema 迁移。

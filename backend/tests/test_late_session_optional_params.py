@@ -135,6 +135,46 @@ def test_api_roundtrips_all_empty_params_and_rejects_before_overwriting(tmp_path
     assert client.get("/api/custom-signals").json()["signals"][0]["params"] == payload["params"]
 
 
+@pytest.mark.parametrize("at", ["09:30:00", "10:30:20", "11:30:00", "13:00:00", "15:00:00"])
+def test_optional_start_and_end_accept_all_trading_session_clocks(at):
+    assert parameters(signal(time=at, end_time=at))["time"] == at
+
+
+@pytest.mark.parametrize("key", ["time", "end_time"])
+@pytest.mark.parametrize("at", ["09:29:59", "11:30:01", "12:00:00", "15:00:01"])
+def test_optional_clocks_reject_nontrading_times(key, at):
+    with pytest.raises(ValueError):
+        parameters(signal(**{key: at}))
+
+
+def test_morning_api_roundtrip_and_calculation_keep_delay_and_exact_end(tmp_path):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.signals import router
+
+    app = FastAPI()
+    app.state.repo = SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path), clear_cache=lambda: None)
+    app.include_router(router)
+    client = TestClient(app)
+    payload = {"id": "morning_late", "name": "上午分钟入场", "kind": "entry", "conditions": [],
+               "timeframe": "intraday", **signal(time="10:30:00", end_time="11:30:00",
+                                                 evaluation_delay_minutes=.5)}
+    saved = client.post("/api/custom-signals", json=payload)
+    assert saved.status_code == 200, saved.text
+    reloaded = client.get("/api/custom-signals").json()["signals"][0]
+    assert reloaded["params"] == payload["params"]
+    at = AT - timedelta(hours=4)
+    frame = bars().tail(1).with_columns(pl.lit(at).alias("datetime"))
+    assert evaluate(frame, reloaded, day=DAY, pool_symbols=["a"], prev_close={},
+                    completed_through=at).stage == "waiting_confirmation"
+    assert evaluate(frame, reloaded, day=DAY, pool_symbols=["a"], prev_close={},
+                    completed_through=at + timedelta(seconds=30)).symbols == ["a"]
+    invalid = {**payload, "params": {**payload["params"], "end_time": "10:30:29"}}
+    assert client.post("/api/custom-signals", json=invalid).status_code == 400
+    assert client.get("/api/custom-signals").json()["signals"][0]["params"] == payload["params"]
+
+
 def test_engine_empty_conditions_skip_previous_close_and_pulse_on_latest_completed_bar(tmp_path):
     from app.strategy import custom_signals
     from app.strategy.engine import StrategyDataContext, StrategyEngine

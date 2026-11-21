@@ -84,16 +84,16 @@ class TestEventSource {
 }
 
 const tabs: Array<{ root: Root; client: QueryClient }> = []
-function Harness() { useQuoteStream(true, undefined); return null }
+function Harness({ realtime = true }: { realtime?: boolean }) { useQuoteStream(realtime, undefined); return null }
 
-async function mountTab() {
+async function mountTab(realtime = true) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   tabs.push({ root, client })
   await act(async () => {
-    root.render(<QueryClientProvider client={client}><Harness /></QueryClientProvider>)
+    root.render(<QueryClientProvider client={client}><Harness realtime={realtime} /></QueryClientProvider>)
   })
   return client
 }
@@ -124,6 +124,19 @@ it('keeps six pages on one authenticated stream so REST retains browser connecti
   for (let index = 0; index < 6; index++) await mountTab()
   expect(TestEventSource.instances.filter(stream => !stream.closed)).toHaveLength(1)
   expect(accountEventStreamUrl).toHaveBeenCalledTimes(1)
+})
+
+it('refreshes persisted watchlist queries on business updates with realtime quotes disabled', async () => {
+  const client = await mountTab(false)
+  const keys = [['watchlist'], ['watchlist-groups'], ['watchlist-quotes'], ['watchlist-enriched', 'atr']]
+  for (const key of [...keys, ['settings']]) client.setQueryData(key, [])
+  const stream = TestEventSource.instances[0]
+  await act(async () => stream.emit('strategy_results_updated', '{}', '1'))
+  for (const key of keys) expect(client.getQueryState(key)?.isInvalidated).toBe(false)
+  await act(async () => stream.emit('strategy_results_updated',
+    '{"strategy_ids":["custom_mvxxcs03"],"watchlist_changed":true}', '2'))
+  for (const key of keys) expect(client.getQueryState(key)?.isInvalidated).toBe(true)
+  expect(client.getQueryState(['settings'])?.isInvalidated).toBe(false)
 })
 
 it('delivers updates to every page and resumes from its cursor when the owner closes', async () => {

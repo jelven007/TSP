@@ -149,7 +149,21 @@ def _read_groups() -> list[dict]:
             "name": str(item["name"]),
             "color": color if color in GROUP_COLORS else DEFAULT_GROUP_COLOR,
         })
-    return groups
+    return ordered_groups(groups)
+
+
+def ordered_groups(groups: list[dict]) -> list[dict]:
+    """Keep the fixed s03 group before user-reorderable groups."""
+    rows = [
+        {**group, "protected": True} if group["name"].strip().casefold() == "s03" else group
+        for group in groups
+    ]
+    return sorted(rows, key=lambda group: not group.get("protected", False))
+
+
+def ensure_group_mutable(group_id: str, groups: list[dict]) -> None:
+    if any(group["id"] == group_id and group.get("protected") for group in ordered_groups(groups)):
+        raise ValueError("s03 是固定分组, 不支持删除或改名")
 
 
 def _write_groups(groups: list[dict]) -> None:
@@ -302,7 +316,7 @@ def create_group(name: str, color: str | None = None, *, symbols: list[str] | No
             "name": normalized,
             "color": normalized_color,
         }
-        groups.append(group)
+        groups = ordered_groups([*groups, group])
         if symbols is not None:
             if not symbols or len(symbols) > 5000:
                 raise ValueError("导入股票数量须为 1 至 5000")
@@ -342,6 +356,7 @@ def rename_group(group_id: str, name: str, color: str | None = None) -> list[dic
         target = next((group for group in groups if group["id"] == group_id), None)
         if target is None:
             raise KeyError(group_id)
+        ensure_group_mutable(group_id, groups)
         if any(
             group["id"] != group_id and group["name"].casefold() == normalized.casefold()
             for group in groups
@@ -361,7 +376,7 @@ def reorder_groups(ordered_ids: list[str]) -> list[dict]:
         by_id = {group["id"]: group for group in groups}
         if len(ordered_ids) != len(groups) or set(ordered_ids) != set(by_id):
             raise ValueError("分组顺序与现有分组不一致")
-        reordered = [by_id[group_id] for group_id in ordered_ids]
+        reordered = ordered_groups([by_id[group_id] for group_id in ordered_ids])
         _write_groups(reordered)
         return reordered
 
@@ -373,6 +388,7 @@ def delete_group(group_id: str) -> tuple[list[dict], list[dict]]:
         groups = _read_groups()
         if not any(group["id"] == group_id for group in groups):
             raise KeyError(group_id)
+        ensure_group_mutable(group_id, groups)
         ensure_deletable(group_id, file_references(settings.data_dir))
         df = _strip_group(_read_entries(), group_id)
         remaining = [group for group in groups if group["id"] != group_id]

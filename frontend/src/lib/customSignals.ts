@@ -1,5 +1,9 @@
 import type { CustomSignal, LateSessionStrengthParams, MorningLiquidationParams, S01EntryParams, S01ExitParams, S01VolumeExitParams } from './api'
 
+const signalNameOrder = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' })
+export const sortSignalsByName = (signals: CustomSignal[]) =>
+  [...signals].sort((a, b) => signalNameOrder.compare(a.name, b.name) || a.id.localeCompare(b.id))
+
 export const LATE_SESSION_DEFAULTS: LateSessionStrengthParams = {
   time: '14:30:00', change_min_pct: 0.4, change_max_pct: 4,
   pool_up_min_pct: 60, ma5_1m_count: 7, ma5_5m_count: 4,
@@ -108,6 +112,10 @@ export function lateSessionSummary(signal: CustomSignal): string[] {
     ...(p.ma5_1m_count == null ? [] : [`1分钟MA5 连增 ${p.ma5_1m_count} 个值（${p.ma5_1m_count - 1} 次比较）`]),
     ...(p.ma5_5m_count == null ? [] : [`5分钟MA5 连增 ${p.ma5_5m_count} 个值（${p.ma5_5m_count - 1} 次比较）`]),
     ...(p.end_time == null ? [] : [`买入结束时间 ${p.end_time}（北京时间），超过停止买入并撤销余单`]),
+    ...(p.entry_groups == null ? [] : [
+      `A/B入场筛选：${[p.entry_groups.a.enabled ? 'A组' : '', p.entry_groups.b.enabled ? 'B组' : ''].filter(Boolean).join(' 或 ')}；组内全部满足，双命中按A组优先`,
+      'A组按五维排名升序，B组按资金分降序；具体阈值见编辑配置',
+    ]),
   ]
 }
 

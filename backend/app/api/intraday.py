@@ -196,7 +196,9 @@ async def quote_stream(request: Request):
                 if data["strategy_results_updated"]:
                     yield {
                         "event": "strategy_results_updated",
-                        "data": json.dumps({"ts": int(time.time() * 1000)}),
+                        "data": json.dumps({"ts": int(time.time() * 1000),
+                                            **({"watchlist_changed": True}
+                                               if data.get("watchlist_changed") else {})}),
                     }
 
                 # 五档修正完成 — 前端刷新连板梯队封单数据

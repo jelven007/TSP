@@ -1,8 +1,7 @@
 # Tick Stock Platform（TSP）文档中心
 
-核对日期：2026-11-19。本文保留现行契约，运行身份见[版本基线](version-baseline.md)。
-本工作区源码基点的应用语义版本为 `0.4.72`；本地运行版本为0.4.68，
-本地服务使用独立恢复源码，当前安装补丁与故障边界见版本基线。
+核对日期：2026-11-22。本文保留现行契约，源码及运行身份统一见[版本基线](version-baseline.md)。
+工作区应用版本以VERSION为准；固定正式SHA、产物与双端切换结果见当次验收交付。
 
 
 ## 从这里开始
@@ -44,6 +43,7 @@ docs/
     research.md                   策略、固定输入、回测与挖掘
     s01.md                        隔夜分钟策略参数、成交与使用边界
     s02.md                        动量策略、每日组合与回测查询
+    s03.md                        五维前30、固定自选组与A/B入场筛选
     factor-system.md              因子实现及明确标记的后续设计
     trading-ai.md                 模拟账务、公司行为与AI协议
     integrations.md               Provider、HTTP源与开放授权
@@ -75,6 +75,7 @@ docs/
 | 六周期股票 K 线、指数日/周/月 K 线、采集与缺口 | [行情数据](reference/market-data.md) | [周期服务](../backend/app/services/kline_periods.py)、[指数 API](../backend/app/api/indices.py) |
 | 数据源路由、实时、五档、财务与公司行为 | [接入参考](reference/integrations.md) | [能力注册表](../backend/app/data_providers/capabilities.py) |
 | 自选、策略与持久结果、历史研究 | [用户手册](../操作说明书.md)、[研究契约](reference/research.md) | [页面路由](../frontend/src/router.tsx)、[策略结果仓库](../backend/app/services/strategy_results.py) |
+| S03五维预选与A/B入场 | [S03参考](reference/s03.md) | [五维评分](../backend/app/services/s03_selection.py)、[入场筛选](../backend/app/strategy/entry_groups.py) |
 | 因子、信号与挖掘 | [因子体系](reference/factor-system.md)、[研究契约](reference/research.md#mining) | [因子模块](../backend/app/factors/)、[挖掘 API](../backend/app/api/mining.py) |
 | 监控、模拟交易、AI 与复盘 | [账务和 AI](reference/trading-ai.md) | [监控 API](../backend/app/api/monitor_rules.py)、[模拟交易 API](../backend/app/api/paper.py) |
 | 认证、API、SSE 与 MCP | [API 导航](api.md) | [开放网关](../backend/app/services/api_gateway.py)、[MCP 包](../mcp-server/README.md) |

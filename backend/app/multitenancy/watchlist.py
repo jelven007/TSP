@@ -11,7 +11,12 @@ from app.cell.context import TenantContext
 from app.cell.database import Databases
 from app.cell.watchlist import Watchlist as CellWatchlist
 from app.market_scope import removed_market_symbol
-from app.services.watchlist import _normalize_group_color, _normalize_group_name
+from app.services.watchlist import (
+    _normalize_group_color,
+    _normalize_group_name,
+    ensure_group_mutable,
+    ordered_groups,
+)
 
 
 class Watchlist:
@@ -205,6 +210,7 @@ class Watchlist:
         color = _normalize_group_color(color) if color is not None else None
 
         def apply(conn):
+            ensure_group_mutable(group_id, CellWatchlist._groups(conn))
             result = conn.execute(
                 "UPDATE business.watchlist_groups SET name=%s,color=coalesce(%s,color) WHERE id=%s",
                 (name, color, group_id),
@@ -222,7 +228,9 @@ class Watchlist:
             existing = {row["id"] for row in CellWatchlist._groups(conn)}
             if len(ordered_ids) != len(existing) or set(ordered_ids) != existing:
                 raise ValueError("分组顺序与现有分组不一致")
-            for position, group in enumerate(ordered_ids):
+            by_id = {group["id"]: group for group in CellWatchlist._groups(conn)}
+            groups = ordered_groups([by_id[gid] for gid in ordered_ids])
+            for position, group in enumerate(row["id"] for row in groups):
                 conn.execute("UPDATE business.watchlist_groups SET position=%s WHERE id=%s", (position, group))
             return CellWatchlist._groups(conn)
         return self._mutate("watchlist.groups.reorder", ",".join(ordered_ids), apply)
@@ -232,6 +240,7 @@ class Watchlist:
             from app.strategy.targets import ensure_deletable, sql_references
             if not conn.execute("SELECT 1 FROM business.watchlist_groups WHERE id=%s", (group_id,)).fetchone():
                 raise KeyError(group_id)
+            ensure_group_mutable(group_id, CellWatchlist._groups(conn))
             ensure_deletable(group_id, sql_references(conn))
             if not conn.execute("DELETE FROM business.watchlist_groups WHERE id=%s", (group_id,)).rowcount:
                 raise KeyError(group_id)

@@ -292,6 +292,7 @@ export interface WatchlistGroup {
   name: string
   color: WatchlistGroupColor
   referenced_by?: string[]
+  protected?: boolean
 }
 
 export interface WatchlistImportCandidate {
@@ -425,6 +426,13 @@ export interface ScreenerResult {
   selection_snapshot?: {
     as_of: string; source_date: string; generated_at: string; scheduled_for?: string
     rows: any[]; identity?: string; definition_version?: string
+    scoring_policy?: string
+    scoring_weights?: Record<string, number>
+    source_selection?: { strategy_id: string; sha256: string; snapshot: {
+      as_of: string; source_date: string; generated_at: string; rows: any[]; identity?: string
+    } }
+    coverage?: { candidate_total?: number; scorable_total?: number; selected_total?: number;
+      invalid_symbols?: Record<string, string> }
   } | null
   state?: { as_of: string; cash: number; positions: any[]; nav: number; complete: boolean } | null
   portfolio_scope?: string | null
@@ -993,6 +1001,25 @@ export interface CustomSignal {
   min_bars?: number
 }
 
+export interface EntryGroup {
+  enabled: boolean
+  score_min?: number | null
+  tech_min?: number | null
+  fund_min?: number | null
+  momentum_min_pct?: number | null
+  momentum_max_pct?: number | null
+  bias_max_pct?: number | null
+  slope_min_pct?: number | null
+  rank_min?: number | null
+  rank_max?: number | null
+  breadth_min_pct?: number | null
+  gap_min_pct?: number | null
+  gap_max_pct?: number | null
+  intraday_min_pct?: number | null
+  position_min_pct?: number | null
+}
+export interface EntryGroups { a: EntryGroup; b: EntryGroup }
+
 export interface LateSessionStrengthParams {
   time: string | null
   evaluation_delay_minutes?: number | null // null停用；后台分钟，页面秒；0/缺字段兼容冻结旧定义
@@ -1006,6 +1033,7 @@ export interface LateSessionStrengthParams {
   ma5_1m_count: number | null
   ma5_5m_count: number | null
   end_time?: string | null
+  entry_groups?: EntryGroups | null
 }
 
 export interface S01EntryParams {

@@ -11,6 +11,7 @@ import { defaultStrategyResultColumns, resolveStrategyResultColumns, STRATEGY_RE
 import type { ColumnConfig } from '@/lib/list-columns'
 import { useTableSort } from '@/components/stock-table/useTableSort'
 import { StrategyEntryProgress } from './StrategyEntryProgress'
+import { selectionWindow } from '@/lib/selection-clock'
 
 export type { StrategyResultTab } from '@/lib/strategy-result-columns'
 type Tab = StrategyResultTab
@@ -141,7 +142,10 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
     }).map((row, i) => ({ ...row, selection_rank: i + 1 }))
   }, [section.select, signals, result.strategy, result.as_of])
   const rows = active === 'select' ? selected : section[active] ?? []
-  const atrRanking = signals && !s01 && (active === 'select' || rows.some(row => row.atr14_previous_close != null))
+  const fiveDimensions = result.selection_snapshot?.scoring_policy === 's03_five_dimensions_v1'
+  const preselectionWindow = selectionWindow(result.strategy)
+  const atrRanking = signals && !s01 && !(fiveDimensions && active === 'select')
+    && (active === 'select' || rows.some(row => row.atr14_previous_close != null))
   const symbols = useMemo(() => [...new Set(rows.map(row => row.symbol)
     .filter((symbol): symbol is string => typeof symbol === 'string' && /^[0-9]{6}\.(SH|SZ|BJ)$/.test(symbol)))].sort(), [rows])
   const live = useQuery({
@@ -180,7 +184,8 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
   const sortColumns = signals
     ? resolveStrategyResultColumns(active, result.strategy,
       signalColumns ?? defaultStrategyResultColumns(active, result.strategy)).filter(col => col.visible && col.source.type === 'builtin'
-      && (atrRanking || !['atr14_previous_close', 'atr_rank', 'atr_rank_score'].includes(col.source.key)))
+      && (atrRanking || !['atr14_previous_close', 'atr_rank', 'atr_rank_score'].includes(col.source.key))
+      && (fiveDimensions || !['tech_score', 'fund_score', 'emotion_score', 'fundamental_score', 'news_score'].includes(col.source.key)))
     : []
   const { sort, toggle, sortRows } = useTableSort<(typeof rows)[number]>((row, col) => {
     if (col.source.type !== 'builtin') return null
@@ -242,7 +247,10 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
   const displayedColumns = signals
     ? sortColumns
       .map(col => [col.source.type === 'builtin' ? col.source.key : '',
-        atrRanking && active !== 'select' && col.source.type === 'builtin' && col.source.key === 'score' ? '排名分数' : col.label] as const)
+        col.source.type === 'builtin' && col.source.key === 'score'
+          ? atrRanking && active !== 'select' ? '排名分数'
+            : !fiveDimensions && active === 'select' && result.strategy === 'custom_mvxxcs03' ? '选股评分' : col.label
+          : col.label] as const)
     : columns[active]
   const width = (key: string) => STRATEGY_RESULT_WIDTHS[key] ?? 110
   const sectionError = result.section_errors?.[active]
@@ -251,7 +259,7 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
   const executionStatus = result.execution_status
   const resultNotes = [
     signals && result.as_of > today
-      ? `${result.as_of} · 下一交易日归档查询：可查看已保存的卖／选／买，开启监控后，选名单在前一交易日20:00～22:00生成；买入信号等待该交易日运行。`
+      ? `${result.as_of} · 下一交易日归档查询：可查看已保存的卖／选／买，开启监控后，选名单在前一交易日${preselectionWindow}生成；买入信号等待该交易日运行。`
       : null,
     executionStatus && (executionStatus.state !== 'success' || executionStatus.reason)
       ? `${statusLabels[executionStatus.state]}${executionStatus.reason ? ` · ${executionStatus.reason}` : ''}${Number.isFinite(executionStatus.updated_at)
@@ -270,7 +278,9 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
       <div className="space-y-1 py-1">
     <p>
       {signals
-        ? '卖：前一交易日成功计算的买入信号。选：开启监控后，在前一交易日20:00～22:00按股票范围和数值过滤生成，按策略评分降序保存。买：按入场触发器分阶段计算，完成后固定结果并同步下一交易日的卖名单。'
+        ? `卖：前一交易日成功计算的买入信号。选：开启监控后，在前一交易日${preselectionWindow}${result.strategy === 'custom_mvxxcs03'
+          ? '读取S02在20:00～21:00完成的预选名单，按五维综合分降序取前30；历史结果以保存口径为准'
+          : '按股票范围和数值过滤生成，按策略评分降序保存'}。买：按入场触发器分阶段计算，完成后固定结果并同步下一交易日的卖名单。`
         : <>持仓来自连续策略研究组合。选为全部达标股票，买为容量、资金与持仓上限筛选后的成交结果。
           {active === 'select' && ' 选按14:30涨幅降序，同值按代码排序。'}</>}
     </p>
@@ -279,6 +289,12 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
         ? '预选按ATR14÷昨收降序排名，同值按代码升序。排名分数=100×(N-r)/(N-1)，N为可计算股票数，r为顺位；第一名100、末名0、单只50。缺完整日K时显示“—”，与选股评分分别保存。'
         : '实际命中按ATR14÷昨收降序排名，同值按触发涨幅降序、代码升序，排名分数为0～100分。'}
       {active === 'sell' && ' 卖页继承前一交易日买入信号的排名与分数。'}
+    </p>}
+    {fiveDimensions && <p>
+      综合分＝技术×40%＋资金×20%＋情绪×20%＋基本面×10%＋消息×10%，各维度0～100分；
+      同分按股票代码升序，最多30只。S02候选{result.selection_snapshot?.coverage?.candidate_total ?? '—'}只，
+      可评分{result.selection_snapshot?.coverage?.scorable_total ?? '—'}只。
+      评分缺失逐股记录，不补造分数；原有买卖触发器按保存配置执行。
     </p>}
     {signals && result.selection_snapshot && <p>
       数值参考日：{result.selection_snapshot.source_date} · 生成于

@@ -34,6 +34,25 @@ def test_repair_bridge_authenticates_and_rejects_future_or_unbounded_input(monke
     assert client.post(path, headers=headers, json={**request(), "day": "2026-11-20"}).status_code == 422
 
 
+def test_selection_repair_respects_ordinary_and_s03_deadlines(monkeypatch):
+    from app.cell.platform_market import router
+    app = FastAPI()
+    app.include_router(router)
+    app.state.monitor_input_repair = SimpleNamespace(request=lambda value: {"state": "queued"})
+    monkeypatch.setenv("TSP_PLATFORM_MARKET_TOKEN", "repair-test")
+    monkeypatch.setattr("app.market_time.cn_now", lambda: datetime(2026, 11, 19, 20, 30, tzinfo=CN_TZ))
+    client = TestClient(app)
+    payload = {**request(), "phase": "select", "minute_end": None,
+               "retry_until": "2026-11-19T22:00:00+08:00"}
+    headers = {"Authorization": "Bearer repair-test"}
+    path = "/internal/cell-market/monitor-repair"
+    assert client.post(path, headers=headers, json=payload).status_code == 422
+    assert client.post(path, headers=headers, json={
+        **payload, "retry_until": "2026-11-19T21:00:00+08:00"}).status_code == 200
+    assert client.post(path, headers=headers, json={
+        **payload, "strategy_id": "custom_mvxxcs03"}).status_code == 200
+
+
 @pytest.mark.parametrize("cancelled", [False, True])
 def test_repair_guard_prevents_late_or_cancelled_writes(tmp_path, cancelled):
     from app.services.monitor_input_repair import MonitorInputRepair

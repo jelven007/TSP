@@ -147,13 +147,37 @@ def test_future_rows_cannot_change_signal_and_warmup_never_crosses_lunch():
 
 
 @pytest.mark.parametrize("patch", [
-    {"time": "09:30:00"}, {"change_min_pct": 5},
+    {"time": "09:29:00"}, {"change_min_pct": 5},
     {"pool_up_min_pct": 101}, {"ma5_1m_count": 1}, {"ma5_5m_count": 2.5},
     {"change_max_pct": float("nan")},
 ])
 def test_invalid_parameters_rejected(patch):
     with pytest.raises(ValueError):
         custom_signals.validate(definition(**patch))
+
+
+@pytest.mark.parametrize("at", ["09:30:00", "10:30:00", "11:30:00", "13:00:00"])
+def test_legacy_and_delayed_definitions_accept_both_trading_sessions(at):
+    custom_signals.validate(definition(time=at))
+    custom_signals.validate(definition(time=at, evaluation_delay_minutes=.5))
+
+
+@pytest.mark.parametrize("delay", [0, .5])
+def test_saved_morning_start_computes_full_pool_breadth_and_both_ma_periods(delay):
+    at = TARGET - timedelta(hours=4)
+    sig = definition(time="10:30:00", evaluation_delay_minutes=delay)
+    result = evaluate(frame=bars(at), sig=sig, completed_through=at + timedelta(minutes=delay))
+    assert result.symbols == POOL[:3]
+    assert result.pool_up_pct == pytest.approx(60)
+    assert not result.diagnostics
+    if delay:
+        assert evaluate(frame=bars(at), sig=sig, completed_through=at).symbols == []
+
+
+@pytest.mark.parametrize("at", ["09:29:59", "11:30:01", "12:30:00", "15:00:01"])
+def test_saved_start_rejects_clocks_outside_trading_sessions(at):
+    with pytest.raises(ValueError):
+        custom_signals.validate(definition(time=at, evaluation_delay_minutes=.5))
 
 
 def test_second_start_uses_minute_bar_and_exact_ninety_second_gate():

@@ -213,13 +213,23 @@ export function useQuoteStream(
       es.addEventListener('strategy_results_updated', (event: MessageEvent) => {
         if (!acceptEvent(event)) return
         let ids: string[] | undefined
-        try { ids = JSON.parse(event.data).strategy_ids } catch { /* legacy event */ }
+        let watchlistChanged = false
+        try {
+          const payload = JSON.parse(event.data)
+          ids = payload.strategy_ids
+          watchlistChanged = payload.watchlist_changed === true
+        } catch { /* legacy event */ }
         qc.invalidateQueries({
           predicate: query => query.queryKey[0] === 'screener-cached'
             && (!ids?.length || !['strategy', 'day-view'].includes(String(query.queryKey[1]))
               || ids.includes(String(query.queryKey[2]))),
         }, { cancelRefetch: false })
         qc.invalidateQueries({ queryKey: QK.strategyMonitoring }, { cancelRefetch: false })
+        if (watchlistChanged) {
+          for (const queryKey of [QK.watchlist, QK.watchlistGroups, QK.watchlistQuotes, ['watchlist-enriched']]) {
+            void qc.invalidateQueries({ queryKey }, { cancelRefetch: false })
+          }
+        }
       })
 
       es.addEventListener('strategy_pool_updated', (event: MessageEvent) => {

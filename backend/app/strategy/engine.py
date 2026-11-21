@@ -1422,6 +1422,7 @@ class StrategyEngine:
                     [row["symbol"] for row in context.selection_snapshots[strategy_id]["rows"]]
                     if strategy_id in (context.selection_snapshots or {}) else None
                 ),
+                selection=(context.selection_snapshots or {}).get(strategy_id),
             )
             # Build market-wide signal features first; eligibility only limits entries.
             trigger_history = history
@@ -1473,6 +1474,10 @@ class StrategyEngine:
                                if name.startswith("csgi_") and name in history.columns and name not in df.columns]
             if "entry_evaluated_at" in history.columns and "entry_evaluated_at" not in df.columns:
                 missing_signals.append("entry_evaluated_at")
+            from app.strategy.entry_groups import OUTPUT_FIELDS
+            group_columns = [f"{signal}__{key}" for signal in entry_signals for key in OUTPUT_FIELDS
+                             if f"{signal}__{key}" in history.columns]
+            missing_signals.extend(name for name in group_columns if name not in df.columns)
             if missing_signals and time_column in df.columns:
                 signal_rows = history.select("symbol", "datetime", *sorted(set(missing_signals)))
                 if time_column != "datetime":
@@ -1665,6 +1670,23 @@ class StrategyEngine:
             ob = s.meta["order_by"]
             if ob in df.columns:
                 df = df.sort(ob, descending=order_desc)
+        priorities = [f"{signal}__entry_priority" for signal in entry_signals
+                      if f"{signal}__entry_priority" in df.columns]
+        if priorities:
+            # Group ranking is the explicit entry order, independent of optional ATR display scores.
+            df = df.sort([*priorities, "symbol"], nulls_last=True)
+            from app.strategy.entry_groups import OUTPUT_FIELDS
+            prefix = priorities[0].removesuffix("entry_priority")
+            df = df.with_columns([pl.col(prefix + key).alias(key) for key in OUTPUT_FIELDS])
+            # Monitor receipts and score-based execution consume this same rank.
+            # Preserve the strategy's former score separately from five-factor score.
+            df = df.with_columns(
+                (pl.col("score") if "score" in df.columns else pl.lit(None)).alias("strategy_score"),
+                pl.Series("score", [
+                    100. * (df.height - 1 - i) / (df.height - 1) if df.height > 1 else 50.
+                    for i in range(df.height)
+                ], dtype=pl.Float64),
+            )
         if limit is not None:
             df = df.head(limit)
 
@@ -2320,6 +2342,7 @@ class StrategyEngine:
         pool_symbols: list[str] | None = None,
         requested_signals: set[str] | None = None,
         diagnostic_symbols: list[str] | None = None,
+        selection: dict | None = None,
     ) -> pl.DataFrame:
         """向当日分钟K帧注入自定义盘中信号列(csgi_, 当日条件上升沿)。
 
@@ -2399,18 +2422,19 @@ class StrategyEngine:
                 inputs, reference, input_error = {}, {}, None
                 try:
                     p = parameters(sig)
+                    from app.strategy.entry_groups import needs_previous
                     confirm = evaluation_time(sig, context.as_of)
                     clock = observed.astimezone(CN_TZ).replace(tzinfo=None) if observed and observed.tzinfo else observed
-                    stock_due = not (state or {}).get("terminal") and (
+                    stock_due = (p.get("entry_groups") is not None or not (state or {}).get("terminal")) and (
                         not optional or clock is None or confirm is None or clock >= confirm)
                     breadth_due = (not optional or clock is None or p["time"] is None
                                    or clock >= datetime.combine(context.as_of, clock_time.fromisoformat(p["time"]))
                                    + timedelta(seconds=15))
-                    reference_due = not (state or {}).get("terminal") and ((not optional and needs_previous_close(sig)) or (
+                    reference_due = (p.get("entry_groups") is not None or not (state or {}).get("terminal")) and ((not optional and needs_previous_close(sig)) or (
                         optional and (
                             (breadth_due and p["pool_up_min_pct"] is not None and not (state or {}).get("breadth"))
-                            or (stock_due and any(p[key] is not None for key in (
-                                "change_min_pct", "change_max_pct", "amplitude_max_pct"))))))
+                            or (stock_due and (needs_previous(p.get("entry_groups")) or any(p[key] is not None for key in (
+                                "change_min_pct", "change_max_pct", "amplitude_max_pct")))))))
                     if reference_due:
                         reference = previous_closes(context, isolate_symbols=True)
                     if stock_due:
@@ -2429,6 +2453,7 @@ class StrategyEngine:
                         prev_close=reference,
                         completed_through=observed, diagnostic_symbols=diagnostic_symbols,
                         task_state=state, input_error=input_error, **inputs,
+                        selection=selection,
                     )
                 except Exception as exc:
                     progress = failed_progress(progress_plan(
@@ -2452,6 +2477,7 @@ class StrategyEngine:
                     "stage": result.stage,
                     "warnings": result.warnings,
                     "reference_errors": context.reference_errors,
+                    "entry_group_errors": result.entry_group_errors,
                     "progress": result.progress,
                 }
                 self._log_entry_progress(column, result.progress)
@@ -2463,6 +2489,15 @@ class StrategyEngine:
                 output = output.with_columns(
                     ((pl.col("datetime") == target) & pl.col("symbol").is_in(result.symbols)).fill_null(False)
                     .alias(column))
+                if p.get("entry_groups") is not None:
+                    from app.strategy.entry_groups import OUTPUT_FIELDS
+                    for key in OUTPUT_FIELDS:
+                        dtype = pl.String if key == "entry_group" else pl.Float64
+                        values = {symbol: row[key] for symbol, row in result.entry_matches.items()}
+                        output = output.with_columns(
+                            pl.when(pl.col(column)).then(pl.col("symbol").replace_strict(
+                                values, default=None, return_dtype=dtype)).otherwise(None)
+                            .alias(f"{column}__{key}"))
                 available_at = (datetime.fromisoformat(result.progress["confirmed_at"])
                                 if result.progress.get("confirmed_at") else
                                 evaluation_time(sig, context.as_of, completed_through=target))

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { ScanSearch, Clock, TrendingUp, Star, Filter, Layers, Network, Sparkles, RefreshCw, Settings2, Store, RotateCcw, X, SlidersHorizontal } from 'lucide-react'
 import { api, type ScreenerStrategy, type ScreenerResult } from '@/lib/api'
+import { selectionWindow } from '@/lib/selection-clock'
 import { fetchMinuteBatchIncremental } from '@/lib/minuteBatchIncremental'
 import { toast } from '@/components/Toast'
 import { useDataStatus, usePreferences, useCapabilities, useQuoteStatus } from '@/lib/useSharedQueries'
@@ -1011,7 +1012,8 @@ export function Screener() {
           ))}
           {isFutureQuery && (showAll || !result || result.section_mode !== 'signals') && (
             <p role="status" className="text-xs text-muted">
-              {asOf} · 下一交易日归档查询：可查看已保存的卖／选／买，选名单于前一交易日20:00开始生成；
+              {asOf} · 下一交易日归档查询：可查看已保存的卖／选／买，选名单在前一交易日
+              {showAll ? '普通策略20:00～21:00、S03专属21:00～22:00' : selectionWindow(activeStrategy)}生成；
               买入信号等待该交易日运行。
             </p>
           )}

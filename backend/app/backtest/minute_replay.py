@@ -410,6 +410,7 @@ class MinuteSignalReplayer:
                             history, sig, day=day,
                             pool_symbols=(run_result.daily_stock_pool or {}).get("symbols"),
                             prev_close=previous_closes(context),
+                            selection=(context.selection_snapshots or {}).get(strategy.meta["id"]),
                             **condition_inputs(context, sig),
                         )
                         result.errors.extend(f"{day}: {msg}" for msg in evaluated.diagnostics

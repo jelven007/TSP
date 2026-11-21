@@ -251,6 +251,33 @@ class TenantSchedules:
             })
 
     def daily_selections(self, documents, snapshot, repo, now, claim):
+        from app.services.selection_clock import S03_ID
+        for sid in (None, S03_ID):
+            self._daily_selections_group(documents, snapshot, repo, now, claim, strategy_id=sid)
+
+    def _daily_selections_group(self, documents, snapshot, repo, now, claim, *, strategy_id=None):
+        from app.services.daily_selections import DailySelections, due_window
+        from app.services.s03_watchlist import WatchlistSyncError
+        from app.services.strategy_monitor_tasks import selection_receipts
+        try:
+            self._run_daily_selections_group(documents, snapshot, repo, now, claim, strategy_id=strategy_id)
+        except WatchlistSyncError as exc:
+            window = due_window(now, monitored_only=True, strategy_id=strategy_id)
+            if window is None:
+                raise
+            account, context = self.runtime.account(documents.context.tenant_id)
+            with authorize(self.identity, context, account["auth_version"]), documents.transaction() as unit:
+                valid_claim(unit.connection, claim)
+                store = DailySelections(unit)
+                key = str(window[1]) + ":s03"
+                failed = {**store.job(key), "source_date": str(window[0]), "as_of": str(window[1]),
+                          "state": "failed", "completed": [], "errors": {strategy_id: str(exc)},
+                          "watchlist_sync": {"state": "failed", "error": str(exc)},
+                          "finished_at": time.time_ns()}
+                store.job(key, failed)
+                selection_receipts(unit, failed, now)
+
+    def _run_daily_selections_group(self, documents, snapshot, repo, now, claim, *, strategy_id=None):
         """Archive next-session eligibility under the tenant schedule lease."""
         from datetime import timedelta
 
@@ -263,6 +290,7 @@ class TenantSchedules:
             signal_strategy,
             valid_selection,
         )
+        from app.services.selection_clock import S03_ID, window_for
         from app.services.strategy_monitor_tasks import (
             monitored_ids,
             pending_selection_repairs,
@@ -275,8 +303,10 @@ class TenantSchedules:
         from app.strategy.engine import StrategyEngine
 
         attempt_start = time.monotonic()
-        expired = (now.hour, now.minute, now.second, now.microsecond) > (22, 0, 0, 0) and published_trading_day(now.date()) is True
-        window = due_window(now.replace(hour=20, minute=0, second=0) if expired else now, monitored_only=True)
+        start, end = window_for(strategy_id)
+        expired = now.time().replace(tzinfo=None) > end and published_trading_day(now.date()) is True
+        window = due_window(now.replace(hour=start.hour, minute=0, second=0, microsecond=0)
+                            if expired else now, monitored_only=True, strategy_id=strategy_id)
         if window is None:
             return
         source, target = window
@@ -289,14 +319,29 @@ class TenantSchedules:
             store = DailySelections(unit)
             active = monitored_ids(unit)
             ids = [sid for sid, strategy in engine._strategies.items()
-                   if sid in active and signal_strategy(strategy) and not strategy.meta.get("research_only")]
+                   if sid in active and signal_strategy(strategy) and not strategy.meta.get("research_only")
+                   and (sid == S03_ID) == (strategy_id == S03_ID)]
             from app.services.strategy_monitor_state import finished
             pending = [sid for sid in ids if store.read(sid, target) is None
                        and (not expired or not finished(
                            task_receipt(unit, sid, source).get("tasks", {}).get("select", {})))]
             if not pending:
+                if strategy_id == S03_ID and S03_ID in ids and not expired:
+                    from app.services.s03_watchlist import sync_archived_selection
+                    selected = store.read(S03_ID, target)
+                    receipt = sync_archived_selection(unit, selected, now)
+                    if receipt:
+                        key = str(target) + ":s03"
+                        recovered = {**store.job(key), "source_date": str(source), "as_of": str(target),
+                                     "state": "succeeded", "completed": [S03_ID], "errors": {},
+                                     "selections": {S03_ID: selected}, "watchlist_sync": receipt}
+                        store.job(key, recovered)
+                        selection_receipts(unit, recovered, now)
+                        append_event(unit.connection, documents.context.tenant_id, "strategy_results_updated",
+                                     {"as_of": str(target), "section": "select", "strategy_ids": [S03_ID],
+                                      "watchlist_changed": True})
                 return
-            key = str(target)
+            key = str(target) + (":s03" if strategy_id == S03_ID else "")
             previous = store.job(key)
             job = {**previous, "source_date": str(source), "as_of": str(target),
                    "attempts": previous.get("attempts", 0) + 1, "started_at": time.time_ns()}
@@ -325,9 +370,21 @@ class TenantSchedules:
             marker = signature({"input": observed, "source_date": str(source), "target": key,
                                 "release": release, "definition_version": DEFINITION_VERSION})
             job = {**job, "signature": marker, "state": "running"}
+            if strategy_id == S03_ID:
+                from app.services.s03_selection import freeze_source
+                from app.services.selection_clock import S02_ID
+                try:
+                    job["source_selection"] = previous.get("source_selection") or freeze_source(
+                        store.read(S02_ID, target), source, target)
+                except ValueError as exc:
+                    waiting = {**job, "state": "waiting_data", "errors": {S03_ID: str(exc)}}
+                    store.job(key, waiting)
+                    selection_receipts(unit, waiting, now)
+                    return
             store.job(key, job)
             task = engine.task("daily_selections", strategy_ids=pending, source_date=str(source),
-                               as_of=key, overrides_map=overrides,
+                               as_of=str(target), overrides_map=overrides,
+                               source_selection=job.get("source_selection"),
                                **({"public_release_id": release} if release else {}))
         if str(source) not in snapshot.get("settlement_days", []):
             errors = {sid: f"等待{source}盘后完整数据" for sid in pending}
@@ -373,17 +430,21 @@ class TenantSchedules:
             commit_now = getattr(self, "selection_now", lambda: now + timedelta(
                 seconds=time.monotonic() - attempt_start))()
             if (fingerprint(unit.connection, include_state=False) != observed
-                    or due_window(commit_now, monitored_only=True) != window):
+                    or due_window(commit_now, monitored_only=True, strategy_id=strategy_id) != window):
                 rejected = AccessError(409, "预选配置或任务窗口已更新，旧计算已丢弃")
                 store.job(key, {**job, "state": "failed", "finished_at": time.time_ns(),
                                "errors": {sid: str(rejected) for sid in pending}})
             else:
                 completed = set(ids) - all_pending
+                watchlist_sync = None
                 for sid, selected in response.get("selections", {}).items():
-                    if sid not in pending or selected.get("as_of") != key or selected.get("source_date") != str(source):
+                    if sid not in pending or selected.get("as_of") != str(target) or selected.get("source_date") != str(source):
                         raise ValueError("盘后预选结果日期或策略不匹配")
                     store.save(identities[sid], selected, started_at=job["started_at"],
                                input_generation={"public_release_id": release, "signature": marker})
+                    if sid == S03_ID:
+                        from app.services.s03_watchlist import sync_archived_selection
+                        watchlist_sync = sync_archived_selection(unit, store.read(sid, target), commit_now)
                     completed.add(sid)
                 errors = {**blocked_errors, **response.get("errors", {}),
                           **{sid: "盘后预选结果缺失，将自动重试" for sid in set(pending) - completed
@@ -391,10 +452,13 @@ class TenantSchedules:
                 finished = {**job, "state": "failed" if errors else "succeeded",
                                "completed": sorted(completed), "errors": errors, "finished_at": time.time_ns(),
                                "repairs": repairs, "selections": response.get("selections", {})}
+                if watchlist_sync:
+                    finished["watchlist_sync"] = watchlist_sync
                 store.job(key, finished)
                 selection_receipts(unit, finished, commit_now)
                 append_event(unit.connection, documents.context.tenant_id, "strategy_results_updated",
-                             {"as_of": key, "section": "select", "strategy_ids": sorted(completed)})
+                             {"as_of": str(target), "section": "select", "strategy_ids": sorted(completed),
+                              **({"watchlist_changed": True} if watchlist_sync else {})})
         if rejected:
             raise rejected
 

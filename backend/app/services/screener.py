@@ -539,7 +539,8 @@ class ScreenerService:
             pool_universe=pool_evidence(self.repo, as_of, instruments if as_of == cn_today() else None,
                                         observed_at=observed_at))
 
-    def build_selection_context(self, engine, source, target, strategy_ids, *, overrides_map=None):
+    def build_selection_context(self, engine, source, target, strategy_ids, *, overrides_map=None,
+                                history_bars=0):
         """Load completed source-session daily evidence without target minutes."""
         from app.instrument_suspension import pool_evidence
         from app.services.daily_close_validation import validate_daily_close
@@ -551,7 +552,8 @@ class ScreenerService:
 
         if previous_session(target) != source:
             raise ValueError("盘后预选日期不连续")
-        bars = max(1, engine.minute_daily_history_bars(strategy_ids, overrides_map=overrides_map))
+        bars = max(1, history_bars, engine.minute_daily_history_bars(
+            strategy_ids, overrides_map=overrides_map))
         history = self._load_enriched_history(source, bars)
         if history is None or history.is_empty() or "date" not in history.columns:
             raise ValueError("盘后预选缺少已完成日线数据")

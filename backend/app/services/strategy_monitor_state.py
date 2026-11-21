@@ -18,7 +18,7 @@ def _at(now, clock):
     return datetime.combine(now.date(), time.fromisoformat(clock), now.tzinfo)
 
 
-def plan(windows, tasks, now, *, trading, include_select=False, retry_seconds=3):
+def plan(windows, tasks, now, *, trading, include_select=False, retry_seconds=3, strategy_id=None):
     now = as_cn_datetime(now)
     actions, wakes = [], []
     if trading is not True:
@@ -68,7 +68,9 @@ def plan(windows, tasks, now, *, trading, include_select=False, retry_seconds=3)
             due("sell", signal, "observe", _at(now, window["start"]), _at(now, window["end"]),
                 sell.get("signals", {}).get(signal, {}), strict=True)
     if include_select:
-        due("select", "", "select", _at(now, "20:00:00"), _at(now, "22:00:00"),
+        from app.services.selection_clock import window_text
+        start, end = window_text(strategy_id)
+        due("select", "", "select", _at(now, start), _at(now, end),
             tasks.get("select") or {})
     return {"actions": actions, "next_at": min(wakes).isoformat() if wakes else None}
 

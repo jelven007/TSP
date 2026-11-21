@@ -63,7 +63,7 @@ export function WatchlistGroupBar({
   const tabs = [
     { id: 'all', name: '全部', count: total, color: null },
     { id: 'ungrouped', name: '未分组', count: counts.ungrouped ?? 0, color: null },
-    ...groups.map(group => ({ id: group.id, name: group.name, count: counts[group.id] ?? 0, color: group.color })),
+    ...groups.map(group => ({ id: group.id, name: group.name, count: counts[group.id] ?? 0, color: group.color, protected: group.protected })),
   ]
   // 拖拽排序状态: dragIndex = 拖动中的分组下标, dropIndex = 插入位置 (均相对 groups 数组)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
@@ -128,9 +128,9 @@ export function WatchlistGroupBar({
           {tabs.map((tab, tabIndex) => {
             const active = selected === tab.id
             const color = tab.color ? resolveWatchlistGroupColor(tab.color) : null
-            // 前两个为固定标签 (全部/未分组), 其后对应 groups 数组 — 可拖拽排序
+            // 固定标签和 s03 不参与拖拽排序。
             const groupIndex = tabIndex - 2
-            const draggable = reorderable && tabIndex >= 2
+            const draggable = reorderable && tabIndex >= 2 && !('protected' in tab && tab.protected)
             const dragging = draggable && dragIndex === groupIndex
             return (
               <button
@@ -549,11 +549,12 @@ function GroupManagerDialog({
                   {group.name}
                 </label>
                 <span className="font-mono text-[10px] text-muted tabular-nums">{counts[group.id] ?? 0} 只</span>
-                {onReorder && groups.length > 1 && (
+                {group.protected && <span className="text-[10px] text-muted">固定分组</span>}
+                {onReorder && groups.length > 1 && !group.protected && (
                   <>
                     <button
                       type="button"
-                      disabled={pending || index === 0}
+                      disabled={pending || index === 0 || groups[index - 1]?.protected}
                       onClick={() => void move(group.id, -1)}
                       className="p-1 text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted"
                       title="上移"
@@ -573,7 +574,7 @@ function GroupManagerDialog({
                     </button>
                   </>
                 )}
-                <button
+                {!group.protected && <button
                   type="button"
                   onClick={() => {
                     setEditingId(group.id)
@@ -586,8 +587,8 @@ function GroupManagerDialog({
                   title="编辑分组"
                 >
                   <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button
+                </button>}
+                {!group.protected && <button
                   type="button"
                   onClick={() => {
                     setEditingId(null)
@@ -603,7 +604,7 @@ function GroupManagerDialog({
                   title="删除分组"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                </button>}
               </>
             )}
           </div>
