@@ -9,6 +9,7 @@ import type { StrategyResultHistoryFilters } from './api'
 // ===== Query Key 工厂 =====
 
 export const QK = {
+  backtestTradeNames: (symbols: string[]) => ['backtest-trade-names', symbols] as const,
   // 全局 / 共享 (Layout 预取)
   capabilities:   ['capabilities'] as const,
   authStatus:     ['auth-status'] as const,
@@ -125,6 +126,7 @@ export const QK = {
 
   // Monitor (监控规则 + 触发记录)
   monitorRules:         ['monitor-rules'] as const,
+  strategyMonitoring:   ['strategy-monitoring'] as const,
   monitorRuleOptions:   ['monitor-rule-options'] as const,
   lots:                 ['lots'] as const,
   lotBatches:           ['lot-batches'] as const,

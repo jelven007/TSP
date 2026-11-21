@@ -400,7 +400,7 @@ def _history_payload(request, as_of, asset_type, timeframe, *, strategy_id=None,
             saved = store.read(identity, day, record_id=summaries[identity.strategy_id]["record_id"])
             if saved:
                 daily = saved["result"]
-                if daily.get("selection_only") and day > str(cn_today()):
+                if daily.get("section_mode") == "signals":
                     transaction = store.storage._transaction if store.tenant else store._local
                     with transaction() as conn:
                         daily = store._with_previous_buy(conn, identity, daily, day)

@@ -716,7 +716,7 @@ export function Screener() {
   // 策略监控: 查询规则, 建立 assetType:strategyId → ruleId 映射 (只看 type=strategy 且 enabled)
   const monitorRules = useQuery({ queryKey: QK.monitorRules, queryFn: api.monitorRulesList })
   const monitorTasks = useQuery({
-    queryKey: ['strategy-monitoring'],
+    queryKey: QK.strategyMonitoring,
     queryFn: api.strategyMonitoring,
     enabled: assetType === 'stock',
     refetchInterval: false,
@@ -745,7 +745,7 @@ export function Screener() {
     try {
       await api.strategyMonitoringSet(strategyId, !existingRuleId)
       await qc.invalidateQueries({ queryKey: QK.monitorRules })
-      await qc.invalidateQueries({ queryKey: ['strategy-monitoring'] })
+      await qc.invalidateQueries({ queryKey: QK.strategyMonitoring })
     } catch (error) {
       toast(`策略监控${existingRuleId ? '取消' : '开启'}失败：${String((error as Error).message ?? error)}`, 'error')
     } finally {

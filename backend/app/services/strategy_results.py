@@ -17,7 +17,13 @@ from uuid import uuid4
 from app.cell.context import AccessError
 from app.multitenancy.documents import DocumentSession, TenantDocuments, json_value
 from app.strategy.eligibility import ENTRY_POLICY_VERSION
-from app.strategy.version import DISPLAY_FIELDS, digest, logic_version, runtime_identity
+from app.strategy.version import (
+    DISPLAY_FIELDS,
+    digest,
+    entry_trigger_policy,
+    logic_version,
+    runtime_identity,
+)
 
 logger = logging.getLogger(__name__)
 NAMESPACE = "strategy_result_history"
@@ -268,7 +274,8 @@ def capture_identity(engine, storage, strategy_id, *, params=None, overrides=Non
         strategy_id=strategy_id,
         strategy_name=str((overrides or {}).get("name") or strategy.meta.get("name") or strategy_id),
         strategy_version=digest({"strategy": version(strategy_id),
-                                 "entry_policy": ENTRY_POLICY_VERSION, "dependencies": dependencies}),
+                                 "entry_policy": ENTRY_POLICY_VERSION, "dependencies": dependencies,
+                                 **entry_trigger_policy(strategy, overrides or {})}),
         params_json=json.dumps(resolved, sort_keys=True, ensure_ascii=False, allow_nan=False),
         overrides_json=json.dumps(configuration, sort_keys=True, ensure_ascii=False, allow_nan=False),
         pool_json=json.dumps(sorted(set(pool)) if pool is not None else None),
@@ -457,6 +464,8 @@ class StrategyResults:
             errors = dict(current.get("section_errors") or {})
             if (current.get("section_statuses") or {}).get("sell") != "failed":
                 errors.pop("sell", None)
+            if (current.get("section_statuses") or {}).get("sell") in (None, "waiting", "unavailable"):
+                current["section_statuses"] = {**(current.get("section_statuses") or {}), "sell": "success"}
             current["section_errors"] = errors
             return current
         from app.strategy.basic_filter import previous_session

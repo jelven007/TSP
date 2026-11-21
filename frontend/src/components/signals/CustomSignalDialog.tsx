@@ -157,6 +157,7 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
     },
     onSuccess: res => {
       qc.invalidateQueries({ queryKey: QK.customSignals })
+      qc.invalidateQueries({ queryKey: QK.strategyMonitoring })
       onSaved?.(res.signal)
       onClose()
     },

@@ -2630,8 +2630,10 @@ class StrategyBacktestService:
         entry_signals: list[str],
     ) -> pl.Series:
         """向量化生成买入掩码：候选层 AND 买点层；无买点时只用策略候选层。"""
-        signal_mask = self._build_signal_mask(panel, entry_signals, "_entry_signal")
         if entry_signals:
+            signal_mask = panel.select(
+                StrategyEngine._entry_signal_mask(panel, entry_signals).alias("_entry_signal")
+            )["_entry_signal"]
             return candidate_mask & signal_mask
         if s.filter_history_fn or s.filter_fn:
             return candidate_mask

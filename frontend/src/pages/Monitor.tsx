@@ -181,8 +181,9 @@ export function Monitor() {
   const rulesCount = rulesQuery.data?.rules.length ?? 0
   const removableRulesCount = rulesQuery.data?.rules.filter(r => !r.lot_id).length ?? 0
   const dailyTasks = useQuery({
-    queryKey: ['strategy-monitoring'], queryFn: api.strategyMonitoring,
-    refetchInterval: quoteStatus?.is_trading_hours === false ? 120_000 : 10_000,
+    queryKey: QK.strategyMonitoring, queryFn: api.strategyMonitoring,
+    refetchOnMount: 'always',
+    refetchInterval: 10_000,
   })
 
   // 清除全部规则 (逐条删除)

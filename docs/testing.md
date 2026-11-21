@@ -1,5 +1,15 @@
 # 测试与验收指南
 
+监控时钟／当日卖名单／S03零结果回归入口：
+`test_monitor_saved_clocks_regression`验证保存时段与14:55执行截止分开；
+`MonitorSignalRefresh.regression.test.tsx`验证显示及保存后查询失效；
+`test_today_sell_roster_regression`验证无补算读取当日已确认空或非空名单；
+`backtest/test_s03_turnover_replay_regression`验证T股本、T-1价格及缺条件失败；
+`test_research_runtime_reuse_regression`用隔离PostgreSQL验证构建变更不复用旧完成任务。
+两端页面仍须实际选择S02并覆盖今日、历史、无摘要／缺归档及卖／选／买切换；
+S03使用当前保存源码、信号、100万元及页面冻结费用验证实际成交、净值和完整交易。
+合法零命中应有完整输入证据，不能将全部缺条件包装成成功零结果。
+
 分钟价格与晚信号回放由`backtest/test_custom_minute_price_rule.py`、
 `test_s01_common_backtest.py`、`test_s01_equal_selected.py`及
 `test_backtest_stream_date_guard.py`覆盖：旧冻结兼容、逐分钟最低价且不重复滑点、
@@ -241,6 +251,11 @@ K线区间获取回归入口为`test_repair_kline.py`、`test_kline_periods_api.
 前端`StrategyDelete.test.tsx`验证说明、目标历史缓存清除、共享结果/研究查询刷新
 及清理失败保留弹窗。受影响回归还须覆盖原策略删除、代码保存、归档、旧缓存、
 渐进扫描、研究任务与实际回测worker进程；不得连接生产数据库运行这些测试。
+
+入场触发器按`FR-STRATEGY-07`运行`test_entry_trigger_all.py`与
+`test_s01_optional_triggers.py`：全部真值通过，部分／空值／缺列拦截，
+不同股票及不同分钟不拼接；空选、单选、独立信号参数、出场任一／最早保持。
+日线买入掩码与分钟冻结订单均覆盖，规则身份变化隔离旧缓存，不改写历史归档。
 
 策略日期归档按`FR-STRATEGY-05`验证：
 `test_strategy_result_history.py`覆盖日期/版本/有效参数/资产/周期/标的池隔离、

@@ -2,7 +2,8 @@
 
 监控通知按策略稳定ID、交易日、选/买/卖归并；状态变化发通知，重试次数、
 完成时间和运行身份刷新不重复发同状态通知。分阶段诊断保留在任务回执中，
-窗口外未实际执行的过期任务不冒充计算失败。实时买任务展示窗口沿14:55截止。
+窗口外未实际执行的过期任务不冒充计算失败。任务展示保留信号起止时刻；
+实时买入执行窗口仍截至14:55，较晚信号结束时间另附`execution_deadline`说明。
 回测入口、设置和成交口径共用当前信号说明，专用执行与日线能力保持各自契约。
 
 自定义分钟成交在`StrategyBacktestRequest`冻结`minute_price_rule=high_low_v1`，
@@ -13,6 +14,12 @@
 各信号自身限制已完成数据时点，股票池仍沿原公开证据时钟构建。
 历史信号修复沿`DailySelections`、`StrategyResults`及同一租户事务更新归档、
 按日视图和次日卖名单；原记录另存带摘要证据，交易账本独立保持。
+`_history_payload`读取所有信号型归档时合并当前`sell_roster`证据，
+已确认空名单可解除waiting/unavailable，失败与过期不被重写。
+`MinuteSignalReplayer.pool_history`用T生效股本及证券元数据构造，
+`current/daily_history`保持已完成价格；诊断与策略运行共用`condition_inputs`。
+`ResearchJobs.submit`把运行构建纳入去重快照并存入metadata，原业务input不改写；
+冻结复测优先其`expected_runtime`，旧任务保留可查。
 
 本手册保留当前架构和明确标记的目标方案，运行身份见[版本基线](version-baseline.md)。
 策略规则见[S01](reference/s01.md)、[S02](reference/s02.md)，

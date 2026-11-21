@@ -15,6 +15,7 @@ import {
   REGIME_STATE_COLORS,
 } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
+import { missingTradeNameSymbols, tradeName } from './tradeNames'
 import { storage } from '@/lib/storage'
 import { fmtPct, fmtPrice, priceColorClass } from '@/lib/format'
 import { boardTag } from '@/lib/board'
@@ -1021,7 +1022,31 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   // result 不从 localStorage 恢复:它是运行产物(净值/交易),大且易过时,
   // 跨会话/拉新代码后自动渲染一个可能对应已失效策略的旧结果会造成困惑
   // (切页不卸载组件,内存中的 result 仍保留,无需靠 localStorage 恢复)。
-  const [result, setResult] = useState<StrategyBacktestResult | null>(null)
+  const [rawResult, setResult] = useState<StrategyBacktestResult | null>(null)
+  const missingNames = useMemo(() => missingTradeNameSymbols(rawResult?.trades ?? []), [rawResult])
+  const directoryNames = useQuery({
+    queryKey: QK.backtestTradeNames(missingNames),
+    queryFn: async () => {
+      const names: Record<string, string> = {}
+      for (let start = 0; start < missingNames.length; start += 500) {
+        Object.assign(names, (await api.instrumentNames(missingNames.slice(start, start + 500))).names)
+      }
+      return names
+    },
+    enabled: missingNames.length > 0,
+    staleTime: 300_000,
+  })
+  const result = useMemo(() => {
+    if (!rawResult) return null
+    const names = { ...directoryNames.data }
+    for (const trade of rawResult.trades) {
+      const name = tradeName(trade)
+      if (name !== trade.symbol) names[trade.symbol] = name
+    }
+    return { ...rawResult, trades: rawResult.trades.map(trade => ({
+      ...trade, name: tradeName(trade, names),
+    })) }
+  }, [rawResult, directoryNames.data])
 
   // 候选方案「载入复测」: 把保存的 23 项回测配置回填到表单 (字段缺失时保留当前值)
   useEffect(() => {
@@ -3112,7 +3137,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
               {settingsTab === 'entry' && (
                 <ConfigSection
                   title="入场触发器"
-                  hint={detail.optional_triggers ? '可多选或取消；任一所选信号命中，不选时按基础选股结果入场' : '任一入场点满足即可进入候选'}
+                  hint={detail.optional_triggers ? '可多选或取消；所有已选入场点同时满足才进入候选，不选时按基础选股结果入场' : '所有已选入场点同时满足才进入候选'}
                   actions={<SignalTriggerActions selectExisting kind="entry" signals={entrySignals} onChange={next => updateOverride('entry_signals', next)} s01Template={detail.parameter_signals || detail.optional_triggers ? 's01_late_entry' : undefined} allowIntraday={isMinuteStrategy} />}
                 >
                   <SignalPicker

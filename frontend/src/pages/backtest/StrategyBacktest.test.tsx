@@ -299,6 +299,30 @@ function completed(id: number): BacktestTask {
   return { id, isPending: false, result, progress: null, error: null, reconnecting: false }
 }
 
+it.each(['custom_mvxxcs01', 'custom_mvxxcs03'])('fills missing result names in daily and trade views (%s)', async id => {
+  const lookup = vi.spyOn(api, 'instrumentNames').mockResolvedValue({ names: { '600000.SH': '浦发银行' } })
+  const task = completed(10)
+  task.result!.strategy_info.id = id
+  task.result!.trades.forEach(trade => { trade.name = '' })
+  state.task = task
+  await render()
+  expect(lookup).toHaveBeenCalledExactlyOnceWith(['600000.SH'])
+  expect(host.textContent).toContain('浦发银行')
+  const tab = Array.from(host.querySelectorAll('button')).find(button => button.textContent?.startsWith('交易明细'))!
+  await act(async () => tab.click())
+  await settle()
+  expect(host.querySelector('tbody')?.textContent).toContain('浦发银行')
+  expect(task.result!.trades.every(trade => trade.name === '')).toBe(true)
+})
+
+it('preserves frozen names and skips directory lookup for named results', async () => {
+  const lookup = vi.spyOn(api, 'instrumentNames').mockResolvedValue({ names: { '600000.SH': '新名称' } })
+  state.task = completed(11)
+  await render()
+  expect(host.textContent).toContain('浦发银行')
+  expect(lookup).not.toHaveBeenCalled()
+})
+
 it('keeps fresh liquidation defaults while S01 detail loads and submits the five-minute exit', async () => {
   const s01: StrategyDetail = {
     ...strategyFixture('custom_mvxxcs01', 'custom'), name: 's01', timeframes: ['1m'],
