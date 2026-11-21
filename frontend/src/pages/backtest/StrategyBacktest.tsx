@@ -100,7 +100,6 @@ const normalizeQuickRanges = (raw: unknown) => {
     ? ranges
     : ranges.map((range, index) => index === 0 ? { ...range, enabled: true } : range)
 }
-const loadQuickRanges = () => normalizeQuickRanges(storage.strategyBacktestQuickRanges.get(DEFAULT_QUICK_RANGES))
 const quickRangeMonths = (range: QuickRangeConfig) => range.unit === 'year' ? range.value * 12 : range.value
 const quickRangeLabel = (range: QuickRangeConfig) => range.unit === 'all'
   ? '全部'
@@ -967,14 +966,17 @@ function StockPoolPicker({ value, onChange }: { value: string; onChange: (value:
   )
 }
 
-export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
+export function StrategyBacktest({ loadCandidate, onLoadConsumed, initializationDefaults }: {
   /** 候选方案「载入复测」: 回填保存的回测配置 (消费后由父组件清空) */
   loadCandidate?: ResearchCandidate | null
   onLoadConsumed?: () => void
+  initializationDefaults?: import('@/lib/api').BusinessInitializationDefaults['backtest']
 }) {
   const queryClient = useQueryClient()
   const signalNames = useSignalNames()
-  const [saved] = useState(() => loadBacktestDefaults(storage.strategyBacktestLast.get(null)))
+  const [saved] = useState(() => loadBacktestDefaults(
+    storage.strategyBacktestLast.get(null) ?? initializationDefaults?.last ?? null,
+  ) as NonNullable<ReturnType<typeof storage.strategyBacktestLast.get>>)
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(saved?.selectedStrategy ?? null)
   const [strategyGroup, setStrategyGroup] = useState<StrategyGroup>('all')
   const [symbols, setSymbols] = useState(saved?.symbols ?? '')
@@ -1015,7 +1017,9 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
     setHighGranularity(value => !value)
   }
   const [rangeSettingsOpen, setRangeSettingsOpen] = useState(false)
-  const [quickRanges, setQuickRanges] = useState(loadQuickRanges)
+  const [quickRanges, setQuickRanges] = useState(() => normalizeQuickRanges(
+    storage.strategyBacktestQuickRanges.get(null) ?? initializationDefaults?.quick_ranges ?? DEFAULT_QUICK_RANGES,
+  ))
   const [settingsTab, setSettingsTab] = useState<AdvancedSettingsTab>('params')
   const [strategyParams, setStrategyParams] = useState<Record<string, any>>(saved?.params ?? {})
   const [overrides, setOverrides] = useState<Record<string, any>>(saved?.overrides ?? {})

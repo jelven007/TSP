@@ -603,6 +603,28 @@ class AccountIdentity:
         if job["status"] != "moving" or job["routing_epoch"] != 1:
             raise AccessError(409, "租户初始化状态已变更")
         try:
+            business_snapshot = None
+            if self.db.settings.bootstrap_business_defaults_path is not None:
+                with self.db.control.connection() as conn:
+                    target = conn.execute(
+                        """SELECT u.username,u.auth_version,t.policy_version,
+                                  EXISTS(SELECT 1 FROM control.user_roles WHERE user_id=u.id AND role_id='admin')
+                                      AS administrator
+                           FROM control.users u JOIN control.tenants t ON t.id=%s WHERE u.id=%s""",
+                        (job["tenant_id"], user_id),
+                    ).fetchone()
+                if target and target["administrator"]:
+                    from app.multitenancy.business_defaults import load_snapshot, validate_snapshot
+
+                    candidate = load_snapshot(self.db.settings.bootstrap_business_defaults_path)
+                    if target["username"] == candidate.payload.target_username:
+                        from app.multitenancy.executor import ComputeExecutor
+
+                        validate_snapshot(candidate, getattr(
+                            self, "business_defaults_executor", None,
+                        ) or ComputeExecutor(), job["tenant_id"])
+                        business_snapshot = candidate
+                        job = {**job, "auth_version": target["auth_version"], "policy_version": target["policy_version"]}
             columns = None
             if self.db.settings.bootstrap_watchlist_columns_path is not None:
                 from app.multitenancy.watchlist_defaults import load_snapshot
@@ -613,6 +635,10 @@ class AccountIdentity:
                 conn.execute(
                     "SELECT business.initialize_tenant(%s,%s)", (job["tenant_id"], job["routing_epoch"]),
                 )
+                if business_snapshot is not None:
+                    from app.multitenancy.business_defaults import seed_business
+
+                    seed_business(conn, job, business_snapshot)
             with self.db.control.connection() as conn, conn.transaction():
                 conn.execute(
                     "SELECT id FROM control.provisioning_jobs WHERE id=%s FOR UPDATE", (job["id"],),

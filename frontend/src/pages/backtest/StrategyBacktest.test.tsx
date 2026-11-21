@@ -54,9 +54,9 @@ let client: QueryClient
 async function settle() {
   for (let i = 0; i < 5; i++) await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)) })
 }
-async function render() {
+async function render(initializationDefaults?: import('@/lib/api').BusinessInitializationDefaults['backtest']) {
   await act(async () => root.render(
-    <MemoryRouter><QueryClientProvider client={client}><StrategyBacktest /></QueryClientProvider></MemoryRouter>,
+    <MemoryRouter><QueryClientProvider client={client}><StrategyBacktest initializationDefaults={initializationDefaults} /></QueryClientProvider></MemoryRouter>,
   ))
   await settle()
 }
@@ -109,6 +109,29 @@ function strategyFixture(id = 'example', source: StrategyDetail['source'] = 'bui
     order_by: '', descending: false, limit: 0,
   }
 }
+
+it.each([false, true])('uses server defaults only when browser parameters are absent (saved=%s)', async saved => {
+  await act(async () => root.unmount())
+  client.clear()
+  if (saved) {
+    storage.strategyBacktestLast.set({
+      ...storage.strategyBacktestLast.get(null)!,
+      defaultsVersion: 5, fees: '3', initialCapital: '1000000', minimumCommission: '8',
+    })
+  } else {
+    storage.strategyBacktestLast.remove()
+  }
+  root = createRoot(host)
+  await render({
+    last: { defaultsVersion: 5, selectedStrategy: 'example', fees: '7',
+            initialCapital: '1000000', minimumCommission: '6' },
+    quick_ranges: [{ id: 'range-1', enabled: true, unit: 'month', value: 2 }],
+  })
+  const feeLabel = Array.from(host.querySelectorAll('label')).find(el => el.textContent === '佣金 ‱')!
+  expect(feeLabel.parentElement!.querySelector('input')!.value).toBe(saved ? '3' : '7')
+  expect(host.textContent).toContain('2个月')
+  expect(startBacktest).not.toHaveBeenCalled()
+})
 
 it.each(['custom_mvxxcs01', 'custom_mvxxcp88', 'custom_mvxxcs03', 'custom_any_name'])(
   'uses common saved-signal execution descriptions for any custom minute strategy (%s)', async id => {

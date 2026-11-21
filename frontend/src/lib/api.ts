@@ -2726,10 +2726,20 @@ export interface AuthResult {
 }
 
 // ===== API surface =====
+export interface BusinessInitializationDefaults {
+  snapshot_id: string | null
+  backtest: {
+    last?: Partial<NonNullable<ReturnType<typeof import('./storage').storage.strategyBacktestLast.get>>>
+    quick_ranges?: Array<{ id: string; enabled: boolean; unit: 'month' | 'year' | 'all'; value: number }>
+  } | null
+}
+
 export const api = {
   ...secondQuotesApi,
   ...openSourceReleaseApi,
   health: () => request<{ status: string; version: string; mode: string }>('/health'),
+  businessInitializationDefaults: () =>
+    request<BusinessInitializationDefaults>('/api/business/initialization-defaults'),
 
   // ===== Auth =====
   authStatus: async () => {
