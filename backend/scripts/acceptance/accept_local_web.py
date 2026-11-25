@@ -61,13 +61,20 @@ def seed(root: Path) -> None:
             values.filter(pl.col("date") == day).write_parquet(target / "part.parquet")
         minute_rows = []
         for daily in frame.filter(pl.col("date") == day).iter_rows(named=True):
-            for offset in range(5):
+            # The form opens over five minutes and closes against the 15:00 bar.
+            # Keep enough synthetic closing volume for one sell at 10% participation.
+            minutes = [
+                (datetime.combine(day, clock_time(9, 31)) + timedelta(minutes=offset), 10_000.)
+                for offset in range(5)
+            ]
+            minutes.append((datetime.combine(day, clock_time(15)), 100_000.))
+            for label, volume in minutes:
                 price = daily["raw_open"]
                 minute_rows.append({
                     "symbol": daily["symbol"],
-                    "datetime": datetime.combine(day, clock_time(9, 31)) + timedelta(minutes=offset),
+                    "datetime": label,
                     "open": price, "high": price + .01, "low": price - .01,
-                    "close": price, "volume": 10000., "amount": price * 1000000.,
+                    "close": price, "volume": volume, "amount": price * volume,
                 })
         target = root / "kline_minute" / f"date={day}"
         target.mkdir(parents=True)
