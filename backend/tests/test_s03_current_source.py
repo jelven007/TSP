@@ -13,7 +13,7 @@ SID = "custom_mvxxcs03"
 SOURCE = Path(__file__).resolve().parents[2] / "examples/strategies/s03.py"
 
 
-def test_current_source_keeps_ab_priority_and_frozen_scores_with_missing_atr(tmp_path):
+def test_current_source_keeps_ab_priority_and_frozen_scores(tmp_path):
     custom = tmp_path / "strategies" / "custom"
     custom.mkdir(parents=True)
     (custom / "s03.py").write_text(SOURCE.read_text())
@@ -34,7 +34,7 @@ def test_current_source_keeps_ab_priority_and_frozen_scores_with_missing_atr(tmp
     assert [row["score"] for row in result.rows] == [100., 50., 0.]
     assert all(row["selection_score"] == row["strategy_score"] == 80. for row in result.rows)
     assert all(str(row["last_datetime"]).replace(" ", "T") == AT.isoformat() for row in result.rows)
-    assert all(row["atr14_previous_close"] is None for row in result.rows)
+    assert all(not any(key.startswith("atr") for key in row) for row in result.rows)
     assert "csg_ma5_ma30" not in result.rows[0]
     assert result.entry_filter_error is None
 
@@ -76,5 +76,29 @@ def test_current_source_uses_fund_order_with_opposite_atr_and_emotion(tmp_path, 
     assert [row["entry_priority"] for row in result.rows] == list(range(1, len(expected) + 1))
     assert all(row["strategy_score"] == row["selection_score"] == 80. for row in result.rows)
     assert all(str(row["last_datetime"]).replace(" ", "T") == AT.isoformat() for row in result.rows)
+    assert all(not any(key.startswith("atr") for key in row)
+               for kind in ("select", "buy") for row in result.sections[kind])
     assert saved["rows"][-1]["atr14_previous_close"] == .99
     assert result.entry_filter_error is None
+
+
+def test_current_selection_drops_source_only_metrics_without_rewriting_frozen_input(tmp_path):
+    from app.services.s03_selection import enrich_candidates
+
+    path = tmp_path / "s03.py"
+    path.write_text(SOURCE.read_text())
+    engine = StrategyEngine([tmp_path])
+    ranked = {"rows": [
+        {"symbol": "A", "score": 80., "selection_rank": 1, "fund_score": 72.,
+         "reference_close": 10., "atr_rank": 17, "atr14_previous_close": .05},
+        {"symbol": "B", "score": 62., "selection_rank": 2, "fund_score": 95.,
+         "reference_close": 11., "atr_rank": 1, "atr14_previous_close": .85},
+    ]}
+    context = StrategyDataContext("stock", "1m", DAY)
+    actual = enrich_candidates(engine, context, ranked, {})
+    assert actual["rows"] == [
+        {"symbol": "A", "score": 80., "selection_rank": 1, "fund_score": 72., "reference_close": 10.},
+        {"symbol": "B", "score": 62., "selection_rank": 2, "fund_score": 95., "reference_close": 11.},
+    ]
+    assert [row["atr_rank"] for row in ranked["rows"]] == [17, 1]
+    assert engine.get(SID).enrich_selection_fn is None

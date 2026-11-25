@@ -149,7 +149,7 @@ const s03Result: ScreenerResult = {
     buy: [{ symbol: '600003.SH', close: 34.74, atr14_previous_close: .05, atr_rank: 1, score: 100 }],
   },
 }
-it('uses the linked S03 exit take-profit and saved buy trigger price with buy ATR columns', async () => {
+it('uses the linked S03 exit take-profit and saved buy trigger price', async () => {
   await render(s03Result)
   expect(strategyGet).toHaveBeenCalledWith('custom_mvxxcs03')
   expect(cell('建议卖出价')?.textContent).toBe('35.78')
@@ -164,8 +164,8 @@ it('uses the linked S03 exit take-profit and saved buy trigger price with buy AT
   await flush()
   expect(cell('建议卖出价')?.textContent).toBe('36.48')
   await tab(2)
-  expect(headers()).toContain('ATR14÷昨收')
-  expect(headers()).toContain('ATR排名')
+  expect(headers()).not.toContain('ATR14÷昨收')
+  expect(headers()).not.toContain('ATR排名')
   expect(cell('触发价')?.textContent).toBe('34.74')
 })
 

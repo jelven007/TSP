@@ -165,7 +165,7 @@ class MinuteReplayResult:
 
 
 def requires_s03_scoring(strategy_engine, strategy, overrides):
-    """Old frozen S03 signals keep ATR replay; enabled A/B gates need five dimensions."""
+    """Enabled A/B gates need five dimensions; old frozen signals use their original path."""
     from app.services.selection_clock import S03_ID
     from app.strategy.s01_signals import stored_definitions
 

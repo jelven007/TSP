@@ -8,6 +8,7 @@ import math
 
 POLICY = "s03_selection_atr_desc_v1"
 FUND_POLICY = "s03_ab_fund_v1"
+FIVE_DIMENSION_ROWS = "s03_five_dimension_rows_v1"
 
 
 def atr_key(row):
@@ -30,6 +31,10 @@ def for_strategy(selection, meta):
     policy = meta.get("selection_ordering")
     if policy in (POLICY, FUND_POLICY):
         copied["selection_ordering"] = policy
-    if policy == POLICY:
+    if policy == FUND_POLICY and meta.get("selection_projection") == FIVE_DIMENSION_ROWS:
+        # 不将源策略专用字段带入本次五维结果; 原冻结输入继续保留。
+        copied["rows"] = [{key: value for key, value in row.items() if not key.startswith("atr")}
+                          for row in selection["rows"]]
+    elif policy == POLICY:
         copied["rows"] = sorted(selection["rows"], key=atr_key)
     return copied

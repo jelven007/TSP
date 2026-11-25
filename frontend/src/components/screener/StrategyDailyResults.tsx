@@ -128,7 +128,6 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
   const signals = result.section_mode === 'signals'
   const s01 = result.strategy === 'custom_mvxxcs01'
   const s03 = result.strategy === 'custom_mvxxcs03'
-  const s03FundOrder = s03
   const strategy = useQuery({
     queryKey: QK.strategyDetail(result.strategy ?? ''),
     queryFn: () => api.strategyGet(result.strategy!),
@@ -166,11 +165,10 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
             && row.reference_date !== result.as_of ? row.turnover_rate : null,
       } : {}),
       }))
-      if (s03FundOrder) return selectedRows.sort((a, b) => a.selection_rank - b.selection_rank)
-      if (!['custom_mvxxcp88', 'custom_mvxxcs03'].includes(result.strategy ?? '')) return selectedRows
+      if (s03) return selectedRows.sort((a, b) => a.selection_rank - b.selection_rank)
+      if (result.strategy !== 'custom_mvxxcp88') return selectedRows
       const metric = (row: (typeof selectedRows)[number]) => typeof row.atr14_previous_close === 'number'
-        && Number.isFinite(row.atr14_previous_close)
-        && (result.strategy !== 'custom_mvxxcs03' || row.atr14_previous_close >= 0) ? row.atr14_previous_close : -Infinity
+        && Number.isFinite(row.atr14_previous_close) ? row.atr14_previous_close : -Infinity
       return selectedRows.sort((a, b) => {
         const x = metric(a), y = metric(b)
         return (x === y ? 0 : x > y ? -1 : 1) || String(a.symbol).localeCompare(String(b.symbol))
@@ -182,26 +180,19 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
       const x = metric(a), y = metric(b)
       return (x === y ? 0 : x > y ? -1 : 1) || String(a.symbol).localeCompare(String(b.symbol))
     }).map((row, i) => ({ ...row, selection_rank: i + 1 }))
-  }, [section.select, signals, result.strategy, result.as_of, s03FundOrder])
+  }, [section.select, signals, result.strategy, result.as_of, s03])
   const rows = useMemo(() => {
     if (active === 'select') return selected
     const saved = section[active] ?? []
     if (!signals || !s03 || active !== 'buy') return saved
-    if (s03FundOrder) return [...saved].sort((a, b) =>
+    return [...saved].sort((a, b) =>
       (a.entry_priority ?? Infinity) - (b.entry_priority ?? Infinity)
         || String(a.symbol).localeCompare(String(b.symbol)))
-    const metric = (row: (typeof saved)[number]) => typeof row.atr14_previous_close === 'number'
-      && Number.isFinite(row.atr14_previous_close) && row.atr14_previous_close >= 0
-      ? row.atr14_previous_close : -Infinity
-    return [...saved].sort((a, b) => {
-      const x = metric(a), y = metric(b)
-      return (x === y ? 0 : x > y ? -1 : 1) || String(a.symbol).localeCompare(String(b.symbol))
-    })
-  }, [active, selected, section, signals, s03, s03FundOrder])
+  }, [active, selected, section, signals, s03])
   const fiveDimensions = result.selection_snapshot?.scoring_policy === 's03_five_dimensions_v1'
   const preselectionWindow = selectionWindow(result.strategy)
-  const atrRanking = signals && !s01
-    && (active === 'select' || s03 && active === 'buy' || rows.some(row => row.atr14_previous_close != null))
+  const atrRanking = signals && !s01 && !s03
+    && (active === 'select' || rows.some(row => row.atr14_previous_close != null))
   const symbols = useMemo(() => [...new Set(rows.map(row => row.symbol)
     .filter((symbol): symbol is string => typeof symbol === 'string' && /^[0-9]{6}\.(SH|SZ|BJ)$/.test(symbol)))].sort(), [rows])
   const live = useQuery({
@@ -251,9 +242,7 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
     return typeof value === 'string' || typeof value === 'boolean' ? value : null
   })
   const activeSort = sortColumns.some(col => col.id === sort?.key) ? sort : null
-  const defaultAtrSort = signals && !activeSort
-    && (active === 'select' && result.strategy === 'custom_mvxxcp88'
-      || s03 && !s03FundOrder && (active === 'select' || active === 'buy'))
+  const defaultAtrSort = signals && !activeSort && active === 'select' && result.strategy === 'custom_mvxxcp88'
   const displayedRows = sortRows(rows, sortColumns)
   const panelRef = useRef<HTMLDivElement>(null)
   const sectionRef = useRef<HTMLElement>(null)

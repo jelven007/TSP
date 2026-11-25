@@ -315,8 +315,8 @@ def _extension(data_dir, fields, first, last, cutoff, *, config_id=None):
 def enrich_candidates(engine, context, ranked, overrides):
     """调用源码可选补充钩子, 仅合入归档原来没有的列。
 
-    钩子增删或重复成员直接拒绝; 已有分数、selection_rank及冻结ATR不被
-    覆盖。排序声明绑定私有执行快照, 当前资金策略保留五维选名单顺序。
+    钩子增删或重复成员直接拒绝; 已有分数、selection_rank及参考字段不被覆盖。
+    当前行结构和排序声明绑定私有执行快照, 五维名单保留原顺序。
     """
     from app.services.selection_clock import S03_ID
     from app.strategy.engine import _sanitize

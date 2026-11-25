@@ -107,7 +107,7 @@ def test_new_marker_invalidates_completed_identity_without_mutating_archive(phas
 
 
 @pytest.mark.parametrize("current", [True, False])
-def test_installed_source_applies_current_policy_to_private_snapshot(tmp_path, current):
+def test_frozen_ordering_policy_applies_to_private_snapshot(tmp_path, current):
     custom = tmp_path / "strategies" / "custom"
     custom.mkdir(parents=True)
     # 只在本测试的私有副本声明历史口径, 不改变当前安装源或输入归档。
@@ -134,7 +134,8 @@ def test_installed_source_applies_current_policy_to_private_snapshot(tmp_path, c
     assert [r["entry_priority"] for r in result.rows] == [1, 2, 3]
     assert all(r["strategy_score"] == 80. for r in result.rows)
     assert all(str(r["last_datetime"]).replace(" ", "T") == AT.isoformat() for r in result.rows)
-    assert result.rows[0]["atr14_previous_close"] == (.08 if current else .02)
+    values = {r["symbol"]: r["atr14_previous_close"] for r in result.selection_snapshot["rows"]}
+    assert values[expected[0]] == (.08 if current else .02)
     assert saved == original
 
 

@@ -62,7 +62,7 @@ describe('StrategyDailyResults', () => {
     await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1].click())
     const headers = [...host.querySelectorAll('th')].map(th => th.textContent)
     expect(headers).toContain('选股评分')
-    expect(headers).toContain('ATR14÷昨收')
+    expect(headers).not.toContain('ATR14÷昨收')
     expect(headers).not.toContain('综合分')
     expect(headers).not.toContain('技术分')
   })
@@ -84,7 +84,7 @@ describe('StrategyDailyResults', () => {
     for (const label of ['综合分', '技术分', '资金分', '情绪分', '基本面分', '消息分']) {
       expect(headers).toContain(label)
     }
-    expect(headers).toContain('ATR14÷昨收')
+    expect(headers).not.toContain('ATR14÷昨收')
     const symbols = [...host.querySelectorAll('tbody tr')].map(tr => tr.textContent)
     // 共享结果组件保持已保存顺位，不在浏览器按代码重新排列。
     expect(symbols[0]).toContain('600002.SH')
