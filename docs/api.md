@@ -132,6 +132,10 @@ OpenAPI指纹更新只确认上述请求／响应兼容变化。
 具体方法、参数、分页范围和响应组件以 Tier A 视图为准；上表中的内部页和
 管理入口只用于定位源码。外部调用的例子见[Open API 样例](../examples/open-api/README.md)。
 
+`POST /api/backtest/strategy/run` 接受可选的 `entry_participation_pct` 和
+`exit_participation_pct`。两者都是大于 0 且不超过 1 的比例，缺省各为 `0.1`
+（10%），分别限制回测买入和卖出的参与比例。
+
 ## 4. K 线与历史结果兼容
 
 单策略运行接口`POST /api/screener/run_preset`和`POST /api/strategies/run`

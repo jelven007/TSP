@@ -14,7 +14,7 @@ def test_startup_waits_for_catalog_without_blocking_and_shutdown_drains_worker(t
     entered, release = threading.Event(), threading.Event()
     jobs = pipeline_jobs.JobStore(store_dir=tmp_path / "jobs")
     monkeypatch.setattr(pipeline_jobs, "job_store", jobs)
-    monkeypatch.setattr(post_close_sync, "cn_now", lambda: datetime(2026, 11, 6, 10, tzinfo=CN_TZ))
+    monkeypatch.setattr(post_close_sync, "cn_now", lambda: datetime(2026, 11, 6, 15, 1, tzinfo=CN_TZ))
     monkeypatch.setattr("app.market_time.cn_today", lambda: datetime(2026, 11, 6).date())
     monkeypatch.setattr(initial_sync.preferences, "get_data_sync_auto_enabled", lambda: True)
     monkeypatch.setattr("app.config.settings.service_role", "platform")
@@ -60,3 +60,15 @@ def test_startup_waits_for_catalog_without_blocking_and_shutdown_drains_worker(t
     asyncio.run(exercise())
     assert pipeline_jobs.try_acquire_run_slot("next")
     pipeline_jobs.release_run_slot()
+
+
+def test_trading_hours_leave_startup_repair_pending(tmp_path, monkeypatch):
+    monkeypatch.setattr(post_close_sync, "cn_now", lambda: datetime(2026, 11, 6, 10, tzinfo=CN_TZ))
+    monkeypatch.setattr(post_close_sync.preferences, "get_data_sync_auto_enabled", lambda: True)
+    monkeypatch.setattr(post_close_sync.trading_day, "is_trading_day", lambda _: True)
+    monkeypatch.setattr("app.config.settings.service_role", "platform")
+    monkeypatch.setattr(pipeline_jobs, "try_acquire_run_slot",
+                        lambda _: pytest.fail("startup repair consumed a trading-hours slot"))
+    repo = SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path))
+    result = post_close_sync.request_startup(repo, None)
+    assert result["status"] == "pending" and result["deferred_reason"]
