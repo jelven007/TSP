@@ -198,6 +198,53 @@ audit为按实际顺序采集的事件列表，每条含`resource/at/actor_id/re
 因此生产一致性快照导出及所有写入的完整哈希审计仍待接入，不能拿旧请求日志自动放行。
 审计不足继续逐条核实并阻断未解释变化，不以宽泛白名单代替证据。
 
+## 跨平台打包与接收门禁
+
+Mac侧生产SSH和传输统一使用 `tsp-remote` 及唯一私有配置，先取得实际身份核验回执，
+不从旧维护脚本、通用SSH别名或历史报告复制连接参数；
+完整约束见[生产连接](operations.md#production-connection)。
+
+源码、热补丁和前端产物的 Mac→Linux 传输，以及 Linux tar 交付统一由
+[package_transfer.py](../scripts/release/package_transfer.py)处理。它只使用 Python 3.11+
+标准库，不调用系统 tar，不读取源文件扩展属性；所有路径层级的 `._*`、`.DS_Store`
+和 `__MACOSX` 均过滤并在回执中列明。源文件字节及可执行位保留，归档的属主、时间戳
+规范化；Unicode 和长路径仅使用必要的标准 PAX 字段。超出 Linux 单个文件名
+255 UTF-8 字节或完整路径4095字节限制时，在源端和接收校验阶段拒绝。
+输入源码和配置不被清理或改写。
+
+```bash
+~/.local/bin/tsp-pack create \
+  --root "$TRANSFER_PRIVATE/payload" --output "$TRANSFER_PRIVATE/payload.tar.gz"
+~/.local/bin/tsp-pack verify \
+  --archive "$TRANSFER_PRIVATE/payload.tar.gz" --sha256 "$PACKAGE_SHA256"
+# PACKAGE_SHA256 使用 create 的真实回执；远端目录先核实存在。
+~/.local/bin/tsp-remote scp \
+  "$TRANSFER_PRIVATE/payload.tar.gz" remote:/已核实暂存目录/payload.tar.gz
+# 以下命令在核验后的目标主机执行，并核对同一个 SHA-256。
+python3 /opt/tsp-tools/package_transfer.py extract \
+  --archive "$TRANSFER_PRIVATE/payload.tar.gz" \
+  --output "$TRANSFER_PRIVATE/unpacked" --sha256 "$PACKAGE_SHA256"
+python3 /opt/tsp-tools/package_transfer.py verify-tree \
+  --root "$TRANSFER_PRIVATE/unpacked" --archive "$TRANSFER_PRIVATE/payload.tar.gz" \
+  --sha256 "$PACKAGE_SHA256"
+```
+
+`TRANSFER_PRIVATE` 是真实、受控的暂存目录；归档文件和解包输出必须是新路径，
+不能位于源目录内或覆盖已有目录。本地受控入口 `tsp-pack` 执行同一文件。
+`extract` 在完整校验后于新目录解包，核对字节、文件集合和可执行位后才交付目录；
+失败不留下可供应用的输出。构建或应用命令必须依赖 `verify-tree` 成功回执。
+
+接收端遇到旁文件、扩展属性/ACL/文件标志 PAX 头、未知扩展头、逃逸路径、重复成员、
+硬链接、特殊文件、不安全/悬空/循环符号链接、损坏压缩流或 SHA 不符即失败，
+不得先解包再删除污染文件凑通过。安全的包内符号链接保留。
+禁止裸 `tar -czf` / `tar -xzf`、仅加 `COPYFILE_DISABLE` / `--no-xattrs`，
+以及复制历史私有脚本代替固定入口。
+
+源码恢复仍使用 `git archive` 保留原提交身份，消费端调用相同元数据门禁；
+Docker 构建上下文和独立 `build_manifest.py` 同步排除旁文件。
+Linux 桌面 CI 在打包前检查树并使用统一工具；macOS DMG 与 Windows ZIP 保持原生格式。
+这些工具检查文件交付，不认证业务结果、正式版本或运行镜像身份。
+
 ## 验证与性能签收
 
 新流水线回执在 `evidence_checks` 中保留入参验证准备、探针、后置检查与恢复复验
@@ -208,7 +255,9 @@ audit为按实际顺序采集的事件列表，每条含`resource/at/actor_id/re
 此检查未验证签名，不代表漏洞扫描通过；证明缺失时不能提升正式产物。
 
 先 `make check`，再 `make check-release PYTHON=<冻结环境Python> RUFF=<冻结环境Ruff>`，
-随后完整 `tests/tooling`；工作流使用actionlint单独校验。
+随后以 `TICKFLOW_ENV_FILE=/dev/null` 运行完整 `tests/tooling`，
+避免实际环境的内置策略退役配置影响默认注册测试；运行配置保持原值。
+工作流使用actionlint单独校验。
 规则和回归见[测试指南](testing.md#5-当前-ci-门禁)。
 新增工具不改变策略、费用、账户或回测数据，不自动开展回测。
 后续发布记录候选冻结→最终签收与用户端到端时间、阶段耗时/重试、实际网络字节、

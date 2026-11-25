@@ -1,23 +1,67 @@
 # 测试与验收指南
 
-S03 A/B入场筛选定向入口为`test_entry_groups`：保存校验、AND/OR、双命中A优先、
-精确前日五维归档、缺值和重复成员隔离、全无可算成员失败、未来分钟排除、
-草稿变更使计算状态失效，以及分钟投影后排序与排名分不被ATR覆盖。
-`EntryGroups.test.tsx`验证名称自然排序、A/B编辑、保存重开和非法范围。
-结合原分钟信号、监控任务与五维预选测试；两端实际页面须核对
-`s03_早盘建仓/late_session_strength_s03`，保存后重载A/B及原时钟，
-策略页选择`s03/custom_mvxxcs03`检查卖／选／买、缺归档和历史显示。
-固定输入Compute验收只认证计算和排序，不认证收益回测或自然交易日成交。
+S02跨日回执、非阻塞调度、权威输入及页面验证统一见
+[专项测试入口](reference/s02.md#源码与测试入口)；本页不复制策略时钟或旧修复结论。
 
-监控时钟／当日卖名单／S03零结果回归入口：
-`test_monitor_saved_clocks_regression`验证保存时段与14:55执行截止分开；
+S01 的规则、异常矩阵与回归入口统一见 [S01 当前实现](reference/s01.md)。
+
+首轮当日股票池固定北京时间交易日08:30，第二轮保持09:00。两轮平台分别重新扫描官方
+停复牌及ST公告，将本轮时钟、目标日、覆盖和错误保存到公共instrument_status/morning_check.json；
+消费者等待该发布回执，以完整证券目录和各策略自身范围生成当日池，确认停牌/ST剔除，
+复牌/摘帽只按范围恢复入池。自定义/AI“选”同步剔除停牌/ST，不自动加入恢复股票；
+池、状态投影及按日视图同事务发布，原历史归档保持。部分公告覆盖明确记录并沿原
+分页与重试机制继续，自动同步总开关仍生效。配置、状态或批次变化拒绝迟到提交。
+09:00强制建立独立扫描批次，不能复用08:30回执；扫描重试至09:30，
+已发布第二轮回执可用于迟启动消费。第二轮同样更新当日池和自定义“选”，
+状态或覆盖变化重新生成，无变化去重；缺本轮回执明确等待/重试。
+
+20:30相关维护回归使用`test_evening_status_maintenance.py`及`test_daily_evening_schedule.py`，
+覆盖20:29:59／20:30、优先状态核验、部分覆盖、跨午夜日期、互斥和自动总开关；
+财务仍21:00。`test_announced_risk_warning.py`覆盖下一交易日戴帽／摘帽、保留其他风险警示、
+晚发布、申请类公告、幂等和冲突。公告扫描与公共只读发布沿`test_suspension_sync.py`
+及`test_suspension_announcements.py`检查分页断点、逐股隔离、重试及精确公开时钟。
+前端`ScheduleOverview.test.tsx`验证两项时间分离。运行验收另核对两端实际源码、
+补丁身份、状态文件与页面，不以源码测试代替运行状态。
+
+回测参数与成交验证沿[研究参考](reference/research.md)。
+`test_research_strategy_archive_isolation`用隔离PostgreSQL验证冻结研究结果仍可读取，
+成功研究不能覆盖策略当日归档；`test_strategy_daily_archive_sql`继续验证按日归档、
+重启、迟到提交、删除与租户隔离。旧测试资金只是冻结输入夹具，不发起新回测。
+
+`test_full_platform.test_platform_lifecycle_rewarms_catalog_with_quotes_disabled`
+同时验证真实平台生命周期注册输入修复服务、绑定平台状态并在退出时关闭。
+结合`test_monitor_input_repair`核对认证、取消、期限与发布；隔离源码测试须显式设置
+`PYTHONPATH`，避免共享虚拟环境的可编辑安装导入正式源码。两端页面须实际选择
+指定策略并检查卖／选／买和重载，成功零命中与失败分别验收。
+
+`backend/tests/test_business_defaults_bundle.py` 覆盖完整扩展因子身份、文件摘要、
+缺失依赖、路径越界、符号链接、预览不写入、独占创建及已有配置保留。
+首次管理员空间、事务冲突、重复启动和修改/删除保护沿
+`backend/tests/test_business_defaults.py` 的隔离 PostgreSQL 验证。
+实际目录包另行核对保存源码与 Compute describe、完整因子目录、信号和监控绑定；
+页面须选择对应稳定策略 ID，并核对重载后的默认设置，不自动提交金融回测。
+
+自定义回测参与率覆盖`tests/backtest/test_custom_participation.py`、`test_morning_backtest.py`、`test_momentum_backtest.py`与`tests/test_s01_common_backtest.py`：检验买卖独立比例、向下取整、分钟最高/最低价、日线两种时点、组合/独立模拟、无退出模板的持有期退出、截止余股与冻结输入兼容。API/SSE须冻结比例并区分任务身份，取消请求须命中同一任务。前端`StrategyBacktest.test.tsx`覆盖任意自定义日线/分钟策略的默认、单位转换和保存，`backtestTask.test.tsx`覆盖SSE传递。旧内置S01夹具须在隔离测试进程用`RETIRED_BUILTIN_STRATEGIES='[]'`解除夹具屏蔽，不修改运行配置。
+
+S03规则、异常矩阵、源码及专项测试入口统一见[S03当前实现](reference/s03.md#7-源码与测试入口)；
+当前安装源测试与历史冻结兼容测试分别验证，测试路径与断言沿实际源码复核。
+指定策略真实页面、自然窗口、固定输入及历史补算分别取证，不复用旧日期修复回执。
+
+P2状态与性能回归入口：`test_p2_regressions`覆盖画像命中/替换/发布复制/库存竞争、
+网络退避、语义等待后新公告处理以及SSE断开释放；`test_p2_readiness`覆盖非交易日、
+未知日历、盘后部分有效及公告字段与原时点认证区别。结合原停复牌、公共发布、
+数据质量、监控和观测测试；前端`StrategyMonitorTasks`、`DataReadiness`与
+`PostCloseIntegritySummary`须实际进入两端对应页面并重载。
+负载测量仅只读请求，不调用会提交回测的主动验收工具；自然窗口用真实日期回执验证，
+提前准备或盘后读取不认证原盘中完成。
+
+监控时钟／当日卖名单回归入口：
+`test_monitor_saved_clocks_regression`验证保存时段与当前实时截止分开，边界见
+[策略时钟](reference/s02.md#输入修复冻结与提交)；
 `MonitorSignalRefresh.regression.test.tsx`验证显示及保存后查询失效；
 `test_today_sell_roster_regression`验证无补算读取当日已确认空或非空名单；
-`backtest/test_s03_turnover_replay_regression`验证T股本、T-1价格及缺条件失败；
 `test_research_runtime_reuse_regression`用隔离PostgreSQL验证构建变更不复用旧完成任务。
-两端页面仍须实际选择S02并覆盖今日、历史、无摘要／缺归档及卖／选／买切换；
-S03使用当前保存源码、信号、100万元及页面冻结费用验证实际成交、净值和完整交易。
-合法零命中应有完整输入证据，不能将全部缺条件包装成成功零结果。
+两端S02页面验收采用[专项矩阵](reference/s02.md#源码与测试入口)。
 
 分钟价格与晚信号回放由`backtest/test_custom_minute_price_rule.py`、
 `test_s01_common_backtest.py`、`test_s01_equal_selected.py`及
@@ -47,6 +91,11 @@ S03使用当前保存源码、信号、100万元及页面冻结费用验证实�
 兜底时间不含等号、剩余持仓及汇总费用；结合原早盘、S01可选信号、模拟委托、
 监控阶段及前端时间选择／回测口径测试。旧振幅冻结定义保持原语义；
 模拟时钟及隔离行情回放不认证正式部署或真实收益。
+止盈/止损回归入口为`test_morning_holding_returns`及
+`backtest/test_morning_holding_returns_backtest`，覆盖空值、数值边界、
+成交价与昨收区分、FIFO剩余成本、参考价标记、缺成本、报价新鲜度和次分钟成交。
+`CustomSignalDialog.returns.test.tsx`验证九项顺序、填写/清空及重开；
+部署验收核对当前保存信号及重载持久化，不以模板初值覆盖用户阈值。
 
 监控重构回归入口为`test_strategy_monitor_refactor`、`test_local_strategy_monitor`、
 `test_monitor_input_repair`及`test_full_strategy_monitor_tasks`，结合夜间选股、卖名单、
@@ -62,17 +111,12 @@ Provider返回后取消、加工批次取消与修复等待均须回到同一任
 盘后选股结合`test_full_monitor_schedule_wake`、`test_full_daily_selections`与
 `test_daily_selections`验证：窗口内启动／开启即时检查、缺归档及失败回执恢复、
 正常空名单、精确前／下一交易日、单策略失败隔离、补数完成后重试、窗口外不计算、
-重复执行不重复保存、取消及租约保护。S03须加载当前保存源码和覆盖信号验证
-每个交易日卖／选／买、买名单同步次交易日卖、默认关闭及重启持久化。
-`test_s03_daily_selection`另验普通20:00～21:00及S03专属21:00～22:00精确边界、
-冻结S02日期／20点计划／21点前生成、五维权重与实际比率、缺失不补分、单股隔离、
-同分代码排序与前30、公告发行人／日期／去重。Full PostgreSQL须验证两任务独立、
-依赖等待、重试复用冻结名单、Compute参数传递及S03迟到提交拒绝。
-`test_full_s03_watchlist_sync`在真实PostgreSQL验证排名替换、成功空组、
-共享/未分组信息及租户隔离、失败归档与组整体回滚、事务事件和截止后不清组。
-`test_s03_watchlist_sync`验证文件持久化、摘要幂等、失败恢复与只重试同步、
-缺组/未保存/重复/过多/较老名单保护；`useQuoteStream.sharing.test.tsx`
-验证实时行情关闭时业务事件仍刷新自选且普通策略事件不刷新自选。
+重复执行不重复保存、取消及租约保护。S03专项引用现行测试矩阵。
+`test_custom_status_refresh`及`test_full_custom_status_refresh`验证停牌/复牌/ST/摘帽、
+范围外恢复剔除、冲突时剔除优先、数值过滤不缩池、监控关闭仍更新池、
+重载剔除、不可自动恢复选命中、原证据保持、视图缓存令牌及租户事务回滚。
+`useQuoteStream.sharing.test.tsx`验证关闭实时行情仍刷新自选业务事件；
+S03自选事务测试引用现行矩阵。
 
 ## 当前功能回归矩阵
 
@@ -86,7 +130,7 @@ Provider返回后取消、加工批次取消与修复等待均须回到同一任
 | 前端指数/轮询 | 实际根数封顶、默认60、日历同行、5秒终态与旧定时器清理，1～10秒整数/保存失败/已存值保留；桌面/390px及浅深色 |
 | 财务存储 | test_data_status_storage：只计当前五表part.parquet、revision目录、缺目录/缓存/旧字段；原快照与观察时间不得改变 |
 | 财务并集 | 原快照/观察字节、并集时间线、A→B→A回放、损坏/并发变化拒绝、幂等和公共副本；见 |
-| s01隔夜执行 | test_s01_strategy、test_minute_strategy、test_paper_auto及监控/回测回归：参数API保存/回显、可用分钟累计及重复时标规范化、持续信号、独立持仓/T+1、容量、汇总最低佣金、现金/余股/缺交易日拒绝；StrategyBacktest.test.tsx与浏览器验证摘要、全量模式禁用、错误成交台账导出及参数重开 |
+| 自定义 s01 / custom_mvxxcs01 | 规则、源码唯一入口及当前回归映射见[S01 当前实现](reference/s01.md#源码与验证)；实际点名该稳定 ID 做页面及重载验收，内置模板测试不能替代 |
 | 持仓到期日期 | test_lot_expiry_dates：国庆/周末/跨年、北京时间今天、未知日历/极限日期、非法日期、批次多股保存与派生规则、单股手选/清空；Lots.test.tsx与DatePicker.test.tsx：新快捷项、买入日/今天基准、批量保存、手选清空、失败/未知禁用且保留日期；浏览器核验桌面与390px显示及交互 |
 | 策略结果批量操作 | Screener、strategyLotDraft、WatchlistAddMenu、StrategyLotBatchDialog测试：卖／选／买及空页／切日范围、成交预填／缺值／零值、快照覆盖及比例单位、新组创建／失败、国庆下一交易日、迟到默认不覆盖手选、保存失败幂等重试；Lots与历史结果测试保护原入口兼容。全量前端、lint、build及桌面／390px浏览器独立验证；测试写入只用隔离数据 |
 | 策略参数作用域 | test_strategy_saved_params/detail_signals：null保存、缓存重读及运行、PATCH保留目标、继承范围校验、退出完整覆盖/原始快照；DefaultStrategyParamsDialog/StrategySettingsClarity/StrategyTargets/StrategyParameterUnits：模板与当前设置、完整字段/单位、批量选中/冻结/失败、草稿恢复取消、异步切换；桌面1440/窄屏390浅深色、构建/lint； |
@@ -1382,12 +1426,8 @@ API 及测试事实源，再检查：
 6. 主应用版本事实源一致，原需求编号不因文档整理而丢失。
 
 `make check`覆盖目录、文档本地链接/锚点/围栏、八模块/需求编号、版本和whitespace；不访问外部网站或替代行为验收。
-本轮链接及源码引用检查结果保存在
-；
-历史报告保留当时命令和目录，当前 Runbook 使用新路径。
-
-2026-10-24按当前主线/目标清理后，保留证据以导航，
-适用门禁结果见。
+历史报告保留当时命令和目录；当前使用说明只引用有效规则，
+不保留失去回执目标的旧过程叙述。
 可额外执行`python scripts/check_docs.py --include-reports`检查历史报告的导航。
 已缺失的历史临时日志保留原路径并注明不可用，不保留失效下载链接；
 缺少版本/环境元数据的旧截图不作为当前验收证据。
