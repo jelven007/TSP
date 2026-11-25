@@ -24,8 +24,8 @@ check-docs:
 	$(PYTHON) scripts/check_docs.py
 
 check-release: check
-	$(RUFF) check --no-cache --config backend/pyproject.toml scripts/release/common.py scripts/release/pipeline.py scripts/release/preflight.py scripts/release/business_diff.py scripts/release/oci.py scripts/release/image_manifest.py scripts/release/promote.py scripts/release/source_recovery.py tests/tooling/test_release_*.py tests/tooling/test_source_recovery.py tests/tooling/test_version_workflows.py
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m pytest tests/tooling/test_release_*.py tests/tooling/test_source_recovery.py tests/tooling/test_version_workflows.py -q -p no:cacheprovider
+	$(RUFF) check --no-cache --config backend/pyproject.toml scripts/release/common.py scripts/release/pipeline.py scripts/release/preflight.py scripts/release/business_diff.py scripts/release/oci.py scripts/release/image_manifest.py scripts/release/promote.py scripts/release/source_recovery.py scripts/release/package_transfer.py tests/tooling/test_release_*.py tests/tooling/test_source_recovery.py tests/tooling/test_package_*.py tests/tooling/test_version_workflows.py
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m pytest tests/tooling/test_release_*.py tests/tooling/test_source_recovery.py tests/tooling/test_package_*.py tests/tooling/test_version_workflows.py -q -p no:cacheprovider
 
 test-tooling:
 	$(UV) run --project backend --frozen --no-sync pytest tests/tooling -q

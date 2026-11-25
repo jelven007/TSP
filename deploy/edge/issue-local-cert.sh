@@ -4,7 +4,7 @@ umask 077
 
 # The CA directory is never mounted into Nginx or copied to client devices.
 PKI_DIR="${TSP_EDGE_PKI_DIR:-/etc/tsp-edge}"
-EDGE_IP="${TSP_EDGE_IP:-118.196.108.188}"
+EDGE_IP="${TSP_EDGE_IP:-}"
 CERT_DAYS="${TSP_EDGE_CERT_DAYS:-365}"
 RENEW_DAYS="${TSP_EDGE_RENEW_DAYS:-30}"
 FORCE=false

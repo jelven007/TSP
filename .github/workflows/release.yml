@@ -483,8 +483,9 @@ jobs:
       - name: 压缩产物 (Linux)
         if: matrix.platform == 'linux'
         run: |
-          cd backend/dist
-          tar -czf ../../${{ matrix.artifact }} TSP
+          python scripts/release/package_transfer.py verify-tree --root backend/dist/TSP
+          python scripts/release/package_transfer.py create \
+            --root backend/dist/TSP --output "${{ matrix.artifact }}"
 
       - name: 校验运行文件并生成安装包清单
         env:

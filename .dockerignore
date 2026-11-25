@@ -32,6 +32,11 @@ backend/app/static
 .idea
 .vscode
 .DS_Store
+**/.DS_Store
+._*
+**/._*
+__MACOSX
+**/__MACOSX
 **/*.swp
 
 # ===== 文档 / 截图(镜像不需要; README.md 除外, Dockerfile 显式 COPY 了它) =====

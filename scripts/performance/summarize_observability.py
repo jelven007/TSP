@@ -25,14 +25,31 @@ def _histogram(snapshot):
     return bounds, counts
 
 
-def summarize(pairs):
+def summarize(pairs, *, population="http"):
     """Return exact count/sum deltas and percentile bucket intervals, not fake P95s."""
     bounds = None
     merged = []
     total_ms = 0.0
     instances = set()
     windows = []
+    measurement = None
     for before, after in pairs:
+        if population != "http":
+            if population not in {"stream", "stream_first_byte"}:
+                raise ValueError("unknown measurement population")
+            selected = []
+            for snapshot in (before, after):
+                stream = snapshot["streams"]
+                selected.append({
+                    **(stream["first_byte"] if population == "stream_first_byte" else stream),
+                    "measurement": "sse_first_byte_v1" if population == "stream_first_byte" else "sse_lifetime_v1",
+                })
+            before, after = selected
+        prior_measurement = before.get("measurement", "http_completion_v1")
+        next_measurement = after.get("measurement", "http_completion_v1")
+        if prior_measurement != next_measurement or measurement not in (None, next_measurement):
+            raise ValueError("HTTP measurement populations differ")
+        measurement = next_measurement
         first, last = before["process"], after["process"]
         instance = first["instance_id"]
         duration = last["uptime_seconds"] - first["uptime_seconds"]
@@ -72,6 +89,7 @@ def summarize(pairs):
         raise ValueError("invalid quantile")
 
     return {
+        "measurement": measurement,
         "processes": len(instances), "window_seconds": windows,
         "requests": requests, "sum_ms": total_ms,
         "average_ms": total_ms / requests if requests else None,
@@ -84,10 +102,11 @@ def summarize(pairs):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--pair", nargs=2, action="append", required=True, metavar=("BEFORE", "AFTER"))
+    parser.add_argument("--population", choices=("http", "stream", "stream_first_byte"), default="http")
     args = parser.parse_args()
     try:
         pairs = [(json.loads(Path(a).read_text()), json.loads(Path(b).read_text())) for a, b in args.pair]
-        print(json.dumps(summarize(pairs), indent=2, allow_nan=False))
+        print(json.dumps(summarize(pairs, population=args.population), indent=2, allow_nan=False))
     except (KeyError, TypeError, ValueError, OSError) as exc:
         parser.exit(1, f"Invalid observation window: {exc}\n")
 

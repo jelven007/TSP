@@ -1,0 +1,28 @@
+# Add explicitly to the normal Compose deployment after verifying the private bundle.
+x-business-defaults: &business-defaults
+  TSP_CELL_BOOTSTRAP_BUSINESS_DEFAULTS_PATH: /business-defaults/manifest.json
+
+x-business-defaults-volume: &business-defaults-volume
+  type: bind
+  source: ${TSP_BUSINESS_DEFAULTS_DIR:?Verified private business defaults bundle required}
+  target: /business-defaults
+  read_only: true
+  bind:
+    create_host_path: false
+
+services:
+  api:
+    environment: *business-defaults
+    volumes: [*business-defaults-volume]
+  research:
+    environment: *business-defaults
+    volumes: [*business-defaults-volume]
+  realtime:
+    environment: *business-defaults
+    volumes: [*business-defaults-volume]
+  notifications:
+    environment: *business-defaults
+    volumes: [*business-defaults-volume]
+  scheduled:
+    environment: *business-defaults
+    volumes: [*business-defaults-volume]
