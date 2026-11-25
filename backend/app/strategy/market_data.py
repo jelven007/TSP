@@ -75,14 +75,24 @@ def previous_session(day: date) -> date:
 
 
 def get_atr14_sma_reference(daily, symbols, expected_dates):
-    """精确15个已完成交易日日K的共享ATR; 日期由previous_session逐日解析。"""
+    """在传入日线帧上计算精确15日ATR参考, 不读取仓库或发起行情采集。
+
+    日期由调用方使用previous_session逐日解析; 价格/窗口错误沿共享内核
+    的ValueError向上抛出, 不套用本模块日K读取API的空帧回退。
+    """
     from app.factors.atr import exact_atr14_sma_reference
 
     return exact_atr14_sma_reference(daily, symbols, expected_dates)
 
 
 def get_intraday_range_amount_score(frame: pl.DataFrame, *, prev_close_column: str = "prev_close"):
-    """Materialize the system factor on a completed day/prefix snapshot; no IO."""
+    """在完成日线/分钟前缀上计算原始振幅成交额因子, 不执行 IO。
+
+    公式为 -(high-low)/prev_close + 0.001*ln(amount), 价格同一原始口径,
+    amount 为元。缺字段、非法价格或非正成交额得到 null, 不补默认分数。
+    前日资格使用该日对应的前收, 盘中累计使用冻结昨收; 调用方选择分母列。
+    本函数只增加原始因子列, 排序、结果上限和评分缺值的资格处理由调用方负责。
+    """
     from app.factors.range_amount import FACTOR_ID, range_amount_expr
 
     fields = ("high", "low", prev_close_column, "amount")

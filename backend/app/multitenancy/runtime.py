@@ -1,4 +1,4 @@
-"""Full monitor/trading worker with durable state and fenced scheduler commits."""
+"""Full Worker: 消费已发布输入, 在授权/租约/配置/世代/截止守卫下事务提交结果。"""
 from __future__ import annotations
 
 import hashlib
@@ -36,6 +36,7 @@ INPUT_NAMESPACES = ("strategy_sources", "strategy_overrides", "custom_factors", 
 
 
 def fingerprint(conn, *, include_state=True):
+    """按租户输入文档版本、规则及分组计算提交指纹, 不用行情序号替代配置身份。"""
     documents = conn.execute(
         "SELECT namespace,id,revision FROM business.documents WHERE namespace=ANY(%s) ORDER BY namespace,id",
         ([name for name in INPUT_NAMESPACES if include_state or name != "monitor_runtime"],),
@@ -50,23 +51,43 @@ def fingerprint(conn, *, include_state=True):
 
 
 def valid_claim(conn, claim):
+    """有调度claim时在当前事务检查租约所有权; 失效抛409, 禁止迟到任务提交。"""
     if claim is not None and not conn.execute(
         "SELECT scheduler.guard(%s,%s,%s) AS valid", (claim["tenant_id"], claim["kind"], claim["owner"]),
     ).fetchone()["valid"]:
         raise AccessError(409, "后台任务租约已过期")
 
 
+def signal_event_identity(payload, event, *, as_of, execution=False):
+    """S02 publication identity excludes retry sequence, wall clock and event position."""
+    from app.services.strategy_input_manifest import digest
+    sid = event.get("strategy_id")
+    if sid != "custom_mvxxcp88" or event.get("type") not in ("buy_signal", "sell_signal"):
+        return None
+    frozen = payload.get("strategy_input_manifests", {}).get(sid, {}).get("stocks", {})
+    return digest([
+        "strategy_signal_publication_v1", execution, payload["tenant_id"], sid, as_of,
+        payload.get("daily_identities", {}).get(sid), payload.get("strategy_task_generations", {}).get(sid),
+        frozen.get("input_sha256") if event["type"] == "buy_signal" else None,
+        event.get("rule_id"), event["type"], event.get("symbol"), sorted(event.get("signals") or []),
+    ])
+
+
 class FullWorker:
     def __init__(self, db, repo, market, executor=None):
+        from app.multitenancy.monitor_phase_inbox import PhaseInbox
+
         self.db, self.repo, self.market = db, repo, market
         self.identity = AccountIdentity(db)
         self.executor = executor or ComputeExecutor()
         self.scheduler = Scheduler(db)
         self.stop = threading.Event()
         self.pool = ThreadPoolExecutor(max_workers=db.settings.worker_concurrency)
+        self.phase_inbox = PhaseInbox()
 
     def close(self):
         self.stop.set()
+        self.phase_inbox.close()
         self.pool.shutdown(wait=True, cancel_futures=True)
 
     def account(self, tenant_id):
@@ -84,6 +105,13 @@ class FullWorker:
         return account, self.identity.context(account, tenant_id, uuid.uuid4().hex)
 
     def prepare(self, tenant_id, snapshot, claim=None):
+        """在租户只读事务冻结定义、覆盖、信号、世代、按日输入及公共发布身份。
+
+        到期动作由保存窗口规划, 完整池和预选分开传入; 不因新行情改变已
+        完成阶段。返回指纹供提交事务复核, 计算不持有这里的业务读事务。
+        冻结前先处理旧监控迁移及待确认补数取消; 返回payload不授权计算侧
+        自行取上游或写租户配置。
+        """
         account, context = self.account(tenant_id)
         documents = TenantDocuments(self.db, context)
         from app.services.strategy_monitor_tasks import retire_legacy
@@ -175,7 +203,11 @@ class FullWorker:
             payload["strategy_task_receipts"] = {}
             payload["strategy_task_plans"] = {}
             payload["strategy_task_generations"] = {}
-            payload["strategy_task_results"] = (unit.get("monitor_results", "default") or {}).get("results", {})
+            payload["strategy_task_results"] = {
+                sid: result for sid, result in
+                ((unit.get("monitor_results", "default") or {}).get("results") or {}).items()
+                if result.get("as_of") == str(cn_today())
+            }
             payload["sell_rosters"] = {}
             from app.services.daily_selections import DailySelections
             payload["selection_snapshots"] = {
@@ -245,7 +277,11 @@ class FullWorker:
                             timeframe=(catalog.get(sid).meta.get("timeframes") or ["1d"])[0]))
                         strategy = catalog.get(sid)
                         from app.market_time import published_trading_day
-                        from app.services.strategy_monitor_state import CONTRACT, plan
+                        from app.services.strategy_monitor_state import (
+                            CONTRACT,
+                            plan,
+                            resume_confirmation_timeout,
+                        )
                         from app.services.strategy_monitor_tasks import (
                             sell_roster,
                             task_receipt,
@@ -276,12 +312,15 @@ class FullWorker:
                             if (saved.get("contract") != CONTRACT or saved.get("runtime_identity") !=
                                     payload["daily_identities"][sid]["runtime_identity"]):
                                 saved = {}
+                            saved["tasks"] = resume_confirmation_timeout(
+                                windows, saved.get("tasks", {}), deadline_context.observed_at)
                             payload["strategy_task_receipts"][sid] = saved
                             payload["strategy_task_generations"][sid] = unit.get("strategy_monitoring", sid)["generation"]
                             planning = plan(windows, saved.get("tasks", {}), deadline_context.observed_at,
                                             trading=published_trading_day(cn_today()))
                             from app.services.strategy_monitor_tasks import wait_for_repairs
-                            wait_for_repairs(planning, saved, self.market)
+                            wait_for_repairs(planning, saved, self.market,
+                                             current_release=payload.get("public_release_id"))
                             payload["strategy_task_plans"][sid] = planning
                             next_at = planning["next_at"]
                             if next_at and (payload["next_evaluation_at"] is None or next_at < payload["next_evaluation_at"]):
@@ -289,7 +328,7 @@ class FullWorker:
                             payload["sell_rosters"][sid] = sell_roster(unit, sid, cn_today())
                             if planning["actions"]:
                                 payload["strategy_task_ids"].append(sid)
-                            # New custom monitoring is driven solely by the dated phase planner.
+                            # 自定义监控只由按日阶段计划驱动; 不同时交给报价驱动路径重复计算。
                             payload["late_task_scopes"][sid] = f"{sid}:{runtime_identity(strategy, payload['overrides'].get(sid) or {})}"
                             continue
                         if strategy.execution_backend == "minute_filter":
@@ -340,9 +379,11 @@ class FullWorker:
                     # Missing history disables this strategy in the compute kernel.
                     pass
             observed = fingerprint(conn)
+            payload["_configuration_fingerprint"] = fingerprint(conn, include_state=False)
         return account, context, payload, observed
 
     def evaluate(self, tenant_id, snapshot, claim=None):
+        """完成准备/计算/提交闭环; 异常状态也须通过当前租约和指纹守卫。"""
         started, started_at = time.perf_counter(), time.time()
         with measure_runtime_stage("monitor.prepare"):
             prepared = self.prepare(tenant_id, snapshot, claim)
@@ -389,6 +430,13 @@ class FullWorker:
             raise
 
     def _evaluate(self, tenant_id, snapshot, claim, prepared_context, *, timings):
+        """计算冻结输入后重查租约、配置指纹、监控世代和买卖截止再提交。
+
+        自定义阶段不依赖新报价心跳; 普通监控失败保留已完成自定义结果。
+        归档、阶段回执与通知在同一业务事务保存, 计算成功不等于已经成交。
+        隔离阶段只接收本轮已完成回执, 未完成请求不持有租户周期或事务。
+        各阶段在当前持久化状态上合并, 事务内再次检查截止; 提交后才确认回执。
+        """
         account, context, payload, observed = prepared_context
         started, started_at, prepared = timings
         sequence = int(snapshot.get("sequence", 0))
@@ -416,20 +464,35 @@ class FullWorker:
                     and as_cn_datetime(datetime.fromisoformat(payload["late_task_at"])).timestamp() <= now)
         task_due = task_due or bool(payload.get("strategy_task_ids"))
         result = None
-        # Custom strategy jobs never enter quote-driven monitor evaluation.
+        # 自定义按日任务独立执行, 不进入报价驱动普通监控; 避免心跳触发重复入场。
         custom_ids = set(payload.get("strategy_task_windows", {}))
         regular = [r for r in payload["rules"] if r.get("strategy_id") not in custom_ids]
-        if payload.get("strategy_task_ids"):
+        phase_pending = self.phase_inbox.pending(tenant_id)
+        if (payload.get("strategy_task_ids") or phase_pending
+                or any(self.phase_inbox.unpublished(payload).values())):
             payload["evaluation_started_at"] = now
+            from app.services.strategy_input_binding import prepare_inputs
+            prepare_inputs(payload, self.market)
             from app.multitenancy.monitor_compute import evaluate_strategy_phases
-            result = evaluate_strategy_phases(payload, self.repo, self.executor)
+            if getattr(self.executor, "isolated", False):
+                received = self.phase_inbox.advance(payload, self.repo, self.executor)
+                result = received if received["results"] else None
+                phase_pending = self.phase_inbox.pending(tenant_id)
+                if phase_pending:
+                    wake = datetime.fromtimestamp(now + 1, UTC).isoformat()
+                    payload["next_evaluation_at"] = min(
+                        payload.get("next_evaluation_at") or wake, wake)
+            else:
+                result = evaluate_strategy_phases(payload, self.repo, self.executor)
             from app.services.strategy_monitor_tasks import request_phase_repairs
-            request_phase_repairs(payload, result["results"], self.market, cn_now())
+            if result:
+                request_phase_repairs(payload, result["results"], self.market, cn_now())
         payload["rules"] = regular + [r for r in payload["rules"] if r.get("strategy_id") in
-                                    payload.get("strategy_task_ids", [])]
+                                    (set(payload.get("strategy_task_ids", []))
+                                     | set(result["results"] if result else {}))]
         original_rules = payload["rules"]
         payload["rules"] = regular
-        if ((fresh and changed) or task_due) and payload["rules"]:
+        if ((fresh and changed) or task_due) and payload["rules"] and not phase_pending:
             payload["evaluation_started_at"] = now
             payload["late_task_only"] = task_due and not fresh
             with measure_runtime_stage("monitor.compute"):
@@ -488,6 +551,7 @@ class FullWorker:
                     locks.enter_context(authorize(self.identity, replace(context, user_id=user_id), version))
             with documents.transaction() as unit:
                 conn = unit.connection
+                # 计算返回不授予提交权; 先检查租约和配置, 旧在途任务不能覆盖当前结果。
                 valid_claim(conn, claim)
                 if fingerprint(conn) != observed:
                     raise AccessError(409, "监控配置已更新")
@@ -500,6 +564,7 @@ class FullWorker:
                         datetime.fromtimestamp(time.time(), UTC),
                     )
                     from app.services.strategy_monitor_tasks import fence_tasks
+                    # 真实提交时钟再次校验世代与截止; 删除迟到新买及执行事件, 不抹正常证据。
                     for sid, daily in result["results"].items():
                         if sid in payload.get("strategy_task_generations", {}):
                             from app.services.strategy_monitor_tasks import assert_generation
@@ -520,13 +585,15 @@ class FullWorker:
                     result["state"]["signal_failures"] = failure_state
                     failure_alerts = append_in_transaction(conn, tenant_id, failures)
                     for index, event in enumerate(result["events"]):
-                        event["id"] = hashlib.sha256(
+                        event["id"] = signal_event_identity(
+                            payload, event, as_of=str(cn_today())) or hashlib.sha256(
                             f"{tenant_id}:{sequence}:{observed}:{index}".encode(),
                         ).hexdigest()
                     events = failure_alerts + append_in_transaction(conn, tenant_id, result["events"])
                     for index, event in enumerate(result.get("execution_events", [])):
                         execution_events.append({
-                            **event, "id": hashlib.sha256(
+                            **event, "id": signal_event_identity(
+                                payload, event, as_of=str(cn_today()), execution=True) or hashlib.sha256(
                                 f"execution:{tenant_id}:{sequence}:{observed}:{index}".encode(),
                             ).hexdigest(),
                         })
@@ -539,6 +606,9 @@ class FullWorker:
                         from app.strategy.execution_status import merge_result, result_status
                         previous_results = (unit.get("monitor_results", "default") or {}).get("results", {})
                         for sid, daily in result["results"].items():
+                            if daily.get("run_evidence"):
+                                for phase in daily["run_evidence"]["phases"].values():
+                                    phase["timing"].setdefault("commit_entered_at", cn_now().isoformat())
                             unit.put("strategy_execution_status", sid, {
                                 **result_status(daily), "as_of": daily.get("as_of"),
                                 "runtime_identity": daily.get("runtime_identity"),
@@ -552,8 +622,8 @@ class FullWorker:
                                          in ("success", "failed"))):
                                 record = ResultIdentity(**payload["daily_identities"][sid])
                                 if daily.get("sections") is not None:
-                                    # Dated phases run without a new quote; archive
-                                    # their attempt order, not the frozen quote clock.
+                                    # 按日阶段可在无新报价时运行; 归档使用本次尝试序号,
+                                    # 不能把冻结报价时钟当作本次计算提交顺序。
                                     archive_started = (int(started_at * 1_000_000_000)
                                         if daily.get("monitor_contract") == "strategy_monitor_v2"
                                         else sequence * 1000000)
@@ -564,6 +634,7 @@ class FullWorker:
                                     DailyStockPools(unit).save(record, daily["daily_stock_pool"],
                                         started_at=sequence * 1000000)
                             if daily.get("monitor_tasks"):
+                                # 任务回执与上面的归档、通知同属业务事务, 失败不会发布半份结果。
                                 from app.services.strategy_monitor_state import CONTRACT
                                 unit.put("strategy_monitor_task_runs", f"{sid}:{daily['as_of']}", {
                                     "as_of": daily["as_of"], "strategy_id": sid,
@@ -625,6 +696,10 @@ class FullWorker:
                     "as_of": str(cn_today()),
                     "strategy_ids": sorted({r["strategy_id"] for r in payload["rules"] if r.get("strategy_id")}),
                 })
+                from app.services.s02_run_evidence import SID, save_operational
+                save_operational(unit, {**payload, "strategy_task_results": {
+                    **payload.get("strategy_task_results", {}), **(result["results"] if result else {})}},
+                    cn_now(), self.phase_inbox.evidence(tenant_id, SID))
                 paper_documents = TenantPaper(self.db, context, self.repo.store.data_dir)
                 session = PaperSession(paper_documents, conn, True)
                 # Private computation can consume the quote's validity window.
@@ -681,6 +756,22 @@ class FullWorker:
                 for account_id in session.account_ids():
                     paper_auto.retry_exit_intents(session, account_id)
                 valid_claim(conn, claim)
+                if result:
+                    for sid, daily in result["results"].items():
+                        if daily.get("run_evidence"):
+                            prior_commit = unit.get("strategy_run_commits", f"{sid}:{daily['as_of']}") or {}
+                            phases = prior_commit.get("phases", {})
+                            for phase, value in daily["run_evidence"]["phases"].items():
+                                if phases.get(phase, {}).get("input_sha256") != value["input_sha256"]:
+                                    phases[phase] = {"input_sha256": value["input_sha256"],
+                                                     "commit_recorded_at": cn_now().isoformat()}
+                            unit.put("strategy_run_commits", f"{sid}:{daily['as_of']}", {
+                                "schema": "s02_run_commit_v1", "phases": phases})
+                            from app.services.strategy_day_views import receipt_updated
+                            receipt_updated(unit, sid, daily["as_of"])
+        if result is not None:
+            # A failed or rolled-back transaction never acknowledges its futures.
+            self.phase_inbox.ack(result.get("_phase_ack", []))
         if result is not None and result["results"]:
             logger.info(
                 "monitor result committed sequence=%s release=%s committed_at=%.6f "
@@ -741,6 +832,8 @@ class FullWorker:
                     boundary = datetime.fromisoformat(pending)
                     if boundary > datetime.now(UTC):
                         due = min(due, boundary)
+                if active and self.phase_inbox.pending(claim["tenant_id"]):
+                    due = min(due, datetime.now(UTC) + timedelta(seconds=1))
             except AccessError as exc:
                 logger.info("full worker deferred: %s", exc.code)
                 due = datetime.now(UTC) + timedelta(seconds=1 if exc.status in {409, 429} else 5)

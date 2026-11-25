@@ -1,4 +1,4 @@
-"""Numeric filter reference values, separate from signal and execution prices."""
+"""策略资格的数值参考; 与当前信号价格、委托成交价和估值价格分别处理。"""
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -18,6 +18,10 @@ RANGES = {
 
 
 def fields(config: dict) -> set[str]:
+    """声明启用数值条件所需列; null不增加依赖, 禁用过滤时返回空集合。
+
+    市值同时依赖股数和原始价格; 范围、ST及停牌证据不属于此数值依赖集合。
+    """
     if not config.get("enabled", True):
         return set()
     result = {field for key, field in RANGES.items()
@@ -30,11 +34,13 @@ def fields(config: dict) -> set[str]:
 
 
 def uses_previous(config: dict) -> bool:
+    """只有启用数值条件且指定前交易日才需要前日参考列。"""
     return config.get("data_reference") == "previous_trade_day" and bool(fields(config))
 
 
 @lru_cache(maxsize=4096)
 def previous_session(day: date) -> date:
+    """按已发布日历找精确前交易日; 日历未知抛错, 不按最近非空行情回退。"""
     prior = day - timedelta(days=1)
     while True:
         known = published_trading_day(prior)
@@ -48,7 +54,11 @@ def previous_session(day: date) -> date:
 def attach_previous_values(
     rows: pl.DataFrame, config: dict, *, history: pl.DataFrame | None = None, as_of: date | None = None,
 ) -> pl.DataFrame:
-    """Exact session join; no asof join, stale fill, or current-price replacement."""
+    """精确按股票与前交易日联表, 参考列使用独立前缀, 不覆盖当前价格。
+
+    缺字段/缺日保留 null, 由过滤表达式拒绝; 上游须先验证重复与定版证据,
+    这里的投影去重不能当作坏日线已经修复的证明。
+    """
     wanted = fields(config)
     if not uses_previous(config) or rows.is_empty():
         return rows
@@ -80,6 +90,11 @@ def attach_previous_values(
 
 
 def numeric_expression(rows: pl.DataFrame, config: dict) -> pl.Expr | None:
+    """生成启用数值条件的交集, 边界含等号; 缺值和非有限值不通过。
+
+    金额为元、价格为元、股本为股; 涨跌幅和振幅输入小数转为百分数,
+    市值由原始价格乘股数。没有启用条件返回 None, 不改变完整池成员身份。
+    """
     def col(field):
         name = PREFIX + field if uses_previous(config) else field
         if name not in rows.columns and field == "raw_close" and not uses_previous(config):
@@ -100,7 +115,7 @@ def numeric_expression(rows: pl.DataFrame, config: dict) -> pl.Expr | None:
             result.append(price.is_finite() & (price > 0))
             values = price * values
         elif stem in {"change_pct", "amplitude"}:
-            # Remove Float64 ratio-conversion noise at inclusive percent bounds.
+            # 转百分数后去除浮点转换噪声, 保持保存阈值边界含等号。
             values = (values * 100).round(10)
         if low is not None:
             result.append(values >= low)

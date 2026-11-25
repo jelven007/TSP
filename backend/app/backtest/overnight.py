@@ -149,6 +149,12 @@ def run_overnight(service, config, strategy, params, overrides, *,
     if equal_selected:
         params = {**params, "entry_nav_fraction": 1.}
     params = parameters(params)
+    entry_rate = config.entry_participation_pct
+    exit_rate = config.exit_participation_pct
+    effective_entry_rate = entry_rate if entry_rate is not None else (
+        params["participation"] if high_entry else 1.)
+    effective_exit_rate = exit_rate if exit_rate is not None else (
+        1. if common_execution else params["participation"])
     scheduled_exit = exit_schedule(params) is not None
     reported_params = {k: v for k, v in params.items()
                        if not equal_selected or k != "entry_nav_fraction"}
@@ -364,7 +370,7 @@ def run_overnight(service, config, strategy, params, overrides, *,
                     signals.append({"date": str(day), "symbol": symbol, **pending})
                 if common_execution and str(day) < pending["execution_date"]:
                     continue
-                sale_params = {**params, "participation": 1.} if common_execution else params
+                sale_params = {**params, "participation": effective_exit_rate}
                 if common_execution and config.stamp_tax_pct is None:
                     sale_params["stamp_tax"] = historical_stamp_tax_pct(day, config.asset_type)
                 sale = fill_order(history, "sell", symbol, lookup.get(symbol),
@@ -547,7 +553,8 @@ def run_overnight(service, config, strategy, params, overrides, *,
                         continue
                     if high_entry:
                         buy = fill_order(frame, "buy", symbol, lookup.get(symbol),
-                                         buy_start, last_buy, params, budget=budget,
+                                         buy_start, last_buy, {**params, "participation": effective_entry_rate},
+                                         budget=budget,
                                          price_field="high")
                     else:
                         minimum, step, maximum = buy_quantity_rules(symbol)
@@ -567,6 +574,7 @@ def run_overnight(service, config, strategy, params, overrides, *,
                             prior_close=lookup.get(symbol), budget=budget,
                             size_order=size_order,
                             buy_value=lambda n: n + order_fee(n, "buy", params),
+                            participation_pct=effective_entry_rate,
                             end_at=order_end,
                             window_minutes=sum(moment.hour * 60 + moment.minute <= last_buy
                                                for moment in expected_trading_minutes(start_at)))

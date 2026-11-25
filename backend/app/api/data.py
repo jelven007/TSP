@@ -66,25 +66,10 @@ def _safe_aggregate(repo, view: str) -> dict | None:
 
 
 def _parquet_row_symbol_stats(directory: Path) -> tuple[int, int]:
-    """Return exact row/symbol counts without loading full Parquet payloads."""
-    import polars as pl
+    """Reuse exact published profiles; scan only replaced/new symbol columns."""
+    from app.services.parquet_profile import row_symbol_stats
 
-    files = [str(path) for path in directory.rglob("*.parquet")]
-    if not files:
-        return 0, 0
-    # 当日分区由实时行情写入, 会带 quote_ts / quote_time_basis 等额外列;
-    # 历史分区没有这些列。只统计行数与标的数, 用 extra_columns 忽略差异,
-    # 否则首个文件之外的额外列会触发 SchemaError, 整表退化为 rows=0。
-    stats = (
-        pl.scan_parquet(files, hive_partitioning=False, extra_columns="ignore")
-        .select(
-            pl.len().alias("rows"),
-            pl.col("symbol").n_unique().alias("symbols"),
-        )
-        .collect()
-        .row(0)
-    )
-    return int(stats[0]), int(stats[1])
+    return row_symbol_stats(directory)
 
 
 def _safe_aggregate_daily(repo, view: str = "kline_daily") -> dict | None:
@@ -108,7 +93,10 @@ def _safe_aggregate_daily(repo, view: str = "kline_daily") -> dict | None:
         rows, symbols = _parquet_row_symbol_stats(daily_dir)
     except Exception as e:  # noqa: BLE001
         logger.debug("aggregate daily parquet stats failed: %s", e)
-        rows, symbols = 0, _count_instruments_symbols(repo)
+        from app.services.public_query_cache import CacheUnavailableError
+        if isinstance(e, CacheUnavailableError):
+            raise
+        return None
 
     return {
         "rows": rows,
@@ -149,7 +137,10 @@ def _safe_aggregate_enriched(repo) -> dict | None:
         rows, symbols = _parquet_row_symbol_stats(enriched_dir)
     except Exception as e:  # noqa: BLE001
         logger.debug("aggregate enriched parquet stats failed: %s", e)
-        rows, symbols = 0, _count_instruments_symbols(repo)
+        from app.services.public_query_cache import CacheUnavailableError
+        if isinstance(e, CacheUnavailableError):
+            raise
+        return None
 
     return {
         "rows": rows,
@@ -294,7 +285,10 @@ def _safe_aggregate_minute(repo, table: str = "kline_minute") -> dict | None:
         rows, symbols = _parquet_row_symbol_stats(minute_dir)
     except Exception as e:  # noqa: BLE001
         logger.debug("aggregate minute parquet stats failed: %s", e)
-        rows, symbols = 0, 0
+        from app.services.public_query_cache import CacheUnavailableError
+        if isinstance(e, CacheUnavailableError):
+            raise
+        return None
     return {
         "rows": rows,
         "earliest_date": dates[0],

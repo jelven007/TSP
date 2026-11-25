@@ -750,6 +750,10 @@ def get_cached_result(
         "monitor_tasks": raw_result.get("monitor_tasks"),
         "monitor_executed_signals": raw_result.get("monitor_executed_signals"),
     }
+    for field in ("repair_provenance", "original_realtime", "diagnostic_review",
+                  "run_evidence", "run_commit", "operational_state"):
+        if field in raw_result:
+            result[field] = raw_result[field]
 
     ever_rows = None
     if cached.get("as_of") == result["as_of"]:

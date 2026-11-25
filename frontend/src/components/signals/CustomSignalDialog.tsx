@@ -124,7 +124,7 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
           throw new Error('启动时间不得晚于止损或兜底时间')
         if (p.time != null && p.fallback_time != null && p.fallback_time <= p.time)
           throw new Error('兜底时间须晚于止损时间')
-        if (![p.rise_pct, p.fall_pct, p.decline_3m_pct, p.volume_ratio_min].every(value =>
+        if (![p.rise_pct, p.fall_pct, p.decline_3m_pct, p.volume_ratio_min, p.take_profit_pct, p.stop_loss_pct].every(value =>
           value == null || (Number.isFinite(value) && value >= .1 && value <= 100)))
           throw new Error('数值参数须为0.1～100.0')
       }
@@ -260,7 +260,8 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                     </label>
                     {([['rise_pct', '涨幅阈值（%）'], ['fall_pct', '跌幅阈值（%）'],
                       ['decline_3m_pct', '3分钟跌幅门槛（%）'],
-                      ['volume_ratio_min', '最近3根/之前10根量比下限']] as const).map(([key, label]) => (
+                      ['volume_ratio_min', '最近3根/之前10根量比下限'],
+                      ['take_profit_pct', '止盈（%）'], ['stop_loss_pct', '止损（%）']] as const).map(([key, label]) => (
                     <label key={key} className="space-y-1.5">
                       <span className="text-[11px] text-muted">{label}</span>
                       <input aria-label={label} type="number" min="0.1" max="100" step="0.1"
@@ -287,6 +288,8 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                     以每笔持仓买入后的下一个交易日为准，跳过周末和休市日。
                     现价相对原始昨收的涨幅或跌幅达到对应阈值时提前清仓。
                     或满足3分钟跌幅、最近3根/之前10根均量比的已启用项；两项均填写时须同时满足。
+                    止盈、止损按现价相对持仓买入成交均价计算，不含费用；仅信号名单使用冻结买入参考价。
+                    盈利达到止盈或亏损达到止损即触发，均填写正百分数；缺少买入价时该项不可确认。
                     跌幅填写正百分数，3分钟跌幅使用当前完成分钟与3分钟前收盘价，量比使用13根连续完成分钟。
                     参数留空不生效；全部为空不触发本模板出场。启动时间为空取消启动门槛。
                     时间支持全天配置。已设置的止损时间到触发清仓，到兜底时间立即停止所有股票卖出，

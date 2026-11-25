@@ -13,7 +13,7 @@ from app.strategy import custom_signals
 from app.strategy.engine import StrategyEngine
 
 POLICY = "available_minutes_v1"
-FIXTURE = Path(__file__).parent / "fixtures/s01_available_minutes.py"
+SOURCE = Path(__file__).resolve().parents[2] / "examples/strategies/s01_signal_sections.py"
 
 
 def evaluate(frame, *, signal=None, completed=None, legacy=False):
@@ -93,7 +93,7 @@ def test_frozen_source_without_policy_keeps_its_original_complete_window():
 def test_actual_saved_source_all_entry_paths_allow_available_minutes(tmp_path, selection):
     from app.api.strategy import StrategyCodeSaveRequest, _prepare_strategy_code
 
-    code = FIXTURE.read_text()
+    code = SOURCE.read_text()
     _prepare_strategy_code(StrategyCodeSaveRequest(
         strategy_id="custom_mvxxcs01", mode="update", code=code))
     (tmp_path / "custom_mvxxcs01.py").write_text(code)
@@ -102,6 +102,10 @@ def test_actual_saved_source_all_entry_paths_allow_available_minutes(tmp_path, s
     ctx = context(end=890)
     ctx.history = sparse().drop("volume")
     ctx.observed_at = datetime(2026, 8, 25, 14, 46)
+    ctx.selection_snapshots = {"custom_mvxxcs01": {
+        "as_of": str(ctx.as_of), "source_date": "2026-08-24",
+        "rows": [{"symbol": "600001.SH", "reference_close": 10.}],
+    }}
     overrides = {"basic_filter": {"enabled": False}}
     if selection is not None:
         overrides["entry_signals"] = selection

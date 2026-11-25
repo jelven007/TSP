@@ -27,6 +27,7 @@ from app.backtest.engine import (
     SimResult,
     SimulationOptions,
 )
+from app.backtest.entry_execution import participation_rate
 from app.backtest.fundamentals import FUNDAMENTAL_FACTOR_NAMES
 from app.backtest.governance import STATUS_FIELDS, research_preflight, status_quality
 from app.backtest.matrix import (
@@ -614,6 +615,32 @@ def _resolve_base_columns(features: set[str]) -> frozenset[str]:
     return frozenset((base & storage) | {name for name in features if name.startswith("ext_")})
 
 
+def _first_entry_prior_closes(data, start: date) -> dict[tuple[str, str], float]:
+    """Retain only first-session raw references removed by the formal-range slice."""
+    if isinstance(data, pl.DataFrame):
+        formal = data.filter(pl.col("date") >= start)
+        if formal.is_empty():
+            return {}
+        first = formal["date"].min()
+        raw = "raw_close" if "raw_close" in data.columns else "close"
+        prior = data.filter(pl.col("date") < first).sort("symbol", "date").group_by("symbol").tail(1)
+        return {(row["symbol"], str(first)[:10]): float(row[raw]) for row in prior.to_dicts()
+                if row[raw] is not None and np.isfinite(row[raw]) and row[raw] > 0}
+    labels = data.timestamp_labels
+    first = next((i for i, label in enumerate(labels) if label[:10] >= str(start)), None)
+    if first is None:
+        return {}
+    raw = data.fields.get("raw_close", data.close)
+    values = np.full(len(data.symbols), np.nan)
+    for i in range(first - 1, -1, -1):
+        valid = ~np.isfinite(values) & np.isfinite(raw[i]) & (raw[i] > 0)
+        values[valid] = raw[i, valid]
+        if np.isfinite(values).all():
+            break
+    return {(symbol, labels[first][:10]): float(values[i]) for i, symbol in enumerate(data.symbols)
+            if np.isfinite(values[i])}
+
+
 @dataclass
 class StrategyBacktestConfig:
     strategy_id: str
@@ -628,6 +655,9 @@ class StrategyBacktestConfig:
     exit_fill: Literal["close_t", "open_t+1", "signal_next_minute"] | None = None
     # Missing in old frozen inputs: retain their original execution prices.
     minute_price_rule: Literal["legacy", "high_low_v1"] = "legacy"
+    # None marks historical frozen inputs whose original capacity remains unchanged.
+    entry_participation_pct: float | None = None
+    exit_participation_pct: float | None = None
     fees_pct: float = 0.0002
     commission_pct: float | None = None
     stamp_tax_pct: float | None = None
@@ -650,6 +680,9 @@ class StrategyBacktestConfig:
     strict_research: bool = False
 
     def __post_init__(self) -> None:
+        for value in (self.entry_participation_pct, self.exit_participation_pct):
+            if value is not None:
+                participation_rate(value)
         if self.minute_price_rule not in ("legacy", "high_low_v1"):
             raise ValueError("未知分钟成交价格口径")
         if self.entry_fill is None:
@@ -1316,7 +1349,11 @@ class StrategyBacktestService:
         )
         entry_signals = self._effective_signals(overrides, "entry_signals", s.entry_signals)
         exit_signals = self._effective_signals(overrides, "exit_signals", s.exit_signals)
-        if config.exit_fill == "signal_next_minute":
+        if config.exit_fill == "signal_next_minute" and not (
+            s.execution_backend == "minute_filter"
+            and (config.entry_participation_pct is not None or config.exit_participation_pct is not None)
+            and not exit_signals
+        ):
             if not config.minute_fill:
                 return _err("触发后下一分钟成交需要先开启分钟成交")
             if not exit_signals:
@@ -1528,6 +1565,11 @@ class StrategyBacktestService:
 
         matcher_config = MatcherConfig(
             entry_risk=entry_risk,
+            entry_participation_pct=config.entry_participation_pct or 1.,
+            exit_participation_pct=config.exit_participation_pct or 1.,
+            minute_price_rule=(config.minute_price_rule if s.source == "custom" and (
+                config.entry_participation_pct is not None or config.exit_participation_pct is not None
+            ) else "legacy"),
             matching=config.matching,
             entry_fill=config.entry_fill,
             exit_fill=config.exit_fill,
@@ -1554,6 +1596,8 @@ class StrategyBacktestService:
             entry_capacity_window=True,
             asset_type=config.asset_type,
         )
+        if matcher_config.minute_price_rule == "high_low_v1" and config.entry_fill == "close_t":
+            matcher_config.entry_prior_closes = _first_entry_prior_closes(quality_data, config.start)
         t_signal = time.perf_counter()
         selection_stats: dict[str, int | bool]
 
@@ -2052,7 +2096,10 @@ class StrategyBacktestService:
             return _err("分钟策略回测当前仅支持 A 股 (stock)")
         if overrides.get("overlay_filter"):
             return _err("日线入场叠加条件暂不支持分钟策略, 请使用分钟策略自身的条件")
-        if config.exit_fill == "signal_next_minute":
+        if config.exit_fill == "signal_next_minute" and not (
+            (config.entry_participation_pct is not None or config.exit_participation_pct is not None)
+            and not self._effective_signals(overrides, "exit_signals", s.exit_signals)
+        ):
             return _err("分钟策略回测暂不支持「信号触发卖出」离场口径")
 
         minute_days = self.engine.repo.list_minute_dates(config.start, config.end, "stock")
@@ -2066,13 +2113,24 @@ class StrategyBacktestService:
         # 日线面板一次加载: 覆盖首个回测日的日线窗口 + 模拟区间 (含 full 模式尾部)。
         daily_bars = int(s.minute_daily_bars or 0)
         bf = self._effective_basic_filter(s, overrides)
-        from app.backtest.minute_replay import requires_full_pool
+        from app.backtest.minute_replay import requires_full_pool, requires_s03_scoring
         from app.strategy.basic_filter import uses_previous
 
         full_signal_pool = requires_full_pool(self.strategy_engine, s, overrides)
+        if requires_s03_scoring(self.strategy_engine, s, overrides):
+            from app.services.selection_clock import S02_ID
+            daily_bars = max(daily_bars, 65, self.strategy_engine.minute_daily_history_bars([S02_ID]))
         if uses_previous(bf):
             daily_bars = max(daily_bars, 2)
         feature_plan = _with_status_fields(minute_replay_feature_plan(daily_bars, bf), "stock")
+        if requires_s03_scoring(self.strategy_engine, s, overrides):
+            s02 = self.strategy_engine.get(S02_ID)
+            loader = self.strategy_engine._override_loader
+            s02_bf = {**s02.basic_filter, **((loader(S02_ID) if loader else {}).get("basic_filter") or {})}
+            source_plan = minute_replay_feature_plan(daily_bars, s02_bf)
+            feature_plan = replace(feature_plan,
+                                   base_columns=feature_plan.base_columns | source_plan.base_columns,
+                                   indicator_columns=feature_plan.indicator_columns | source_plan.indicator_columns)
         load_start = minute_panel_start(config.start, daily_bars)
         full_horizon_days = int(max_hold_days or config.holding_days or 5)
         load_end = config.end
@@ -2111,8 +2169,11 @@ class StrategyBacktestService:
             symbols=config.symbols,
             progress_cb=progress_cb,
             cancel_event=cancel_event,
+            strict_research=config.strict_research,
         )
         timing_ms["minute_replay"] = replay.elapsed_ms
+        if replay.selection_provenance:
+            provenance["s03_selection_replay"] = replay.selection_provenance
         if replay.errors:
             return _err("分钟入场回放校验失败: " + "; ".join(dict.fromkeys(replay.errors)))
         if cancel_event is not None and cancel_event.is_set():
@@ -2193,6 +2254,11 @@ class StrategyBacktestService:
 
         matcher_config = MatcherConfig(
             entry_risk=EntryRiskPolicy.from_mapping(overrides.get("entry_risk")),
+            entry_participation_pct=config.entry_participation_pct or 1.,
+            exit_participation_pct=config.exit_participation_pct or 1.,
+            minute_price_rule=(config.minute_price_rule if s.source == "custom" and (
+                config.entry_participation_pct is not None or config.exit_participation_pct is not None
+            ) else "legacy"),
             matching=config.matching,
             entry_fill="close_t",
             exit_fill=config.exit_fill,
@@ -2840,6 +2906,8 @@ class StrategyBacktestService:
             "entry_fill": c.entry_fill,
             "exit_fill": c.exit_fill,
             "minute_price_rule": c.minute_price_rule,
+            "entry_participation_pct": c.entry_participation_pct,
+            "exit_participation_pct": c.exit_participation_pct,
             "timing_mode": (
                 "strict"
                 if c.entry_fill == "open_t+1" and c.exit_fill == "open_t+1"

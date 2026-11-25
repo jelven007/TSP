@@ -102,7 +102,7 @@ def test_runtime_emits_independent_clock_events_for_remaining_cycles():
 
 
 def test_current_custom_source_accepts_new_signal_without_changing_entry_parameters(tmp_path):
-    source = Path(__file__).resolve().parent / "fixtures/s01_available_minutes.py"
+    source = Path(__file__).resolve().parents[2] / "examples/strategies/s01_signal_sections.py"
     (tmp_path / "s01.py").write_text(source.read_text())
     engine = StrategyEngine([tmp_path])
     assert engine.get("custom_mvxxcs01").meta["name"] == "s01"

@@ -101,6 +101,12 @@ async def lifespan(app: FastAPI):
         from app.multitenancy.executor import ComputeExecutor
 
         app.state.compute_executor = ComputeExecutor()
+        from app.multitenancy.s02_watch import S02Watch
+
+        watch = S02Watch(db, account_identity)
+        watch.start()
+        resources.callback(watch.close)
+        app.state.s02_watch = watch
         from app.multitenancy.platform import PlatformAdmin, market_read_path
 
         admin = PlatformAdmin(db.settings.market_url)

@@ -75,3 +75,35 @@ it.each([
     host.remove()
   }
 })
+
+it('renders S03 buys when the common breadth threshold is disabled and market rows are missing', async () => {
+  const result = {
+    as_of: '2026-03-31', strategy: 'custom_mvxxcs03', rows: [], total: 1, elapsed_ms: 0,
+    section_mode: 'signals',
+    sections: { sell: [], select: [], buy: [{ symbol: '600428.SH', name: '中远海特', score: 100 }] },
+    entry_data_quality: { csgi_late_session_strength_s03: {
+      pool_total: 3043, pool_usable: 3026, missing_symbols: ['001232.SZ'],
+      pool_up_pct: null, pool_up_pct_lower: null, pool_up_pct_upper: null,
+      pool_up_min_pct: null, stage: 'confirmed', warnings: [],
+      breadth_policy: 'available_members_v1',
+    } },
+  } as unknown as ScreenerResult
+  const host = document.createElement('div')
+  document.body.append(host)
+  const root = createRoot(host)
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  try {
+    await act(async () => root.render(<QueryClientProvider client={client}>
+      <StrategyDailyResults result={result} activeTab="buy" />
+    </QueryClientProvider>))
+    expect(host.textContent).toContain('中远海特')
+    expect(host.textContent).toContain('买 · 1')
+    expect(host.textContent).not.toContain('阈值')
+    expect(host.textContent).not.toContain('无有效行情，等待数据')
+    expect(result.entry_data_quality?.csgi_late_session_strength_s03.pool_up_min_pct).toBeNull()
+  } finally {
+    await act(async () => root.unmount())
+    client.clear()
+    host.remove()
+  }
+})

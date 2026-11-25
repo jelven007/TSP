@@ -2,14 +2,19 @@
   {
     "id": "late_session_strength",
     "kind": "entry",
-    "name": "尾盘建仓",
+    "name": "s02_尾盘建仓",
     "params": {
       "time": "14:30:00",
+      "end_time": "14:55:00",
       "ma5_1m_count": 7,
       "ma5_5m_count": 4,
       "change_max_pct": 4,
       "change_min_pct": 0.8,
-      "pool_up_min_pct": 60,
+      "pool_up_min_pct": null,
+      "amount_min_100m": null,
+      "turnover_min_pct": null,
+      "volume_ratio_min": null,
+      "amplitude_max_pct": null,
       "evaluation_delay_minutes": 0.5
     },
     "enabled": true,
@@ -21,12 +26,15 @@
   {
     "id": "morning_liquidation",
     "kind": "exit",
-    "name": "早盘清仓",
+    "name": "s02_早盘清仓",
     "params": {
-      "time": "10:30:00",
+      "time": "10:50:00",
       "fall_pct": 6,
       "rise_pct": 6,
-      "fallback_time": "10:45:00"
+      "start_time": "09:30:00",
+      "fallback_time": "13:30:00",
+      "decline_3m_pct": null,
+      "volume_ratio_min": null
     },
     "enabled": true,
     "min_bars": 0,

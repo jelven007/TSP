@@ -48,6 +48,8 @@ it('edits A/B independently, saves and reopens without changing the clocks', asy
     </MemoryRouter></QueryClientProvider>)
   await act(async () => render(original))
   expect(host.textContent).toContain('两组为“或”关系')
+  expect(host.textContent).toContain('组内按情绪分降序，再按五维排名、代码升序')
+  expect(host.textContent).not.toContain('按资金分降序')
   const input = (label: string) => host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!
   const change = async (label: string, value: string) => act(async () => {
     const el = input(label)

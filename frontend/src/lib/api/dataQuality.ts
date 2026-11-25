@@ -20,7 +20,11 @@ export interface DataQuality {
   }
   historical_inputs: {
     universe: { survivorship_verified: boolean; missing_delisted_ratio: number | null }
-    financial_publication: { unknown_ratio: number | null; rows: number | null }
+    financial_publication: { unknown_ratio: number | null; rows: number | null;
+      assessment?: string; field_missing_ratio?: number | null;
+      tables?: Record<string, { rows: number | null; publication_fields?: string[] }>;
+      observations?: { error?: string | null; tables: Record<string,
+        { observed_at: string; content_hash: string; publication_time_verified: boolean } | null> } }
   }
   release: { status: string; release_id: string | null }
 }

@@ -1,0 +1,83 @@
+[
+  {
+    "id": "late_session_strength_s03",
+    "kind": "entry",
+    "name": "s03_早盘建仓",
+    "params": {
+      "time": "10:00:00",
+      "end_time": "10:30:00",
+      "entry_groups": {
+        "a": {
+          "enabled": true,
+          "fund_min": 70,
+          "rank_max": 20,
+          "rank_min": 2,
+          "tech_min": 75,
+          "score_min": 55,
+          "gap_max_pct": 10,
+          "gap_min_pct": -1,
+          "bias_max_pct": 100,
+          "slope_min_pct": 1,
+          "breadth_min_pct": null,
+          "intraday_min_pct": 0.8,
+          "momentum_max_pct": 40,
+          "momentum_min_pct": 18,
+          "position_min_pct": 90
+        },
+        "b": {
+          "enabled": true,
+          "fund_min": 40,
+          "rank_max": 25,
+          "rank_min": 6,
+          "tech_min": 65,
+          "score_min": 70,
+          "gap_max_pct": 1,
+          "gap_min_pct": -5,
+          "bias_max_pct": 25,
+          "slope_min_pct": 0,
+          "breadth_min_pct": 25,
+          "intraday_min_pct": null,
+          "momentum_max_pct": 50,
+          "momentum_min_pct": 5,
+          "position_min_pct": null
+        }
+      },
+      "ma5_1m_count": null,
+      "ma5_5m_count": null,
+      "change_max_pct": null,
+      "change_min_pct": null,
+      "amount_min_100m": null,
+      "pool_up_min_pct": null,
+      "turnover_min_pct": null,
+      "volume_ratio_min": null,
+      "amplitude_max_pct": null,
+      "evaluation_delay_minutes": 0.5
+    },
+    "enabled": true,
+    "min_bars": 0,
+    "template": "late_session_strength",
+    "timeframe": "intraday",
+    "conditions": []
+  },
+  {
+    "id": "morning_liquidation_s03",
+    "kind": "exit",
+    "name": "s03_早盘清仓",
+    "params": {
+      "time": "14:30:00",
+      "fall_pct": null,
+      "rise_pct": null,
+      "start_time": "09:54:00",
+      "fallback_time": "14:58:00",
+      "stop_loss_pct": 6,
+      "decline_3m_pct": null,
+      "take_profit_pct": 3,
+      "volume_ratio_min": null
+    },
+    "enabled": true,
+    "min_bars": 0,
+    "template": "morning_liquidation",
+    "timeframe": "intraday",
+    "conditions": []
+  }
+]

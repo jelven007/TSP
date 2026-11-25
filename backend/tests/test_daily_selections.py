@@ -21,15 +21,16 @@ def key():
 
 def snapshot(rows=()):
     return {"as_of": str(TARGET), "source_date": str(SOURCE), "rows": list(rows),
-            "scheduled_for": "2026-10-30T20:00:00+08:00",
-            "generated_at": "2026-10-30T20:01:00+08:00"}
+            "scheduled_for": "2026-10-30T21:00:00+08:00",
+            "generated_at": "2026-10-30T21:01:00+08:00"}
 
 
 @pytest.mark.parametrize("now, expected", [
     (datetime(2026, 10, 30, 15, 59, 59, tzinfo=CN), None),
     (datetime(2026, 10, 30, 16, tzinfo=CN), None),
     (datetime(2026, 10, 30, 19, 59, 59, tzinfo=CN), None),
-    (datetime(2026, 10, 30, 20, tzinfo=CN), (SOURCE, TARGET)),
+    (datetime(2026, 10, 30, 20, tzinfo=CN), None),
+    (datetime(2026, 10, 30, 21, tzinfo=CN), (SOURCE, TARGET)),
     (datetime(2026, 10, 31, 12, tzinfo=CN), (SOURCE, TARGET)),
     (datetime(2026, 11, 2, 8, tzinfo=CN), (SOURCE, TARGET)),
     (datetime(2026, 11, 2, 9, 30, tzinfo=CN), None),
@@ -151,14 +152,15 @@ def test_local_schedule_waits_for_completed_source_then_saves_and_survives_resta
                                context.daily_history, context.daily_history.select("symbol", "close")))
     service = ScreenerService(repo)
     service._load_enriched_history = lambda *_: context.daily_history
-    now = datetime(2026, 10, 30, 20, tzinfo=CN)
+    now = datetime(2026, 10, 30, 21, tzinfo=CN)
     waiting = generate_scheduled_local(engine, service, tmp_path, now=now)
     assert waiting["errors"]
     assert DailySelections(tmp_path).read("custom_test", TARGET) is None
     assert DailySelections(tmp_path).job(str(TARGET))["state"] == "waiting_data"
     (tmp_path / "settlement_ready.json").write_text('{"day":"2026-10-30"}')
     done = generate_scheduled_local(engine, service, tmp_path, now=now)
-    assert done == {"saved": ["custom_test"], "errors": {}}
+    assert done["saved"] == ["custom_test"]
+    assert done["errors"] == {}
     assert DailySelections(tmp_path).read("custom_test", TARGET)["rows"][0]["symbol"] == "600001.SH"
     assert generate_scheduled_local(engine, service, tmp_path, now=now)["saved"] == []
     assert DailySelections(tmp_path).job(str(TARGET))["attempts"] == 2
@@ -179,9 +181,10 @@ def test_local_window_start_recovers_missing_archive_despite_terminal_receipt(
     monkeypatch.setattr(daily_selections, "compute_selections", lambda *_a, **_k:
         calls.append(1) or {"selections": {"custom_test": snapshot()}, "errors": {}})
     service = SimpleNamespace(repo=SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path)))
-    now = datetime(2026, 10, 30, 20, 37, tzinfo=CN)
-    assert daily_selections.generate_scheduled_local(engine, service, tmp_path, now=now) == {
-        "saved": ["custom_test"], "errors": {}}
+    now = datetime(2026, 10, 30, 21, 37, tzinfo=CN)
+    response = daily_selections.generate_scheduled_local(engine, service, tmp_path, now=now)
+    assert response["saved"] == ["custom_test"]
+    assert response["errors"] == {}
     saved = task_receipt(tmp_path, "custom_test", SOURCE)["tasks"]
     assert saved["select"]["state"] == "success"
     assert saved["sell"]["state"] == "success"
@@ -208,7 +211,7 @@ def test_local_schedule_discards_changed_source_and_records_failure(scan, tmp_pa
         return {"selections": {"custom_test": snapshot()}, "errors": {}}
     monkeypatch.setattr(daily_selections, "compute_selections", compute)
     result = daily_selections.generate_scheduled_local(
-        engine, service, tmp_path, now=datetime(2026, 10, 30, 20, tzinfo=CN))
+        engine, service, tmp_path, now=datetime(2026, 10, 30, 21, tzinfo=CN))
     assert result["errors"]
     assert daily_selections.DailySelections(tmp_path).read("custom_test", TARGET) is None
     assert daily_selections.DailySelections(tmp_path).job(str(TARGET))["state"] == "failed"

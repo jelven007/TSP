@@ -129,6 +129,16 @@ it('restoring strategy defaults only changes the draft and can be cancelled', as
   expect(save).not.toHaveBeenCalled()
 })
 
+it('shows current S03 five-dimensional weights and group ordering', async () => {
+  get.mockResolvedValue({ ...detail, id: 'custom_mvxxcs03', name: 's03',
+    source: 'custom', execution_backend: 'minute_filter', scoring_mode: 'strategy' })
+  await render('custom_mvxxcs03')
+  expect(document.body.textContent).toContain('技术40%、资金20%、情绪20%、基本面10%、消息10%')
+  expect(document.body.textContent).toContain('前30')
+  expect(document.body.textContent).toContain('A组')
+  expect(document.body.textContent).not.toContain('s02按ATR14')
+})
+
 it('ignores a stale strategy request after switching strategy', async () => {
   let resolveA!: (value: unknown) => void
   get.mockImplementation((id: string) => id === 'a'

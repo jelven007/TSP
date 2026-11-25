@@ -1,4 +1,7 @@
-"""Credential-free full-engine entrypoint, executed only inside the sandbox."""
+"""计算沙箱入口: 从冻结请求建立临时私有定义, 只读公共行情并返回计算回执。
+
+协议写stdout, 策略输出及日志转stderr; 不持有租户业务库写入凭据。
+"""
 # ruff: noqa: RUF001 -- Chinese compute messages use localized punctuation.
 from __future__ import annotations
 
@@ -30,17 +33,54 @@ def safe_value(value):
 
 
 def emit(kind: str, **values):
+    """发送一行协议JSON并刷新; 非有限浮点转null, 不让日志混入返回正文。"""
     PROTOCOL.write(json.dumps(
         safe_value({"type": kind, **values}), ensure_ascii=False, allow_nan=False, default=str,
     ) + "\n")
     PROTOCOL.flush()
 
 
+@contextlib.contextmanager
+def request_repository(payload):
+    """权威输入的买/广度/汇合请求不打开全局SQL视图或独立市场IO。
+
+    上下文加载器提供已验证的清单帧; 其他请求保持既有只读仓库路径。
+    """
+    from types import SimpleNamespace
+
+    from app.services.strategy_input_binding import requires_authority
+
+    ids = payload.get("strategy_task_ids", [])
+    frozen = (
+        len(ids) == 1 and requires_authority(payload, ids[0])
+        and payload.get("monitor_phase") in ("stocks", "breadth", "joined")
+        and (payload.get("kind") == "monitor_breadth"
+             or (payload.get("kind") == "monitor" and payload.get("late_task_only")))
+        and all(action["kind"] == "buy"
+                for plan in payload.get("strategy_task_plans", {}).values()
+                for action in plan.get("actions", [])))
+    if frozen:
+        # Screener只需要持有路径; 冻结上下文提供全部帧, 意外市场读取将明确失败。
+        yield SimpleNamespace(store=SimpleNamespace(data_dir=Path("/market")))
+        return
+    from app.tickflow.repository import DataStore, KlineRepository
+
+    store = DataStore(Path("/market"), read_only=True)
+    try:
+        yield KlineRepository(store)
+    finally:
+        store.db.close()
+
+
 def execute(payload: dict, private_root: Path) -> dict:
+    """在本任务临时目录建立私有注册表, 只读绑定的 /market 公共发布。
+
+    源码/覆盖来自本次请求, 临时文件不回写租户; 计算结果由父 Worker
+    校验后提交。S01/S02等个股请求走 monitor, 可信广度绕过本注册表入口。
+    """
     from app.config import settings
     from app.multitenancy.strategies import definition_payload
     from app.strategy.engine import StrategyEngine
-    from app.tickflow.repository import DataStore, KlineRepository
 
     settings.data_dir = private_root
     for path in Path("/market").iterdir():
@@ -83,9 +123,7 @@ def execute(payload: dict, private_root: Path) -> dict:
             payload["strategy_ids"], params_map=payload.get("params_map"),
             overrides_map=payload.get("overrides_map"),
         )}
-    store = DataStore(Path("/market"), read_only=True)
-    try:
-        repo = KlineRepository(store)
+    with request_repository(payload) as repo:
         if kind == "daily_selections":
             from app.services.daily_selections import compute_selections
             from app.services.screener import ScreenerService
@@ -100,6 +138,11 @@ def execute(payload: dict, private_root: Path) -> dict:
 
             return evaluate_snapshot(payload, repo, engine, private_root)
         if kind == "daily_stock_pools":
+            if payload.get("confirmed_status"):
+                from app.services.custom_status_refresh import compute_pools
+                return compute_pools(
+                    engine, repo, date.fromisoformat(payload["as_of"]), payload["strategy_ids"],
+                    payload.get("overrides_map", {}), payload["confirmed_status"])
             from app.multitenancy.market import decode_frame
             from app.services.screener import ScreenerService
             from app.strategy.daily_pool import build_pool
@@ -245,15 +288,24 @@ def execute(payload: dict, private_root: Path) -> dict:
             }
             return result
         raise ValueError("unsupported compute operation")
-    finally:
-        store.db.close()
-
-
 def execute_request(payload: dict, private_root: Path) -> dict:
+    """按类型派发; monitor_breadth 独立打开只读 /market, 不建立租户注册表。"""
     if payload.get("kind") == "health":
         return {"ready": True}
+    if payload.get("kind") == "monitor_breadth":
+        from app.multitenancy.monitor_compute import evaluate_breadth_phase
+        with request_repository(payload) as repo:
+            result = evaluate_breadth_phase(payload, repo)
+        if payload.get("s02_inputs_required"):
+            from app.services.strategy_input_binding import execution_environment
+            result["_compute_runtime"] = execution_environment()
+        return result
     if payload.get("kind") not in {"backtest", "optimize", "walkforward"}:
-        return execute(payload, private_root)
+        result = execute(payload, private_root)
+        if payload.get("s02_inputs_required"):
+            from app.services.strategy_input_binding import execution_environment
+            result["_compute_runtime"] = execution_environment()
+        return result
     from app.services.research_snapshot import _runtime_identity
 
     runtime = _runtime_identity()
@@ -271,6 +323,9 @@ def main():
     if len(raw) > MAX_MESSAGE_BYTES:
         raise ValueError("compute input exceeds limit")
     payload = json.loads(raw)
+    if payload.get("kind") == "monitor_breadth":
+        # 可信完整池观测不依赖租户注册表; 源码、信号或因子加载失败不能阻断广度。
+        payload.update(sources=[], signals=[], factors=[])
     timing["input_ms"] = (perf_counter() - started) * 1000
     if payload.get("kind") == "health":
         execution_started = perf_counter()
@@ -279,7 +334,8 @@ def main():
         timing["total_ms"] = (perf_counter() - started) * 1000
         emit("result", payload=result, worker_timing=timing)
         return
-    # No global private caches, disk writes, or unmanaged generation creation.
+    # 私有注册表和文件只存本任务临时目录; 禁用全局矩阵磁盘缓存,
+    # 不向只读公共行情创建缓存或非受控数据世代。
     imports_started = perf_counter()
     from app.config import settings
     from app.factors.registry import private_factor_registry

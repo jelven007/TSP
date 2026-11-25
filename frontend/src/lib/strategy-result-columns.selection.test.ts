@@ -48,3 +48,17 @@ it('uses S01 trigger metrics without ATR or S02 price suggestions', () => {
     }
   }
 })
+
+it('keeps S03 buy ATR columns and removes only sell ATR columns', () => {
+  const atr = ['builtin:atr14_previous_close', 'builtin:atr_rank']
+  for (const tab of ['buy', 'sell'] as const) {
+    const old = defaultStrategyResultColumns(tab)
+    get.mockReturnValue({ [tab]: old.map(({ id }) => ({ id, visible: true })) })
+    expect(loadStrategyResultColumns('custom_mvxxcs03')[tab].some(col => atr.includes(col.id))).toBe(tab === 'buy')
+    expect(resolveStrategyResultColumns(tab, 'custom_mvxxcs03', old).some(col => atr.includes(col.id))).toBe(tab === 'buy')
+    expect(strategyResultGroups(tab, 'custom_mvxxcs03')[0].keys.includes('atr14_previous_close')).toBe(tab === 'buy')
+    expect(strategyResultGroups(tab, 'custom_mvxxcs03')[0].keys.includes('atr_rank')).toBe(tab === 'buy')
+  }
+  expect(defaultStrategyResultColumns('select', 'custom_mvxxcs03').map(col => col.id)).toEqual(
+    expect.arrayContaining(atr))
+})

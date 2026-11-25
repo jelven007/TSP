@@ -30,7 +30,8 @@ def inputs():
     selection = {"source_date": str(PREVIOUS), "rows": [{
         "symbol": symbol, "reference_close": 10., "atr14": .2,
         "atr14_previous_close": .02, "atr_reference_date": None,
-    } for symbol in symbols]}
+        "atr_rank": i + 1, "atr_rank_score": 100. - i, "atr_rank_population": 101,
+    } for i, symbol in enumerate(symbols)]}
     return minute, selection
 
 
@@ -59,6 +60,8 @@ def test_first_valid_atr_after_hundred_missing_rows_is_ranked_without_dropping_h
     minute, selection = inputs()
     for row in selection["rows"][:-1]:
         row["atr14"] = row["atr14_previous_close"] = None
+        row["atr_rank"] = row["atr_rank_score"] = None
+    selection["rows"][-1].update(atr_rank=1, atr_rank_score=50., atr_rank_population=1)
     result = strategy(minute, {}, selection=selection)
     assert result.height == 101
     assert result["symbol"][0] == minute["symbol"][-1]

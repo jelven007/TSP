@@ -10,7 +10,7 @@ from app.strategy.signal_sections import select_rows
 
 
 def test_s01_postclose_uses_raw_saved_range_amount_weight_and_keeps_unknown(tmp_path):
-    source = Path(__file__).parent / "fixtures" / "s01_available_minutes.py"
+    source = Path(__file__).resolve().parents[2] / "examples/strategies/s01_signal_sections.py"
     (tmp_path / "s01.py").write_bytes(source.read_bytes())
     engine = StrategyEngine([tmp_path])
     strategy = engine.get("custom_mvxxcs01")

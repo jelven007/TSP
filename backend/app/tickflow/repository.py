@@ -111,7 +111,10 @@ def _last_available_rows(df: pl.DataFrame, cutoff: date) -> pl.DataFrame:
 class DataStore:
     """唯一的存储入口 — 进程启动时创建。"""
 
-    def __init__(self, data_dir: Path | None = None, *, read_only: bool = False) -> None:
+    def __init__(self, data_dir: Path | None = None, *, read_only: bool = False,
+                 register_views: bool = True) -> None:
+        if not read_only and not register_views:
+            raise ValueError("writable stores require SQL views")
         self.data_dir = Path(data_dir or settings.data_dir)
         self.read_only = read_only
         memory = effective_memory_bytes()
@@ -125,7 +128,8 @@ class DataStore:
             if not self.data_dir.is_dir():
                 raise ValueError("public market directory is unavailable")
             self.db = duckdb.connect(database=":memory:", config=db_config)
-            self._register_views()
+            if register_views:
+                self._register_views()
             return
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1603,6 +1607,16 @@ class KlineRepository:
         # 回退 scan_parquet
         return self._scan_daily_batch(symbols, start, end, columns)
 
+    def get_completed_daily_batch(
+        self, symbols: list[str], end: date, bars: int, columns: list[str] | None = None,
+    ) -> pl.DataFrame:
+        """Latest stored records per symbol, without live cache or global-session truncation."""
+        frame = self._scan_daily_batch(symbols, date.min, end, columns)
+        if frame.is_empty():
+            return frame
+        return frame.sort(["symbol", "date"]).group_by(
+            "symbol", maintain_order=True).tail(bars)
+
     def get_index_daily(
         self,
         symbol: str,
@@ -1679,6 +1693,38 @@ class KlineRepository:
             ))
         closing = pl.concat(minute_frames, how="vertical_relaxed") if minute_frames else pl.DataFrame()
         return raw, closing
+
+    def get_minute_inputs(self, symbols: list[str], start: datetime, end: datetime) -> pl.DataFrame:
+        """Exact frozen window, with durable request ordering and no history fallback."""
+        from app.services.minute_write_order import VERSION_COLUMN, read_versions
+
+        if start.date() != end.date() or start > end:
+            raise ValueError("minute input window must stay within one date")
+        if not symbols:
+            return pl.DataFrame()
+        parts = sorted((self.store.data_dir / "kline_minute" / f"date={start.date()}").glob("*.parquet"))
+        frames = []
+        for path in parts:
+            schema = pl.read_parquet_schema(path)
+            if not {"symbol", "datetime", "close"} <= set(schema):
+                raise ValueError("minute input partition lacks symbol/datetime/close")
+            columns = [key for key in ("symbol", "datetime", "open", "high", "low", "close",
+                                       "volume", "amount") if key in schema]
+            frame = pl.read_parquet(path, columns=columns)
+            versions = read_versions(path, frame.height)
+            frame = frame.with_columns(versions if versions is not None else
+                                       pl.lit(0, dtype=pl.UInt64).alias(VERSION_COLUMN))
+            stamp = pl.col("datetime")
+            if isinstance(schema["datetime"], pl.Datetime) and schema["datetime"].time_zone:
+                stamp = stamp.dt.convert_time_zone("Asia/Shanghai").dt.replace_time_zone(None)
+            frame = frame.with_columns(stamp).filter(
+                pl.col("symbol").is_in(symbols) & pl.col("datetime").is_between(start, end))
+            frames.append(frame)
+        if not frames:
+            return pl.DataFrame()
+        return pl.concat(frames, how="diagonal_relaxed").sort(
+            "symbol", "datetime", VERSION_COLUMN, maintain_order=True
+        ).unique(["symbol", "datetime"], keep="last", maintain_order=True)
 
     def _maybe_adjust_minute(self, df: pl.DataFrame, asset_type: str) -> pl.DataFrame:
         """原始基准标记开启时应用读取时复权投影 (services/minute_adjust 三层架构)。

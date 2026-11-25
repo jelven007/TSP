@@ -8,7 +8,7 @@ import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
 import polars as pl
@@ -401,8 +401,11 @@ def _sync(data_dir, start, end, datasets, workers, refresh, custom):
 class RelatedMarketDataScheduler:
     def __init__(self):
         self.task = None
+        self.repo = None
+        self.publisher = None
 
-    def start(self, data_dir):
+    def start(self, data_dir, *, repo=None, publisher=None):
+        self.repo, self.publisher = repo, publisher
         self.task = asyncio.create_task(self._loop(data_dir))
 
     def stop(self):
@@ -413,7 +416,7 @@ class RelatedMarketDataScheduler:
     async def _loop(self, data_dir):
         while True:
             stamp = cn_now()
-            until_due = (stamp.replace(hour=21, minute=0, second=0, microsecond=0) - stamp).total_seconds()
+            until_due = (stamp.replace(hour=20, minute=30, second=0, microsecond=0) - stamp).total_seconds()
             await asyncio.sleep(min(60, until_due) if until_due > 0 else 60)
             try:
                 await asyncio.to_thread(self._run_scheduled, data_dir, cn_now())
@@ -424,7 +427,8 @@ class RelatedMarketDataScheduler:
         from app.services import preferences
 
         stamp = as_cn_datetime(stamp)
-        if stamp.hour < 21 or not preferences.get_data_sync_auto_enabled():
+        self.verify_morning(stamp)
+        if stamp.time().replace(tzinfo=None) < time(20, 30) or not preferences.get_data_sync_auto_enabled():
             return
         state = _load_state(data_dir)
         day = stamp.date().isoformat()
@@ -432,9 +436,20 @@ class RelatedMarketDataScheduler:
             return
         previous = {key: state[key] for key in ("maintenance_date", "maintenance_status",
                                                 "maintenance_time") if key in state}
-        state.update(maintenance_date=day, maintenance_time="21:00", maintenance_status="running")
+        state.update(maintenance_date=day, maintenance_time="20:30", maintenance_status="running",
+                     maintenance_started_at=stamp.isoformat())
         _save_state(data_dir, state)
         try:
+            stock_status = self.verify_status(stamp)
+            if stock_status.get("skipped"):
+                current = _load_state(data_dir)
+                for key in ("maintenance_date", "maintenance_status", "maintenance_time"):
+                    current.pop(key, None)
+                current.update(previous)
+                _save_state(data_dir, current)
+                return
+            state["stock_status"] = stock_status
+            _save_state(data_dir, state)
             result = sync_related_data(data_dir, end=stamp.date())
             if "skipped" in result:
                 current = _load_state(data_dir)
@@ -443,13 +458,73 @@ class RelatedMarketDataScheduler:
                 current.update(previous)
                 _save_state(data_dir, current)
                 return
-            result.update(maintenance_date=day, maintenance_time="21:00", maintenance_status="completed")
+            complete = stock_status.get("coverage_complete") is True and all(
+                row.get("status") == "success" for row in result.get("datasets", {}).values())
+            result.update(maintenance_date=day, maintenance_time="20:30",
+                          maintenance_status="completed" if complete else "partial",
+                          stock_status=stock_status, maintenance_started_at=stamp.isoformat(),
+                          maintenance_finished_at=cn_now().isoformat())
             _save_state(data_dir, result)
         except Exception:
             current = _load_state(data_dir)
-            current.update(maintenance_date=day, maintenance_time="21:00", maintenance_status="failed")
+            current.update(maintenance_date=day, maintenance_time="20:30", maintenance_status="failed",
+                           maintenance_finished_at=cn_now().isoformat())
             _save_state(data_dir, current)
             raise
+
+    def verify_morning(self, stamp):
+        from app.services import preferences, suspension_sync
+        from app.services.announced_stock_status import MORNING_PATH
+        from app.services.daily_pool_schedule import due_slot, morning_scan_slot, scheduled_for
+
+        slot = morning_scan_slot(stamp)
+        if self.repo is None or slot is None or not preferences.get_data_sync_auto_enabled():
+            return
+        path = self.repo.store.data_dir / MORNING_PATH
+        scheduled = scheduled_for(stamp.date(), slot)
+        old = json.loads(path.read_text()) if path.exists() else {}
+        same_batch = old.get("scheduled_for") == scheduled
+        if same_batch and old.get("coverage_complete") is True:
+            return
+        result = suspension_sync.request_sync(self.repo, self.publisher, refresh=not same_batch)
+        if result is None:
+            return
+        coverage = suspension_sync.summary(self.repo)
+        if (not coverage.get("cutoff")
+                or datetime.fromisoformat(coverage["cutoff"]) < datetime.fromisoformat(scheduled)
+                or coverage.get("status") in ("running", "cancelled", "interrupted")
+                or coverage.get("publish_pending")):
+            return
+        if same_batch and all(old.get(key) == value for key, value in coverage.items()):
+            return
+        finished = as_cn_datetime(cn_now())
+        if finished.date() != stamp.date() or due_slot(finished) != slot:
+            return
+        receipt = {**coverage, "target_date": str(stamp.date()), "scheduled_for": scheduled,
+                   "finished_at": finished.isoformat()}
+        path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(path, json.dumps(receipt, ensure_ascii=False))
+        try:
+            if self.publisher is not None:
+                self.publisher.publish()
+        except Exception:
+            path.unlink()
+            raise
+
+    def verify_status(self, stamp):
+        from app.services import suspension_sync
+        from app.services.announced_stock_status import confirmed_status
+        from app.strategy.overnight_runtime import next_market_day
+
+        if self.repo is None:
+            return {"coverage_complete": False, "errors": {"repository": "股票状态核验仓库尚未就绪"}}
+        target = next_market_day(stamp.date())
+        result = suspension_sync.request_sync(self.repo, self.publisher, refresh=True)
+        if result is None:
+            return {"skipped": "already_running"}
+        coverage = suspension_sync.summary(self.repo)
+        return {**coverage, **confirmed_status(self.repo, target, observed_at=cn_now()),
+                "scheduled_for": stamp.replace(hour=20, minute=30, second=0, microsecond=0).isoformat()}
 
 
 related_market_data_scheduler = RelatedMarketDataScheduler()

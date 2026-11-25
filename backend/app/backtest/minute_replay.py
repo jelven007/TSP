@@ -161,6 +161,19 @@ class MinuteReplayResult:
     buy_no_next_minute: int = 0
     elapsed_ms: float = 0.0
     errors: list[str] = field(default_factory=list)
+    selection_provenance: list[dict] = field(default_factory=list)
+
+
+def requires_s03_scoring(strategy_engine, strategy, overrides):
+    """Old frozen S03 signals keep ATR replay; enabled A/B gates need five dimensions."""
+    from app.services.selection_clock import S03_ID
+    from app.strategy.s01_signals import stored_definitions
+
+    selected = set(overrides.get("entry_signals", strategy.entry_signals) or [])
+    return strategy.meta["id"] == S03_ID and any(
+        "csgi_" + sig["id"] in selected and sig.get("enabled") is not False
+        and (sig.get("params") or {}).get("entry_groups") is not None
+        for sig in stored_definitions(strategy_engine))
 
 
 def requires_full_pool(strategy_engine, strategy, overrides) -> bool:
@@ -199,6 +212,7 @@ class MinuteSignalReplayer:
         symbols: list[str] | None = None,
         progress_cb: Callable[[dict], None] | None = None,
         cancel_event=None,
+        strict_research: bool = False,
     ) -> MinuteReplayResult:
         t0 = time.perf_counter()
         result = MinuteReplayResult()
@@ -213,6 +227,7 @@ class MinuteSignalReplayer:
             return result
 
         full_pool = requires_full_pool(self.strategy_engine, strategy, overrides)
+        s03_scoring = requires_s03_scoring(self.strategy_engine, strategy, overrides)
         universe = (panel.get_column("symbol").unique().to_list()
                     if full_pool or not symbols else symbols)
         daily_bars = self.strategy_engine.minute_daily_history_bars(
@@ -225,6 +240,9 @@ class MinuteSignalReplayer:
         )
         if signal_sections:
             daily_bars = max(daily_bars, 1)
+        if s03_scoring:
+            from app.services.selection_clock import S02_ID
+            daily_bars = max(daily_bars, 65, self.strategy_engine.minute_daily_history_bars([S02_ID]))
         from app.strategy.basic_filter import uses_previous
         bf = {**(strategy.basic_filter or {}), **(overrides.get("basic_filter") or {})}
         if uses_previous(bf):
@@ -361,16 +379,28 @@ class MinuteSignalReplayer:
                         context, current=selection_current, history=None,
                         pool_history=None, pool_universe=None,
                     )
-                    selected = select_rows(
-                        self.strategy_engine, strategy, selection_context,
-                        overrides={**overrides, "basic_filter": {
-                            **overrides.get("basic_filter", {}),
-                            "data_reference": "previous_trade_day",
-                        }}, pool=pool,
-                    )
-                    context = replace(context, selection_snapshots={strategy.meta["id"]: {
-                        "as_of": str(day), "source_date": str(source_day), "rows": selected,
-                    }})
+                    if s03_scoring:
+                        from app.services.s03_selection import replay_selection
+                        selection = replay_selection(
+                            self.strategy_engine, selection_context, repo.store.data_dir,
+                            source_day, overrides, strict=strict_research, repo=repo)
+                        result.selection_provenance.append({
+                            "as_of": selection["as_of"], "source_date": selection["source_date"],
+                            "source_sha256": selection["source_selection"]["sha256"],
+                            "coverage": selection["coverage"],
+                            "scoring_provenance": selection["scoring_provenance"],
+                            "warnings": selection["warnings"],
+                        })
+                    else:
+                        selected = select_rows(
+                            self.strategy_engine, strategy, selection_context,
+                            overrides={**overrides, "basic_filter": {
+                                **overrides.get("basic_filter", {}),
+                                "data_reference": "previous_trade_day",
+                            }}, pool=pool,
+                        )
+                        selection = {"as_of": str(day), "source_date": str(source_day), "rows": selected}
+                    context = replace(context, selection_snapshots={strategy.meta["id"]: selection})
                 run_result = self.strategy_engine.run(
                     strategy.meta.get("id", ""),
                     context,

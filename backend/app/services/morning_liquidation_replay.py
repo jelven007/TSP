@@ -8,6 +8,12 @@ from app.strategy.morning_liquidation import evaluate, parameters
 
 
 def replay(repo, sig, *, start, end, symbols, positions):
+    """按明确买入日期回放出场, 返回signal_only触发记录与扫描诊断。
+
+    当前契约按精确前交易日原价取参考, 日历未知不回退最近报价日。
+    在保存时钟前后及收盘观察以检验边界, 每日按持仓身份/原因/触发时刻
+    去重; 不改变positions, 不模拟可成交数量、委托或收益。
+    """
     suspension_history = getattr(repo, "get_suspension_history", lambda: None)()
     daily = repo.get_daily_batch(symbols, start-timedelta(days=15), end, columns=["symbol", "date", "close", "raw_close"])
     triggers, diagnostics = [], []

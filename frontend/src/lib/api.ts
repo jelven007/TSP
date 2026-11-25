@@ -408,6 +408,26 @@ export interface ScreenerResult {
   section_statuses?: Partial<Record<'sell' | 'select' | 'buy', 'success' | 'rejected' | 'waiting' | 'failed' | 'expired' | 'unavailable'>> | null
   monitor_contract?: string | null
   monitor_tasks?: Record<string, Record<string, unknown>> | null
+  run_evidence?: {
+    schema: 's02_run_evidence_v1'; as_of: string
+    phases: Partial<Record<'stocks' | 'breadth', {
+      state: 'complete' | 'incomplete'; provenance: 'realtime' | 'diagnostic_only'
+      input_key?: string; input_sha256: string; result_sha256: string | null
+      definition_sha256?: string; algorithm_sha256?: string
+      timing: { publication_available_at?: string; dispatched_at?: string; received_at?: string;
+        mirror_confirmed_at?: string | null; scheduled_at?: string | null;
+        compute?: { queue_ms?: number; sandbox_ms?: number; cleanup_ms?: number } }
+    }>>
+  } | null
+  run_commit?: { phases: Partial<Record<'stocks' | 'breadth', {
+    input_sha256: string; commit_recorded_at: string
+  }>> } | null
+  operational_state?: { as_of: string; observed_at: string; issues: {
+    kind: string; phase: 'stocks' | 'breadth'; reason?: string | null
+  }[] } | null
+  repair_provenance?: { kind: string; as_of?: string; diagnostic_only?: boolean } | null
+  original_realtime?: { record_id?: string | null; buy_status?: string | null; buy_error?: string | null } | null
+  diagnostic_review?: { record_id?: string | null; diagnostic_only: boolean; buy_status?: string | null } | null
   monitor_executed_signals?: Record<string, string[]> | null
   execution_status?: {
     state: 'success' | 'waiting' | 'failed' | 'retrying' | 'deferred' | 'disabled' | 'expired'
@@ -419,7 +439,7 @@ export interface ScreenerResult {
     pool_total: number; known_positive: number; missing_symbols: string[]
     pool_usable?: number; missing_pct?: number; breadth_policy?: 'available_members_v1'
     pool_up_pct: number | null; pool_up_pct_lower: number | null; pool_up_pct_upper: number | null
-    pool_up_min_pct: number; stage: string; warnings: string[]
+    pool_up_min_pct: number | null; stage: string; warnings: string[]
     progress?: StrategyEntryProgress | null
   }> | null
   selection_only?: boolean
@@ -427,6 +447,7 @@ export interface ScreenerResult {
     as_of: string; source_date: string; generated_at: string; scheduled_for?: string
     rows: any[]; identity?: string; definition_version?: string
     scoring_policy?: string
+    selection_ordering?: string
     scoring_weights?: Record<string, number>
     source_selection?: { strategy_id: string; sha256: string; snapshot: {
       as_of: string; source_date: string; generated_at: string; rows: any[]; identity?: string
@@ -1072,6 +1093,8 @@ export interface MorningLiquidationParams {
   fall_pct?: number | null
   decline_3m_pct?: number | null
   volume_ratio_min?: number | null
+  take_profit_pct?: number | null
+  stop_loss_pct?: number | null
   amplitude_pct?: number // 冻结旧振幅定义，仅用于兼容读取
 }
 
@@ -1103,6 +1126,15 @@ export interface StrategyMonitorTask {
   windows: { start: string; end: string }[]
   execution_deadline?: string
   target_date?: string
+  source_date?: string
+  pool_total?: number | null
+  pool_usable?: number | null
+  missing_count?: number | null
+  invalid_symbols?: Record<string, string>
+  candidate_total?: number | null
+  scorable_total?: number | null
+  warnings?: string[]
+  dependency?: { state: string; date: string; source_date?: string; kind: string }
   count?: number
   errors?: string[]
   terminal?: boolean
@@ -1110,14 +1142,23 @@ export interface StrategyMonitorTask {
   attempts?: number
   completed_at?: string
   retry_until?: string
+  published?: boolean
+  signals?: Record<string, {
+    phase_policy?: string
+    breadth_required?: boolean
+    breadth?: { state?: string; errors?: string[]; completed_at?: string }
+    stocks?: { state?: string; count?: number; errors?: string[]; completed_at?: string }
+  }>
 }
 
 export interface StrategyMonitoring {
   strategy_id: string
   enabled: boolean
   as_of: string
+  is_trading_day?: boolean | null
   tasks: Record<'select' | 'buy' | 'sell', StrategyMonitorTask>
   errors?: string[]
+  operational_state?: ScreenerResult['operational_state']
 }
 
 export interface MonitorCondition {
@@ -3961,6 +4002,8 @@ export const api = {
     matching?: 'close_t' | 'open_t+1'
     entry_fill?: 'close_t' | 'open_t+1' | null
     exit_fill?: 'close_t' | 'open_t+1' | 'signal_next_minute' | null
+    entry_participation_pct?: number
+    exit_participation_pct?: number
     minute_price_rule?: 'legacy' | 'high_low_v1'
     fees_pct?: number
     commission_pct?: number
@@ -4998,6 +5041,10 @@ export interface PostCloseIntegrityStatus {
   diagnostics?: { close_review?: DailyCloseReview }
   error?: string | null
   next_retry_at?: string | null
+  completion?: 'complete' | 'partial' | 'unverified'
+  retry_eligible?: boolean
+  coverage?: { checked_count?: number | null; valid_count?: number | null;
+    invalid_count?: number | null; remaining?: number | null; suspended_skipped?: number | null }
   result?: {
     day?: string
     repaired_symbols?: string[]

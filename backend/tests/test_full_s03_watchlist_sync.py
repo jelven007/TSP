@@ -14,7 +14,7 @@ from app.multitenancy.watchlist import Watchlist
 from app.services.daily_selections import DailySelections
 
 SID = "custom_mvxxcs03"
-RUN = NOW.replace(hour=21, minute=6)
+RUN = NOW.replace(hour=22, minute=6)
 READY = {"settlement_days": [str(NOW.date())]}
 
 
@@ -42,8 +42,8 @@ def selected(empty=False):
     ]
     return {
         "as_of": str(TARGET), "source_date": str(NOW.date()), "rows": rows,
-        "scheduled_for": NOW.replace(hour=21).isoformat(),
-        "generated_at": NOW.replace(hour=21, minute=5).isoformat(),
+        "scheduled_for": NOW.replace(hour=22).isoformat(),
+        "generated_at": NOW.replace(hour=22, minute=5).isoformat(),
         "scoring_policy": "s03_five_dimensions_v1",
         "coverage": {"candidate_total": len(rows), "scorable_total": len(rows),
                      "selected_total": len(rows), "complete": True},
@@ -142,7 +142,7 @@ def test_saved_archive_recovers_sync_without_recomputing_and_deadline_does_not_c
         execute=lambda task: pytest.fail("saved scoring recomputed")))
     lease = claim(env, documents)
     try:
-        service.daily_selections(documents, READY, None, RUN.replace(hour=22, second=1), lease)
+        service.daily_selections(documents, READY, None, RUN.replace(hour=23, second=1), lease)
         assert watchlist.list_symbols() == before
         service.daily_selections(documents, READY, None, RUN, lease)
         assert [r["symbol"] for r in watchlist.list_symbols()

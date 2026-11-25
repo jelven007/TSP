@@ -146,3 +146,53 @@ it('ignores a mismatched date receipt and preserves other strategy toolbar', asy
     expect(host.querySelectorAll('[data-progress-step]')).toHaveLength(0)
   })
 })
+
+it('always reserves the same four metrics with missing or partial saved progress', async () => {
+  await check(result, async (host, rerender) => {
+    const keys = () => [...host.querySelectorAll('[data-progress-step]')]
+      .map(node => node.getAttribute('data-progress-step'))
+    expect(keys()).toEqual(['breadth', 'change', 'ma1', 'ma5'])
+    await rerender({ ...result, as_of: '2026-11-10' })
+    expect(keys()).toEqual(['breadth', 'change', 'ma1', 'ma5'])
+    expect(host.textContent).toContain('未保存阶段进展')
+    await rerender(saved({ ...receipt, steps: { breadth: receipt.steps.breadth } }))
+    expect(keys()).toEqual(['breadth', 'change', 'ma1', 'ma5'])
+    expect(host.querySelector('[data-progress-step="ma1"]')?.textContent).toContain('等待计算回执')
+    await rerender(saved({ ...receipt, as_of: '2026-11-10' }))
+    expect(keys()).toEqual(['breadth', 'change', 'ma1', 'ma5'])
+  })
+})
+
+it('shows the real ratio and observation meaning when the threshold is empty', async () => {
+  await check(saved({ ...receipt, params: { ...receipt.params, pool_up_min_pct: null },
+    steps: { ...receipt.steps, breadth: { ...receipt.steps.breadth,
+      reason: '仅展示, 不参与买入筛选' } } }), async host => {
+    const breadth = host.querySelector('[data-progress-step="breadth"]')!
+    expect(breadth.textContent).toContain('上涨占比 59.08%')
+    expect(breadth.textContent).toContain('仅展示')
+    expect(breadth.textContent).toContain('不参与买入筛选')
+    expect(breadth.textContent).not.toContain('下限')
+    expect(breadth.textContent).not.toContain('100%')
+  })
+})
+
+it('keeps unsynchronized input distinct from completion and displays sealed provenance', async () => {
+  await check({ ...result, monitor_tasks: { buy: { state: 'waiting', signals: {
+    late_session_strength: { stocks: { state: 'waiting_input', input_state: 'waiting_input' } },
+  } } } }, async (host, rerender) => {
+    expect(host.textContent).toContain('等待输入同步')
+    expect(host.textContent).not.toContain('完成结果固定')
+    await rerender({ ...result, run_evidence: { schema: 's02_run_evidence_v1', as_of: result.as_of,
+      phases: { stocks: { state: 'complete', provenance: 'realtime', input_sha256: 'a'.repeat(64),
+        result_sha256: 'b'.repeat(64), timing: { publication_available_at: '2026-11-11T14:30:40+08:00' } } } },
+      run_commit: { phases: { stocks: { input_sha256: 'a'.repeat(64),
+        commit_recorded_at: '2026-11-11T14:30:45+08:00' } } } } as ScreenerResult)
+    expect(host.textContent).toContain('实时冻结输入')
+    expect(host.textContent).toContain('aaaaaaaaaaaa')
+    expect(host.textContent).toContain('bbbbbbbbbbbb')
+    expect(host.textContent).toContain('事务记录 14:30:45')
+    await rerender({ ...result, as_of: '2026-11-10', run_evidence: {
+      schema: 's02_run_evidence_v1', as_of: result.as_of, phases: {} } } as ScreenerResult)
+    expect(host.textContent).not.toContain('实时冻结输入')
+  })
+})

@@ -170,7 +170,8 @@ class TenantSchedules:
         """Two independent premarket snapshots, independent of current quotes/settlement."""
         from app.market_time import as_cn_datetime
         from app.multitenancy.runtime import fingerprint
-        from app.services.daily_pool_schedule import batch_pool, due_slot
+        from app.services.custom_status_refresh import custom_stock_ids, save_refresh, state_digest
+        from app.services.daily_pool_schedule import SLOTS, batch_pool, due_slot
         from app.services.daily_stock_pools import DailyStockPools
         from app.services.strategy_results import capture_identities
         from app.strategy.config import list_overrides
@@ -181,6 +182,11 @@ class TenantSchedules:
         slot = due_slot(now)
         if self.db.settings.schema_version < 7 or slot is None:
             return
+        attempt_start = time.monotonic()
+        status = None
+        if repo is not None:
+            from app.services.announced_stock_status import morning_status
+            status = morning_status(repo, now.date(), observed_at=now, slot=slot)
         day = str(now.date())
         key = f"{day}:{slot}"
         account, context = self.runtime.account(documents.context.tenant_id)
@@ -188,11 +194,11 @@ class TenantSchedules:
             valid_claim(unit.connection, claim)
             previous = unit.get("daily_stock_pool_jobs", key, {})
             if slot == "09:00":
-                earlier_key = f"{day}:08:00"
+                earlier_key = f"{day}:{SLOTS[0]}"
                 earlier = unit.get("daily_stock_pool_jobs", earlier_key, {})
                 if earlier.get("state") not in {"succeeded", "interrupted"}:
                     unit.put("daily_stock_pool_jobs", earlier_key, {**earlier, "state": "interrupted",
-                             "reason": "已错过08:00批次，生成最近09:00批次"})
+                             "reason": "已错过08:30批次，生成最近09:00批次"})
             observed = fingerprint(unit.connection, include_state=False)
             builtins = StrategyEngine([Path(__file__).resolve().parents[1] / "strategy" / "builtin"])
             engine = TenantStrategyEngine(unit, builtins, self.executor,
@@ -205,9 +211,11 @@ class TenantSchedules:
             release = snapshot.get("public_release", {}).get("id")
             marker = signature({"input": observed, "release": release, "day": day,
                                 "slot": slot,
-                                "definition_version": DEFINITION_VERSION})
+                                "definition_version": DEFINITION_VERSION,
+                                **({"status": state_digest(status)} if status else {})})
             successful = (previous.get("state") == "succeeded"
-                          and previous.get("definition_version") == DEFINITION_VERSION)
+                          and previous.get("definition_version") == DEFINITION_VERSION
+                          and (not status or previous.get("signature") == marker))
             completed = (set(previous.get("completed", []))
                          if successful or previous.get("signature") == marker else set())
             pending = [sid for sid in ids if sid not in completed]
@@ -216,10 +224,12 @@ class TenantSchedules:
             task = engine.task("daily_stock_pools", strategy_ids=pending, as_of=day,
                                overrides_map=overrides, premarket=True,
                                observed_at=f"{day}T{slot}:00",
+                               **({"confirmed_status": status} if status else {}),
                                **({"public_release_id": release} if release else {}))
             unit.put("daily_stock_pool_jobs", key, {
                 "signature": marker, "definition_version": DEFINITION_VERSION,
                 "completed": sorted(completed), "state": "running",
+                **({"stock_status": status} if status else {}),
                 "attempts": previous.get("attempts", 0) + 1, "started_at": time.time_ns(),
             })
         started_at = time.time_ns()
@@ -236,9 +246,24 @@ class TenantSchedules:
             valid_claim(unit.connection, claim)
             if fingerprint(unit.connection, include_state=False) != observed:
                 raise AccessError(409, "股票池配置已更新，将自动重新生成")
+            if status:
+                from datetime import timedelta
+                if (due_slot(now + timedelta(seconds=time.monotonic() - attempt_start)) != slot
+                        or state_digest(morning_status(repo, now.date(), observed_at=now, slot=slot))
+                        != state_digest(status)):
+                    raise AccessError(409, "本轮股票状态或批次已更新，将重试最新批次")
+            custom_ids = set(custom_stock_ids(engine))
             for sid, pool in response["pools"].items():
-                DailyStockPools(unit).save(identities[sid], batch_pool(pool, now.date(), slot), started_at=started_at,
-                    input_generation={"public_release_id": release, "signature": marker})
+                if sid not in pending or pool.get("as_of") != day or pool.get("strategy_id") != sid:
+                    raise ValueError("股票池结果身份不匹配")
+                generation = {"public_release_id": release, "signature": marker}
+                pool = batch_pool(pool, now.date(), slot)
+                if status and sid in custom_ids:
+                    save_refresh(unit, identities[sid], pool, status, started_at=started_at,
+                                 input_generation=generation)
+                else:
+                    DailyStockPools(unit).save(identities[sid], pool, started_at=started_at,
+                                              input_generation=generation)
                 completed.add(sid)
             errors = response.get("errors", {})
             missing = set(pending) - completed - set(errors)
@@ -249,8 +274,96 @@ class TenantSchedules:
                 "state": "failed" if errors else "succeeded",
                 "errors": errors, "finished_at": time.time_ns(),
             })
+            if status:
+                append_event(unit.connection, documents.context.tenant_id, "strategy_results_updated",
+                             {"as_of": day, "section": "select", "strategy_ids": sorted(completed),
+                              "stock_status_refreshed": True})
+
+    def evening_status(self, documents, snapshot, repo, now, claim):
+        """Refresh every private custom stock scope without enabling monitoring."""
+        from datetime import timedelta
+
+        from app.multitenancy.runtime import fingerprint
+        from app.services.announced_stock_status import confirmed_status
+        from app.services.custom_status_refresh import (
+            POLICY,
+            custom_stock_ids,
+            save_refresh,
+            state_digest,
+        )
+        from app.services.daily_selections import due_window
+        from app.services.strategy_results import capture_identities
+        from app.strategy.config import list_overrides
+        from app.strategy.engine import StrategyEngine
+
+        attempt_start = time.monotonic()
+        window = due_window(now, monitored_only=True)
+        if window is None or self.db.settings.schema_version < 7:
+            return
+        _, target = window
+        key = f"{target}:evening_status"
+        status = confirmed_status(repo, target, observed_at=now)
+        account, context = self.runtime.account(documents.context.tenant_id)
+        with authorize(self.identity, context, account["auth_version"]), documents.transaction() as unit:
+            valid_claim(unit.connection, claim)
+            observed = fingerprint(unit.connection, include_state=False)
+            builtins = StrategyEngine([Path(__file__).resolve().parents[1] / "strategy" / "builtin"])
+            engine = TenantStrategyEngine(unit, builtins, self.executor,
+                administrator="settings:manage" in account["permissions"])
+            ids = custom_stock_ids(engine)
+            if not ids:
+                return
+            overrides = list_overrides(unit)
+            identities = capture_identities(engine, unit, ids, overrides_map=overrides, timeframe="all")
+            release = snapshot.get("public_release", {}).get("id")
+            marker = signature({"policy": POLICY, "input": observed, "release": release,
+                                "status": state_digest(status), "day": str(target)})
+            previous = unit.get("daily_stock_pool_jobs", key, {})
+            if previous.get("signature") == marker and previous.get("state") == "succeeded":
+                return
+            started_at = time.time_ns()
+            job = {"signature": marker, "state": "running", "status": status,
+                   "started_at": started_at, "attempts": previous.get("attempts", 0) + 1}
+            unit.put("daily_stock_pool_jobs", key, job)
+            task = engine.task("daily_stock_pools", strategy_ids=ids, as_of=str(target),
+                overrides_map=overrides, confirmed_status=status,
+                **({"public_release_id": release} if release else {}))
+        try:
+            response = self.executor.execute(task)
+        except Exception as exc:
+            with authorize(self.identity, context, account["auth_version"]), documents.transaction() as unit:
+                valid_claim(unit.connection, claim)
+                unit.put("daily_stock_pool_jobs", key, {**job, "state": "failed",
+                         "errors": {sid: f"股票状态更新失败: {exc}" for sid in ids}})
+            raise
+        with authorize(self.identity, context, account["auth_version"]), documents.transaction() as unit:
+            valid_claim(unit.connection, claim)
+            commit_now = now + timedelta(seconds=time.monotonic() - attempt_start)
+            if (fingerprint(unit.connection, include_state=False) != observed
+                    or due_window(commit_now, monitored_only=True) != window):
+                raise AccessError(409, "股票池配置已更新，将重试状态刷新")
+            errors = dict(response.get("errors", {}))
+            completed = []
+            for sid, pool in response.get("pools", {}).items():
+                if sid not in ids or pool.get("as_of") != str(target) or pool.get("strategy_id") != sid:
+                    raise ValueError("股票状态更新结果身份不匹配")
+                if sid in errors:
+                    continue
+                save_refresh(unit, identities[sid], pool, status, started_at=started_at,
+                             input_generation={"public_release_id": release, "signature": marker})
+                completed.append(sid)
+            errors.update({sid: "股票状态更新缺少结果，将重试" for sid in set(ids) - set(completed) - set(errors)})
+            unit.put("daily_stock_pool_jobs", key, {**job,
+                     "state": "failed" if errors else "succeeded", "completed": completed,
+                     "errors": errors, "finished_at": time.time_ns()})
+            append_event(unit.connection, documents.context.tenant_id, "strategy_results_updated",
+                         {"as_of": str(target), "section": "select", "strategy_ids": completed,
+                          "stock_status_refreshed": True})
 
     def daily_selections(self, documents, snapshot, repo, now, claim):
+        """按各自时窗执行已启用策略预选, 状态刷新及专用资格组沿独立入口处理。"""
+        if repo is not None:
+            self.evening_status(documents, snapshot, repo, now, claim)
         from app.services.selection_clock import S03_ID
         for sid in (None, S03_ID):
             self._daily_selections_group(documents, snapshot, repo, now, claim, strategy_id=sid)
@@ -278,7 +391,12 @@ class TenantSchedules:
                 selection_receipts(unit, failed, now)
 
     def _run_daily_selections_group(self, documents, snapshot, repo, now, claim, *, strategy_id=None):
-        """Archive next-session eligibility under the tenant schedule lease."""
+        """在调度租约下冻结输入并派发盘后资格, 返回后复核身份和窗口再归档。
+
+        公共定版未就绪、修复在途、计算失败与过期分别记回执。
+        每策略缺结果或无效快照视为失败, 有效策略可独立保存; 业务事务内
+        联动归档、作业、任务回执及通知, 不把补数或计算返回当作保存成功。
+        """
         from datetime import timedelta
 
         from app.market_time import published_trading_day
@@ -417,7 +535,8 @@ class TenantSchedules:
         response["errors"] = {**response.get("errors", {}),
                              **{sid: "盘后预选结果缺失，将自动重试" for sid in missing}}
         for sid, selected in list(response.get("selections", {}).items()):
-            if sid in pending and (sid in response["errors"] or not valid_selection(selected, target)):
+            if sid in pending and (sid in response["errors"] or not valid_selection(
+                    selected, target, strategy_id=sid)):
                 response["errors"].setdefault(sid, "盘后预选证据异常, 需要修复重试")
                 del response["selections"][sid]
         repairs = {**repairs, **selection_repairs(

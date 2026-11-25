@@ -114,7 +114,8 @@ it('saves the morning exit preset and reloads configurable times and returns', a
   expect(save).toHaveBeenCalledWith(expect.objectContaining({
     name: '早盘清仓', kind: 'exit', timeframe: 'intraday', template: 'morning_liquidation',
     conditions: [], params: { start_time: null, decline_3m_pct: null, volume_ratio_min: null,
-      time: '10:30:00', fallback_time: '10:45:00', rise_pct: 6, fall_pct: 6 },
+      time: '10:30:00', fallback_time: '10:45:00', rise_pct: 6, fall_pct: 6,
+      take_profit_pct: null, stop_loss_pct: null },
   }), { createOnly: true })
   const stored = save.mock.calls[0][0]
   await act(async () => render({ ...stored, params: { time: '10:15:32', fallback_time: '10:50:00', rise_pct: 5, fall_pct: 2 } }))

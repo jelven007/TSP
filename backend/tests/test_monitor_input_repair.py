@@ -46,11 +46,16 @@ def test_selection_repair_respects_ordinary_and_s03_deadlines(monkeypatch):
                "retry_until": "2026-11-19T22:00:00+08:00"}
     headers = {"Authorization": "Bearer repair-test"}
     path = "/internal/cell-market/monitor-repair"
-    assert client.post(path, headers=headers, json=payload).status_code == 422
+    # 普通策略按当前 selection_clock 的22:00截止校验, 结束整秒允许修复。
+    assert client.post(path, headers=headers, json=payload).status_code == 200
     assert client.post(path, headers=headers, json={
-        **payload, "retry_until": "2026-11-19T21:00:00+08:00"}).status_code == 200
+        **payload, "retry_until": "2026-11-19T22:00:01+08:00"}).status_code == 422
     assert client.post(path, headers=headers, json={
-        **payload, "strategy_id": "custom_mvxxcs03"}).status_code == 200
+        **payload, "strategy_id": "custom_mvxxcs03",
+        "retry_until": "2026-11-19T23:00:00+08:00"}).status_code == 200
+    assert client.post(path, headers=headers, json={
+        **payload, "strategy_id": "custom_mvxxcs03",
+        "retry_until": "2026-11-19T23:00:01+08:00"}).status_code == 422
 
 
 @pytest.mark.parametrize("cancelled", [False, True])
@@ -86,7 +91,7 @@ def test_sandbox_failure_retains_partial_breadth_and_retry_attempt(monkeypatch):
                "selection_snapshots": {}, "sell_rosters": {}}
     def fail(*_a, **_k):
         raise RuntimeError("compute timeout, missing start minute")
-    result = monitor_compute.evaluate_strategy_phases(payload, None, SimpleNamespace(execute=fail))
+    result = monitor_compute.evaluate_strategy_phases_serial(payload, None, SimpleNamespace(execute=fail))
     task = result["results"]["custom_test"]["monitor_tasks"]["buy"]["signals"]["late"]
     assert task["breadth"] == breadth
     assert task["stocks"]["attempts"] == 1
@@ -167,3 +172,82 @@ def test_selection_repair_uses_complete_strategy_scope_and_declared_history(tmp_
     assert calls[0]["symbols"] == ["600001.SH", "600002.SH"]
     assert calls[0]["daily_dates"] == ["2026-11-17", "2026-11-18", "2026-11-19"]
     assert calls[0]["minute_end"] is None
+
+
+def test_narrowed_missing_group_reuses_covering_inflight_repair(tmp_path, monkeypatch):
+    from app.services.monitor_input_repair import MonitorInputRepair
+    service = MonitorInputRepair(
+        SimpleNamespace(repo=SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path))),
+        now=lambda: datetime(2026, 11, 19, 14, 30, 15, tzinfo=CN_TZ))
+    submitted = []
+    monkeypatch.setattr(service.pool, "submit", lambda *_: submitted.append(True))
+    initial = {**request(), "phase": "stocks", "symbols": ["600001.SH", "600002.SH"],
+               "daily_dates": ["2026-11-17", "2026-11-18"], "minute_start": "13:51:00",
+               "certify_coverage": True}
+    try:
+        first = service.request(initial)
+        narrowed = service.request({**initial, "symbols": ["600002.SH"],
+                                    "daily_dates": ["2026-11-18"], "minute_start": "14:00:00",
+                                    "attempt": 2})
+        assert narrowed["id"] == first["id"]
+        assert len(submitted) == 1
+        foreign = service.request({**initial, "owner": "other"})
+        assert foreign["id"] != first["id"] and len(submitted) == 2
+    finally:
+        service.close()
+
+
+def test_retry_attempts_share_one_inflight_gap_and_keep_success_proofs(tmp_path, monkeypatch):
+    import threading
+
+    from app.services import pipeline_jobs
+    from app.services.monitor_input_repair import MonitorInputRepair
+    gate = threading.Event()
+    started = threading.Event()
+    service = MonitorInputRepair(SimpleNamespace(repo=SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path))),
+                                 now=lambda: datetime(2026, 11, 19, 14, 30, 15, tzinfo=CN_TZ))
+    monkeypatch.setattr(pipeline_jobs, "try_acquire_run_slot", lambda _: True)
+    monkeypatch.setattr(pipeline_jobs, "release_run_slot", lambda _: None)
+    def repair(_):
+        started.set()
+        assert gate.wait(3)
+        return {"proof": {"600001.SH": {"minute": [{"request_seq": 7}]}}}
+    monkeypatch.setattr(service, "repair", repair)
+    try:
+        first = service.request(request())
+        assert started.wait(1)
+        second = service.request({**request(), "attempt": 9})
+        assert second["id"] == first["id"]
+        assert len(service.active) == 1
+    finally:
+        gate.set()
+        service.pool.shutdown(wait=True)
+        service.close()
+    saved = service._read(first["id"])
+    assert saved["state"] == "succeeded"
+    assert saved["result"]["proof"]["600001.SH"]["minute"][0]["request_seq"] == 7
+
+
+def test_history_coverage_preserves_two_successes_for_every_missing_day(tmp_path, monkeypatch):
+    from app.services import pipeline_jobs
+    from app.services.monitor_input_repair import MonitorInputRepair
+    service = MonitorInputRepair(SimpleNamespace(repo=SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path))),
+                                 now=lambda: datetime(2026, 11, 19, 14, 30, 15, tzinfo=CN_TZ))
+    monkeypatch.setattr(pipeline_jobs, "try_acquire_run_slot", lambda _: True)
+    monkeypatch.setattr(pipeline_jobs, "release_run_slot", lambda _: None)
+    req = {**request(), "phase": "stocks", "certify_coverage": True}
+    days = ["2026-11-16", "2026-11-17", "2026-11-18"]
+    def repair(_):
+        return {"proof": {"600001.SH": {"daily": [
+            {"day": day, "request_seq": 100 + i} for i, day in enumerate(days)]}}}
+    monkeypatch.setattr(service, "repair", repair)
+    value = {"id": "test", "request": req, "successes": 1, "result": {"proof": {
+        "600001.SH": {"daily": [{"day": day, "request_seq": 90 + i} for i, day in enumerate(days)]}}}}
+    try:
+        service._run("test", value)
+        saved = service._read("test")
+        proof = saved["result"]["proof"]["600001.SH"]["daily"]
+        assert len(proof) == 6
+        assert all(sum(row["day"] == day for row in proof) == 2 for day in days)
+    finally:
+        service.close()

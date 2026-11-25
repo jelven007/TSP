@@ -20,6 +20,14 @@ SYNC_TIME = time(15, 35)
 _dispatch_lock = threading.Lock()
 
 
+class _StartupDeferred(pipeline_jobs.JobCancelledError):
+    """Cooperative yield preserves the startup request for a later retry."""
+
+
+def _startup_defers(state, now) -> bool:
+    return state.get("trigger") == "startup" and time(9, 15) <= now.time().replace(tzinfo=None) < time(15, 1)
+
+
 def finalize_daily_settlement(repo, capset, day, check_cancelled=lambda: None):
     """Publish daily readiness only after source clocks, auction and enriched agree."""
     import polars as pl
@@ -185,6 +193,9 @@ def _dispatch(repo, capset, quote_service, state: dict, *, stop=None) -> dict:
         return state
     if state["status"] != "pending":
         return state
+    if _startup_defers(state, now):
+        return _save(repo, {**state, "deferred_reason": "交易时段保留监控输入修复执行槽"})
+    state.pop("deferred_reason", None)
     owner = f"post_close_sync:{uuid.uuid4().hex}"
     if not pipeline_jobs.try_acquire_run_slot(owner):
         return state
@@ -204,6 +215,8 @@ def _dispatch(repo, capset, quote_service, state: dict, *, stop=None) -> dict:
         def check_cancelled():
             if pipeline_jobs.is_cancelled(job_id) or (stop is not None and stop.is_set()):
                 raise pipeline_jobs.JobCancelledError(job_id)
+            if _startup_defers(state, cn_now()):
+                raise _StartupDeferred(job_id)
 
         def run():
             target = date.fromisoformat(state["day"])
@@ -273,6 +286,10 @@ def _dispatch(repo, capset, quote_service, state: dict, *, stop=None) -> dict:
         try:
             result = pipeline_jobs.run_with_capacity(job_id, run)
             store.succeed(job_id, result)
+        except _StartupDeferred:
+            store.cancelled(job_id)
+            return _save(repo, {**state, "status": "pending",
+                                "deferred_reason": "交易时段保留监控输入修复执行槽"})
         except pipeline_jobs.JobCancelledError:
             store.cancelled(job_id)
         except Exception as exc:

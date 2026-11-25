@@ -1,4 +1,8 @@
-"""早盘清仓与已确认停牌后的复牌卖出信号, 不执行委托。"""
+"""共享早盘出场内核: 按买入日期、保存信号及停复牌证据寻找首次触发。
+
+信号关注名单和实仓分开输入, 返回hits/diagnostics; 外层负责任务冻结、
+通知和成交。各策略当前启用参数仅在对应reference正文维护。
+"""
 from __future__ import annotations
 
 import math
@@ -12,20 +16,29 @@ from app.market_time import CN_TZ, published_trading_day
 from app.strategy.overnight_runtime import next_market_day
 
 TEMPLATE = "morning_liquidation"
+# 共享模板默认值只用于相应输入契约; 实际策略参数读取所选保存信号。
+# time是未提前触发时的时钟出场, fallback_time是停止卖出的截止。
 DEFAULT_PARAMS = {"time": "10:30:00", "fallback_time": "10:45:00", "rise_pct": 6.0, "fall_pct": 6.0}
 OPTIONAL_DEFAULTS = {"start_time": None, **DEFAULT_PARAMS, "decline_3m_pct": None, "volume_ratio_min": None}
+BRACKET_DEFAULTS = {"take_profit_pct": None, "stop_loss_pct": None}
 
 
 def parameters(sig: dict) -> dict:
+    """解析已保存可空条件与历史冻结结构; null不恢复对应默认条件。
+
+    time为时钟出场, fallback_time为停止边界; 成本阈值存百分点。
+    共享模板默认值不代表某策略当前保存值, 校验失败交任务层记录。
+    """
     raw = sig.get("params") or {}
-    if not isinstance(raw, dict) or set(raw) - (set(OPTIONAL_DEFAULTS) | {"amplitude_pct"}):
+    allowed = set(OPTIONAL_DEFAULTS) | set(BRACKET_DEFAULTS)
+    if not isinstance(raw, dict) or set(raw) - (allowed | {"amplitude_pct"}):
         raise ValueError("早盘清仓参数格式错误或包含未知参数")
     legacy = "amplitude_pct" in raw
-    if legacy and set(raw) & (set(OPTIONAL_DEFAULTS) - {"time"}):
+    if legacy and set(raw) & (allowed - {"time"}):
         raise ValueError("旧振幅与新涨跌幅参数不能混用")
     optional = not legacy and (bool(set(raw) - set(DEFAULT_PARAMS)) or any(v is None for v in raw.values()))
     if optional:
-        params = {**OPTIONAL_DEFAULTS, **raw}
+        params = {**OPTIONAL_DEFAULTS, **(BRACKET_DEFAULTS if set(raw) & set(BRACKET_DEFAULTS) else {}), **raw}
         for key in ("start_time", "time", "fallback_time"):
             value = params[key]
             if value is None:
@@ -41,8 +54,8 @@ def parameters(sig: dict) -> dict:
             raise ValueError("启动时间不得晚于止损或兜底时间")
         if stop is not None and fallback is not None and fallback <= stop:
             raise ValueError("兜底时间须晚于止损时间")
-        for key in ("rise_pct", "fall_pct", "decline_3m_pct", "volume_ratio_min"):
-            value = params[key]
+        for key in ("rise_pct", "fall_pct", "decline_3m_pct", "volume_ratio_min", *BRACKET_DEFAULTS):
+            value = params.get(key)
             if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))
                                       or not math.isfinite(value) or not .1 <= value <= 100):
                 raise ValueError("数值参数须为0.1~100.0的有限数值")
@@ -65,6 +78,12 @@ def parameters(sig: dict) -> dict:
     return params
 
 
+def requires_previous_close(sig: dict) -> bool:
+    """仅昨收涨跌幅或冻结振幅条件依赖昨收; 成本条件使用独立买入参考价。"""
+    params = parameters(sig)
+    return "amplitude_pct" in params or any(params.get(key) is not None for key in ("rise_pct", "fall_pct"))
+
+
 @dataclass
 class Evaluation:
     hits: list[dict] = field(default_factory=list)
@@ -76,6 +95,7 @@ def _positive(value) -> bool:
 
 
 def _return_hit(price, previous, params):
+    """相对精确原始昨收判断涨跌幅; 参数为百分点, 输出change_pct为小数。"""
     if not _positive(previous) or not _positive(price):
         return None
     change = price / previous - 1
@@ -87,7 +107,28 @@ def _return_hit(price, previous, params):
     return None
 
 
-def _optional_minute_hit(history, price_field, previous, params, start):
+def _holding_return_hit(price, entry_reference, params):
+    """独立成本收益条件, 使用实仓成交均价或已标明口径的冻结买信号参考价。"""
+    if entry_reference is None or not _positive(price):
+        return None
+    entry_price, basis = entry_reference
+    pnl = price / entry_price - 1
+    for key, passed, reason in (
+        ("take_profit_pct", pnl, "take_profit"), ("stop_loss_pct", -pnl, "stop_loss"),
+    ):
+        if params.get(key) is not None and passed + 1e-12 >= params[key] / 100:
+            return {"reason": reason, "pnl_pct": pnl, "entry_price": entry_price, "entry_price_basis": basis}
+    return None
+
+
+def _optional_minute_hit(history, price_field, previous, params, start, entry_reference=None):
+    """按完成分钟前缀寻找首次触发, 未启用条件不要求专用窗口。
+
+    同时启用跌幅和放量时需 13 根相邻 60 秒分钟: 末 4 根价格算 3 分钟跌幅,
+    末 3 根均量除此前 10 根均量。无效值、零基准均量或缺口只跳过该窗口;
+    start限制触发时刻, 允许其之前的回看数据, 不能跨午休。当前S03只启用
+    成本止盈/止损, 沿每条完成分钟收盘寻找首次触发, 不要求连续13根窗口。
+    """
     if history is None:
         return None
     rows = history.to_dicts()
@@ -97,7 +138,8 @@ def _optional_minute_hit(history, price_field, previous, params, start):
         at = row["datetime"]
         if at < start:
             continue
-        pending = _return_hit(row.get(price_field), previous, params)
+        pending = (_holding_return_hit(row.get(price_field), entry_reference, params)
+                   or _return_hit(row.get(price_field), previous, params))
         if pending:
             return {**pending, "trigger_time": at.isoformat(), "source": "completed_minute"}
         if not (decline_enabled or volume_enabled):
@@ -143,6 +185,17 @@ def evaluate(
     suspension_history: pl.DataFrame | None = None,
     roster: list[dict] | None = None,
 ) -> Evaluation:
+    """产生下一交易日或确认复牌的出场信号, 不写持仓/委托。
+
+    roster 是前日成功买信号名单; positions 是实际可卖持仓, 两者分别处理。
+    逐股日期错误保留诊断; 分钟缺失不关闭保存的时钟出场。fallback_time
+    是停止边界, 截止后可返回首次触发供诊断, 但 deadline_elapsed 禁止重开卖出。
+    止盈/止损用不含费买入均价, 信号名单用冻结原价; 缺成本不回退昨收。
+    包括S02/S03在内的调用均沿各自保存信号, 不在共享模块补入未启用条件。
+    同股分钟去重取最后一条; 先完成分钟、再新鲜报价、最后时钟。成本或
+    分钟缺失保留诊断但不关闭时钟; 停复牌仅按可见证据改变持有周期。
+    诊断与有效hits可同时返回, 外层保存首次命中并重试其余成员。
+    """
     params = parameters(sig)
     result = Evaluation()
     optional = "start_time" in params
@@ -152,6 +205,7 @@ def evaluate(
     legacy = "amplitude_pct" in params
     if now.date() != day:
         return result
+    # 信号页使用前日成功买名单, 实仓路径另校验可卖量; 两者均保留原买入日期。
     if roster is not None:
         positions = roster
     if positions is None:
@@ -202,11 +256,20 @@ def evaluate(
             continue
         if roster is None and (position.get("qty", 0) <= 0 or position.get("available_qty", 0) <= 0):
             continue
+        entry_reference = None
+        if any(params.get(key) is not None for key in BRACKET_DEFAULTS):
+            cost = (position.get("raw_close", position.get("close")) if roster is not None
+                    else position.get("entry_price"))
+            if _positive(cost):
+                entry_reference = (cost, "buy_signal_reference" if roster is not None else "filled_average")
+            else:
+                result.diagnostics.append(f"早盘清仓: {symbol} 缺少有效买入参考价, 已启用止盈止损不可确认")
         holding_fields = ({"signal_roster": True} if roster is not None
                           else {"available_qty": position["available_qty"]})
         from app.instrument_suspension import holding_exit_status, resume_exit_time
 
         status = holding_exit_status(suspension_history, symbol, sell_day, day, observed_at=now)
+        # 只有已确认停复牌证据改变持有周期; 缺分钟不能据此猜测停牌或复牌。
         if status == "suspended":
             result.diagnostics.append(f"早盘清仓: {symbol} 已确认停牌, 持有至复牌直接卖出")
             continue
@@ -221,11 +284,13 @@ def evaluate(
                 "source": "suspension_evidence",
             })
             continue
+        # 先查已完成分钟的首次价格触发, 再查新鲜实时报价, 最后使用保存时钟。
+        # 首次触发的持久化去重由外层任务负责, 本内核不执行委托或写账本。
         pending = None
         previous = prev_close.get(symbol)
         history = minute_groups.get((symbol,))
         if optional:
-            pending = _optional_minute_hit(history, price_field, previous, params, start)
+            pending = _optional_minute_hit(history, price_field, previous, params, start, entry_reference)
         elif legacy and _positive(previous) and history is not None:
             ranges = history.with_columns(
                 ((pl.col("high").cum_max()-pl.col("low").cum_min()) / previous * 100).alias("_amplitude"),
@@ -258,14 +323,14 @@ def evaluate(
                                "trigger_time": at.isoformat(), "source": "live_quote"}
         price = quote.get("price", quote.get("close"))
         if (not legacy and pending is None and now < early_end and _positive(stamp)
-                and _positive(previous) and _positive(price)):
+                and _positive(price)):
             seconds = stamp / 1000 if stamp > 1e12 else stamp
             at = datetime.fromtimestamp(seconds, CN_TZ).replace(tzinfo=None)
             if at.date() == day and start <= at < early_end and -2 <= (now-at).total_seconds() <= 15:
-                change = price / previous - 1
-                hit = _return_hit(price, previous, params)
+                hit = (_holding_return_hit(price, entry_reference, params)
+                       or _return_hit(price, previous, params))
                 if hit:
-                    pending = {**hit, "change_pct": change,
+                    pending = {**hit,
                                "trigger_time": at.isoformat(), "source": "live_quote"}
         if (not legacy and pending is None and deadline is not None and now >= deadline
                 and (fallback is None or deadline < fallback)):
@@ -294,6 +359,7 @@ def evaluate(
 
 
 def selected_definitions(engine, names: list[str]) -> list[dict]:
+    """读取已选早盘模板定义; 信号是否启用及参数有效性由执行入口继续校验。"""
     from app.strategy import custom_signals
 
     if not any(str(name).startswith("csgi_") for name in names):
@@ -306,7 +372,11 @@ def selected_definitions(engine, names: list[str]) -> list[dict]:
 
 
 def holding_snapshot(data_dir, strategy_id: str, as_of: date) -> list[dict]:
-    """同一租户账本按剩余买入批次分日期, 不把加仓归入首笔日期。"""
+    """从同租户成交账本重放剩余FIFO批次, 按买入日期分别汇总数量与均价。
+
+    不含交易费用; 任一剩余批次缺有效成交成本, 该日期成本保持未知。
+    可卖量按as_of和T+1计算, 不把后来加仓归入首笔买入日期。
+    """
     from app.strategy import paper
 
     result = []
@@ -324,8 +394,16 @@ def holding_snapshot(data_dir, strategy_id: str, as_of: date) -> list[dict]:
                 row = lots.setdefault(entry, {
                     "symbol": symbol, "entry_date": entry, "account_id": account,
                     "cycle_id": position.get("cycle_id"), "qty": 0, "available_qty": 0,
+                    "_entry_notional": 0., "_cost_complete": True,
                 })
                 row["qty"] += lot["qty"]
                 row["available_qty"] += paper._available_of({"lots": [lot]}, str(as_of))
-            result.extend(lots.values())
+                if _positive(lot.get("entry_price")):
+                    row["_entry_notional"] += lot["entry_price"] * lot["qty"]
+                else:
+                    row["_cost_complete"] = False
+            for row in lots.values():
+                notional, complete = row.pop("_entry_notional"), row.pop("_cost_complete")
+                row["entry_price"] = notional / row["qty"] if complete else None
+                result.append(row)
     return result

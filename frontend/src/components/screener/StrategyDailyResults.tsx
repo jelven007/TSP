@@ -42,9 +42,12 @@ const labels: Record<string, string> = {
   net_stop: '扣费净止损', gross_target: '毛止盈', time_guard: '时间兜底',
   suspended: '停牌等待复牌', pending: '等待卖出指标',
 }
+const finiteNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value)
 function format(key: string, value: unknown) {
   if (value == null) return '—'
   if (key === 'suggested_sell_price') {
+    if (typeof value === 'number') return Number.isFinite(value) && value > 0 ? value.toFixed(2) : '—'
     if (typeof value !== 'object') return '—'
     const { lower, upper } = value as { lower?: unknown; upper?: unknown }
     return typeof lower === 'number' && Number.isFinite(lower) && lower > 0
@@ -65,6 +68,7 @@ function format(key: string, value: unknown) {
   return labels[String(value)] ?? String(value)
 }
 
+/** 标签及摘要只读取保存结果；切换卖/选/买不会在这里重算策略。 */
 export function StrategyDailyResultToolbar({ result, activeTab, onTabChange, currentDate, inline = false }: {
   result: ScreenerResult
   activeTab: Tab
@@ -76,7 +80,12 @@ export function StrategyDailyResultToolbar({ result, activeTab, onTabChange, cur
   const signals = result.section_mode === 'signals'
   const today = currentDate ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
   const historical = result.as_of < today
-  return <div className={inline ? 'flex min-w-0 flex-1 basis-[640px] flex-wrap items-center gap-2'
+  const breadthQuality = Object.values(result.entry_data_quality ?? {}).find(quality =>
+    !quality.progress?.as_of || quality.progress.as_of === result.as_of)
+  const breadth = breadthQuality?.progress?.steps.breadth?.up_pct ?? breadthQuality?.pool_up_pct
+  const s03Inline = inline && result.strategy === 'custom_mvxxcs03'
+  return <div className={s03Inline ? 'flex shrink-0 items-center gap-2'
+    : inline ? 'flex min-w-0 flex-1 basis-[640px] flex-wrap items-center gap-2'
     : 'flex flex-wrap items-center justify-between gap-2'}>
     <div role="tablist" aria-label="每日策略结果" className="inline-flex shrink-0 rounded-btn border border-border p-0.5">
       {tabs.map(tab => <button key={tab.id} role="tab" aria-selected={activeTab === tab.id}
@@ -91,6 +100,9 @@ export function StrategyDailyResultToolbar({ result, activeTab, onTabChange, cur
           : signals && result.section_errors?.[tab.id] ? '待确认' : section[tab.id]?.length ?? 0}
       </button>)}
     </div>
+    {result.strategy === 'custom_mvxxcs01' && <span aria-label="上涨占比" className="strategy-result-note shrink-0 whitespace-nowrap">
+      上涨占比 · {typeof breadth === 'number' && Number.isFinite(breadth) ? `${breadth.toFixed(2)}%` : '—'}
+    </span>}
     {signals && result.strategy === 'custom_mvxxcp88'
       ? <StrategyEntryProgress result={result} today={today} />
       : <span className={`strategy-result-note ${inline ? 'shrink-0 whitespace-nowrap' : ''}`}>{result.as_of} · 每交易日一份结果
@@ -98,6 +110,7 @@ export function StrategyDailyResultToolbar({ result, activeTab, onTabChange, cur
   </div>
 }
 
+/** 名单沿冻结字段展示；实时价格只作当前参考，信号名单不能当成实际成交。 */
 export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange, signalColumns, currentDate, hideToolbar = false }: {
   result: ScreenerResult
   positionLimit?: number
@@ -111,24 +124,53 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
   const [localActive, setLocalActive] = useState<Tab>(result.selection_only ? 'select' : 'sell')
   const active = activeTab ?? localActive
   const [preview, setPreview] = useState<{ symbol: string; name?: string; navList: NavItem[] } | null>(null)
-  const section = result.sections ?? { sell: [], select: [], buy: [] }
+  const section = useMemo(() => result.sections ?? { sell: [], select: [], buy: [] }, [result.sections])
   const signals = result.section_mode === 'signals'
   const s01 = result.strategy === 'custom_mvxxcs01'
+  const s03 = result.strategy === 'custom_mvxxcs03'
+  const s03FundOrder = s03
+  const strategy = useQuery({
+    queryKey: QK.strategyDetail(result.strategy ?? ''),
+    queryFn: () => api.strategyGet(result.strategy!),
+    enabled: signals && s03 && active === 'sell',
+    staleTime: 60_000,
+  })
+  const exitSignals = useQuery({
+    queryKey: QK.customSignals,
+    queryFn: () => api.customSignalsList(),
+    enabled: signals && s03 && active === 'sell',
+    staleTime: 60_000,
+  })
+  const exitSignal = exitSignals.data?.signals.find(signal =>
+    strategy.data?.exit_signals.includes(`csgi_${signal.id}`) && signal.enabled
+      && signal.kind !== 'entry' && signal.template === 'morning_liquidation')
+  const takeProfit = exitSignal?.params && 'take_profit_pct' in exitSignal.params
+    ? exitSignal.params.take_profit_pct : null
+  const suggestedSellPrice = (row: Record<string, unknown>) => {
+    // 出场计算会用卖出触发价覆盖 close，原买入触发价保存在 entry_signal_price。
+    const price = 'entry_signal_price' in row ? row.entry_signal_price
+      : row.holding_exit ? null : row.close
+    return typeof price === 'number' && Number.isFinite(price) && price > 0
+      && typeof takeProfit === 'number' && Number.isFinite(takeProfit) && takeProfit > 0
+      ? price * (1 + takeProfit / 100) : null
+  }
   const today = currentDate ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
   const historical = result.as_of < today
   const selected = useMemo(() => {
     if (signals) {
       const selectedRows = section.select.map((row, i) => ({
-      ...row, selection_rank: i + 1,
+      ...row, selection_rank: row.selection_rank ?? i + 1,
       ...(result.strategy === 'custom_mvxxcp88' ? {
         reference_turnover_rate: 'reference_turnover_rate' in row ? row.reference_turnover_rate
           : typeof row.date === 'string' && row.date.slice(0, 10) === row.reference_date
             && row.reference_date !== result.as_of ? row.turnover_rate : null,
       } : {}),
       }))
-      if (result.strategy !== 'custom_mvxxcp88') return selectedRows
+      if (s03FundOrder) return selectedRows.sort((a, b) => a.selection_rank - b.selection_rank)
+      if (!['custom_mvxxcp88', 'custom_mvxxcs03'].includes(result.strategy ?? '')) return selectedRows
       const metric = (row: (typeof selectedRows)[number]) => typeof row.atr14_previous_close === 'number'
-        && Number.isFinite(row.atr14_previous_close) ? row.atr14_previous_close : -Infinity
+        && Number.isFinite(row.atr14_previous_close)
+        && (result.strategy !== 'custom_mvxxcs03' || row.atr14_previous_close >= 0) ? row.atr14_previous_close : -Infinity
       return selectedRows.sort((a, b) => {
         const x = metric(a), y = metric(b)
         return (x === y ? 0 : x > y ? -1 : 1) || String(a.symbol).localeCompare(String(b.symbol))
@@ -140,12 +182,26 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
       const x = metric(a), y = metric(b)
       return (x === y ? 0 : x > y ? -1 : 1) || String(a.symbol).localeCompare(String(b.symbol))
     }).map((row, i) => ({ ...row, selection_rank: i + 1 }))
-  }, [section.select, signals, result.strategy, result.as_of])
-  const rows = active === 'select' ? selected : section[active] ?? []
+  }, [section.select, signals, result.strategy, result.as_of, s03FundOrder])
+  const rows = useMemo(() => {
+    if (active === 'select') return selected
+    const saved = section[active] ?? []
+    if (!signals || !s03 || active !== 'buy') return saved
+    if (s03FundOrder) return [...saved].sort((a, b) =>
+      (a.entry_priority ?? Infinity) - (b.entry_priority ?? Infinity)
+        || String(a.symbol).localeCompare(String(b.symbol)))
+    const metric = (row: (typeof saved)[number]) => typeof row.atr14_previous_close === 'number'
+      && Number.isFinite(row.atr14_previous_close) && row.atr14_previous_close >= 0
+      ? row.atr14_previous_close : -Infinity
+    return [...saved].sort((a, b) => {
+      const x = metric(a), y = metric(b)
+      return (x === y ? 0 : x > y ? -1 : 1) || String(a.symbol).localeCompare(String(b.symbol))
+    })
+  }, [active, selected, section, signals, s03, s03FundOrder])
   const fiveDimensions = result.selection_snapshot?.scoring_policy === 's03_five_dimensions_v1'
   const preselectionWindow = selectionWindow(result.strategy)
-  const atrRanking = signals && !s01 && !(fiveDimensions && active === 'select')
-    && (active === 'select' || rows.some(row => row.atr14_previous_close != null))
+  const atrRanking = signals && !s01
+    && (active === 'select' || s03 && active === 'buy' || rows.some(row => row.atr14_previous_close != null))
   const symbols = useMemo(() => [...new Set(rows.map(row => row.symbol)
     .filter((symbol): symbol is string => typeof symbol === 'string' && /^[0-9]{6}\.(SH|SZ|BJ)$/.test(symbol)))].sort(), [rows])
   const live = useQuery({
@@ -195,7 +251,9 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
     return typeof value === 'string' || typeof value === 'boolean' ? value : null
   })
   const activeSort = sortColumns.some(col => col.id === sort?.key) ? sort : null
-  const defaultAtrSort = signals && active === 'select' && result.strategy === 'custom_mvxxcp88' && !activeSort
+  const defaultAtrSort = signals && !activeSort
+    && (active === 'select' && result.strategy === 'custom_mvxxcp88'
+      || s03 && !s03FundOrder && (active === 'select' || active === 'buy'))
   const displayedRows = sortRows(rows, sortColumns)
   const panelRef = useRef<HTMLDivElement>(null)
   const sectionRef = useRef<HTMLElement>(null)
@@ -273,13 +331,15 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
     {!hideToolbar && <StrategyDailyResultToolbar result={result} activeTab={active} currentDate={today}
       onTabChange={tab => { setLocalActive(tab); onTabChange?.(tab) }} />}
     {resultNotes.length > 0 && <p role="status" className="strategy-result-note">{resultNotes.join(' · ')}</p>}
-    <details className="strategy-result-note">
+    {signals && result.strategy === 'custom_mvxxcp88' && !historical && closedQuoteDates
+      && <p className="strategy-result-note">行情日期：{closedQuoteDates} · 休市，显示最近交易日收盘数据。</p>}
+    {!['custom_mvxxcp88', 'custom_mvxxcs01', 'custom_mvxxcs03'].includes(result.strategy ?? '') && <details className="strategy-result-note">
       <summary className="strategy-result-disclosure">策略说明</summary>
       <div className="space-y-1 py-1">
     <p>
       {signals
         ? `卖：前一交易日成功计算的买入信号。选：开启监控后，在前一交易日${preselectionWindow}${result.strategy === 'custom_mvxxcs03'
-          ? '读取S02在20:00～21:00完成的预选名单，按五维综合分降序取前30；历史结果以保存口径为准'
+          ? `读取S02在${selectionWindow('custom_mvxxcp88')}完成的预选名单，按五维综合分降序取前30；历史结果以保存口径为准`
           : '按股票范围和数值过滤生成，按策略评分降序保存'}。买：按入场触发器分阶段计算，完成后固定结果并同步下一交易日的卖名单。`
         : <>持仓来自连续策略研究组合。选为全部达标股票，买为容量、资金与持仓上限筛选后的成交结果。
           {active === 'select' && ' 选按14:30涨幅降序，同值按代码排序。'}</>}
@@ -310,21 +370,25 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
       {!s01 && active === 'sell' && ' 分钟成交量、成交额来自保存信号的触发分钟；建议卖出价为上一个交易日原始收盘价的94%～106%，缺少参考价时显示“—”。'}
       {!s01 && active === 'buy' && ' 建议购买量单位为手（100股），按保存的触发价计算10万元最大整手数，不含费用与滑点。'}</p>}
       </div>
-    </details>
+    </details>}
     {signals && active === 'buy' && Object.entries(result.entry_data_quality ?? {})
-      .filter(([, quality]) => ((quality.missing_symbols?.length ?? 0) > 0 || quality.stage === 'breadth_rejected')
+      .filter(([, quality]) => (finiteNumber(quality.pool_up_min_pct) || result.strategy === 'custom_mvxxcp88')
+        && ((quality.missing_symbols?.length ?? 0) > 0 || quality.stage === 'breadth_rejected')
         && (quality.breadth_policy === 'available_members_v1'
-          || (quality.pool_up_pct_lower != null && quality.pool_up_pct_upper != null)))
+          || (finiteNumber(quality.pool_up_pct_lower) && finiteNumber(quality.pool_up_pct_upper))))
       .map(([signal, quality]) => <p key={signal} className="strategy-result-note">
         {quality.breadth_policy === 'available_members_v1' ? <>
-          {quality.pool_up_pct == null ? '无有效行情，等待数据' : `上涨比例 ${quality.pool_up_pct.toFixed(2)}%`}
-          {' · '}阈值 {quality.pool_up_min_pct.toFixed(2)}%
+          {!finiteNumber(quality.pool_up_pct) ? '无有效行情，等待数据' : `上涨比例 ${quality.pool_up_pct.toFixed(2)}%`}
+          {' · '}{finiteNumber(quality.pool_up_min_pct)
+            ? `阈值 ${quality.pool_up_min_pct.toFixed(2)}%` : '仅展示，不参与买入筛选'}
           {' · '}完整池 {quality.pool_total} 只 · 有效 {quality.pool_usable} 只 · 剔除 {quality.missing_symbols.length} 只
           {' · '}缺少有效指定分钟价格或昨收的股票不参与上涨占比计算
-          {quality.stage === 'breadth_rejected' && ' · 上涨占比未达阈值，市场条件未满足'}
+          {finiteNumber(quality.pool_up_min_pct) && quality.stage === 'breadth_rejected'
+            && ' · 上涨占比未达阈值，市场条件未满足'}
         </> : <>上涨比例 {quality.pool_up_pct_lower!.toFixed(2)}%～{quality.pool_up_pct_upper!.toFixed(2)}%
         {' · '}完整池 {quality.pool_total} 只 · {quality.missing_symbols.length} 只行情未知
-        {' · '}{quality.pool_up_pct_lower! + 1e-10 >= quality.pool_up_min_pct
+        {' · '}{!finiteNumber(quality.pool_up_min_pct) ? '仅展示，不参与买入筛选'
+          : quality.pool_up_pct_lower! + 1e-10 >= quality.pool_up_min_pct
           ? '已按下界确认市场条件'
           : quality.stage === 'breadth_rejected' ? '上界未达阈值，市场条件未满足' : '区间跨过阈值，等待完整行情'}
         </>}
@@ -375,7 +439,8 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
                 ? <button type="button" title="查看个股详情"
                     className="text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                     onClick={() => openStock(row)}>{format(key, row[key])}</button>
-                : format(key, row[key])}
+                : format(key, signals && s03 && active === 'sell' && key === 'suggested_sell_price'
+                  ? suggestedSellPrice(row) : row[key])}
             </td>)}
           </tr>)}
             {bottomPadding > 0 && <tr aria-hidden="true"><td colSpan={displayedColumns.length}

@@ -104,9 +104,11 @@ class BudgetPermits:
         self.priorities: dict[int, list[bool]] = {}
         self.background_active = 0
         self.priority_waiters = 0
+        self.stock_allocations: dict[int, list[bool]] = {}
+        self.stocks_active = 0
 
     def acquire(self, blocking: bool = True, timeout: float | None = None, *,
-                priority: bool = False) -> bool:
+                priority: bool = False, stocks: bool = False) -> bool:
         deadline = None if timeout is None else time.monotonic() + timeout
         with self.condition:
             self.priority_waiters += int(priority)
@@ -121,12 +123,17 @@ class BudgetPermits:
                         not self.priority_waiters
                         and self.background_active < status["effective_concurrency"] - reserve
                     )
+                    stock_reserve = status.get("stocks_reserved_slots", 0)
+                    eligible = eligible and (stocks or
+                        self.active - self.stocks_active < status["effective_concurrency"] - stock_reserve)
                     if (eligible and self.active < status["effective_concurrency"]
                             and self.memory_mb + memory <= status["memory_budget_mb"]
                             and self.cpus + cpus <= status["cpu_budget"] + 1e-9):
                         ident = threading.get_ident()
                         self.allocations.setdefault(ident, []).append((memory, cpus))
                         self.priorities.setdefault(ident, []).append(priority)
+                        self.stock_allocations.setdefault(ident, []).append(stocks)
+                        self.stocks_active += int(stocks)
                         self.background_active += int(not priority)
                         self.active += 1
                         self.memory_mb += memory
@@ -153,10 +160,12 @@ class BudgetPermits:
                 raise ValueError("no compute permit held by this thread")
             memory, cpus = values.pop()
             priority = self.priorities[threading.get_ident()].pop()
+            self.stocks_active -= int(self.stock_allocations[threading.get_ident()].pop())
             self.background_active -= int(not priority)
             if not values:
                 self.allocations.pop(threading.get_ident(), None)
                 self.priorities.pop(threading.get_ident(), None)
+                self.stock_allocations.pop(threading.get_ident(), None)
             self.active -= 1
             self.memory_mb -= memory
             self.cpus = max(0.0, self.cpus - cpus)

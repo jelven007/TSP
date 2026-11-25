@@ -14,13 +14,48 @@ from pypdf import PdfReader
 from app.market_time import CN_TZ
 
 _DATE = r"(\d{4})年(\d{1,2})月(\d{1,2})日"
+_OPEN = r"(?:(?:上午)?开市(?:时)?(?:起)?|起)"
+_JOINT_BONDS = (r"(?:(?:[、,，]|及|和|以及)(?:可转换公司(?:债券|转债)|可转债)"  # noqa: RUF001
+                r"(?:债券|转股)?(?:\([^)]{0,100}\))?){0,3}")
 _STOCK_EVENT = re.compile(
-    r"(?<!子)(?:本公司|公司)(?:的)?(?:(?:A股)?股票|证券(?=\(证券品种:A股股票[,，]))"  # noqa: RUF001
-    r"(?:\([^)]{0,100}\))?(?:将于|将自|自|于)" + _DATE
-    + r"(?:\([^)]{0,20}\))?(?:(?:上午)?开市(?:时)?起|起)(?:开始|继续)?(停牌|复牌)"
+    r"(?<!子)(?:本公司|公司)(?:\((?:以下简称|下称)[^)]{1,40}\))?(?:的)?"
+    r"(?:(?:A股)?股票|证券(?=\((?:证券品种:)?A股股票[:,，])"  # noqa: RUF001
+    r"|证券(?=\([^)]{0,100}(?:证券|股票)代码:))"
+    r"(?:交易)?(?:\([^)]{0,100}\))?" + _JOINT_BONDS + r"(?:已)?(?:将于|将自|自|于)" + _DATE
+    + r"(?:\([^)]{0,40}\))?(?:" + _OPEN
+    + r"|(?=停牌(?:1|一)(?:天|日|个交易日)))(?:开始|继续|连续)?(停牌|复牌)"
+)
+_FOLLOWING_RESUME = re.compile(
+    r"^(?:1|一)(?:天|日|个交易日)[,，](?:并)?(?:将于|将自|自|于)?"  # noqa: RUF001
+    + _DATE + r"(?:\([^)]{0,20}\))?" + _OPEN + r"复牌"
+)
+_TABLE_DATE = r"(\d{4})/(\d{1,2})/(\d{1,2})(?=\D|$|\d{4}/|\d{6}[^\d/])"
+_STOCK_TABLE = re.compile(
+    r"(?<!\d)(\d{6})[^\d。;]{1,30}A股停牌" + _TABLE_DATE
+    + r"全天" + _TABLE_DATE + _TABLE_DATE
+)
+_OPEN_TABLE = re.compile(
+    r"(?<!\d)(\d{6})[^\d。;]{1,30}A股(停牌)" + _TABLE_DATE
+    + r"(?!(?:上午|下午|半天|[0-9一二三四五六七八九十]+分钟))"
+)
+_RESUME_TABLE = re.compile(
+    r"(?<!\d)(\d{6})[^\d。;]{1,30}A股复牌" + _TABLE_DATE + _TABLE_DATE
+)
+_DELISTING_RESUME = re.compile(
+    r"(?<!子)(?:本公司|公司)股票(?:将于|于)" + _DATE
+    + r"(?:\([^)]{0,20}\))?进入退市整理期交易"
+)
+_DELISTING_START = re.compile(
+    r"(?<!子)(?:本公司|公司)股票进入退市整理期(?:交易)?的起始日为" + _DATE
 )
 _OFFICIAL_HOSTS = {"www.sse.com.cn", "static.sse.com.cn", "www.szse.cn",
                    "disc.static.szse.cn", "static.cninfo.com.cn"}
+_NOTICE_EVENT_TITLE = re.compile(r"停牌|复牌|进入退市整理期|终止上市.*摘牌")
+
+
+def _status_event_title(title):
+    from app.services.issuer_st_status import _event_notice
+    return bool(_NOTICE_EVENT_TITLE.search(title) or _event_notice(title))
 
 
 def _local(stamp):
@@ -45,7 +80,60 @@ def parse_announcement(symbol, text, *, announced_at, cutoff, source_url, collec
     if not re.search(r"(?:证券|股票)代码:?" + re.escape(code) + r"(?!\d)", compact):
         return []
     events = {}
+    def add(effective, suspended):
+        if not collect_future and effective > cutoff.date():
+            return
+        if effective in events and events[effective]["is_suspended"] != suspended:
+            raise ValueError("conflicting body")
+        events[effective] = {"symbol": symbol, "effective_date": effective,
+                             "announced_on": announced_at.date(), "announced_at": announced_at,
+                             "is_suspended": suspended, "source_url": source_url}
+
+    # A typed own-A-share row is explicit full-day evidence, unlike a bond row.
+    for table in _OPEN_TABLE.finditer(compact):
+        if table.group(1) != code:
+            continue
+        try:
+            effective = datetime(*map(int, table.group(3, 4, 5))).date()
+            add(effective, table.group(2) == "停牌")
+        except ValueError:
+            return []
+    for table in _STOCK_TABLE.finditer(compact):
+        if table.group(1) != code:
+            continue
+        try:
+            start = datetime(*map(int, table.group(2, 3, 4))).date()
+            finish = datetime(*map(int, table.group(5, 6, 7))).date()
+            resume = datetime(*map(int, table.group(8, 9, 10))).date()
+            if start <= finish < resume:
+                add(start, True)
+                add(resume, False)
+        except ValueError:
+            return []
+    for table in _RESUME_TABLE.finditer(compact):
+        if table.group(1) != code:
+            continue
+        try:
+            finish = datetime(*map(int, table.group(2, 3, 4))).date()
+            resume = datetime(*map(int, table.group(5, 6, 7))).date()
+            if finish < resume:
+                add(resume, False)
+        except ValueError:
+            return []
+    # Trading in a confirmed delisting period ends the preceding full-day halt.
+    for pattern in (_DELISTING_RESUME, _DELISTING_START):
+        for match in pattern.finditer(compact):
+            try:
+                add(datetime(*map(int, match.group(1, 2, 3))).date(), False)
+            except ValueError:
+                return []
     for match in _STOCK_EVENT.finditer(compact):
+        if re.match(r"(?:本公司|公司)(?:的)?证券", match.group()):
+            identity = re.search(r"证券\(([^)]*)\)", match.group())
+            if identity and not re.match(r"(?:证券品种:)?A股股票[:,，]", identity[1]) and (  # noqa: RUF001
+                    not re.search(r"(?:证券|股票)代码:[^)]*" + re.escape(code) + r"(?!\d)", identity[1])
+                    or re.search(r"债券|转债", identity[1])):
+                continue
         prefix = re.split(r"[。;]", compact[:match.start()])[-1]
         if re.search(r"(?:预计|拟|计划|可能|若|如)$", prefix):
             continue
@@ -53,17 +141,19 @@ def parse_announcement(symbol, text, *, announced_at, cutoff, source_url, collec
             effective = datetime(*map(int, match.group(1, 2, 3))).date()
         except ValueError:
             continue
-        if not collect_future and effective > cutoff.date():
-            continue
         suffix = compact[match.end():match.end() + 20]
         if re.match(r"(?:[，,])?(?:一小时|半天|[0-9一二三四五六七八九十]+分钟)", suffix):  # noqa: RUF001
             continue
         suspended = match.group(4) == "停牌"
-        if effective in events and events[effective]["is_suspended"] != suspended:
+        try:
+            add(effective, suspended)
+            resume = _FOLLOWING_RESUME.match(compact[match.end():])
+            if suspended and resume:
+                resume_day = datetime(*map(int, resume.group(1, 2, 3))).date()
+                if resume_day > effective:
+                    add(resume_day, False)
+        except ValueError:
             return []
-        events[effective] = {"symbol": symbol, "effective_date": effective,
-                             "announced_on": announced_at.date(), "announced_at": announced_at,
-                             "is_suspended": suspended, "source_url": source_url}
     return [events[day] for day in sorted(events)]
 
 
@@ -137,7 +227,7 @@ class AnnouncementLookup:
             if str(row.get("SECURITY_CODE", row.get("PRODUCTID", ""))) != code:
                 continue
             title = row.get("TITLE", "")
-            if not re.search("停牌|复牌", title):
+            if not _NOTICE_EVENT_TITLE.search(title):
                 continue
             stamp = row.get("ADDDATE", "")
             try:
@@ -167,8 +257,9 @@ class AnnouncementLookup:
         return [{"title": row["title"], "formal_date": str(row.get("publishTime", ""))[:10],
                  # publishTime is an announcement date, not actual public availability.
                  "announced_at": None,
-                 "url": urljoin("https://www.szse.cn", row.get("attachPath", ""))}
-                for row in rows if code in row.get("secCode", []) and re.search("停牌|复牌", row["title"])]
+                 "url": urljoin("https://disc.static.szse.cn/download/",
+                                row.get("attachPath", "").lstrip("/"))}
+                for row in rows if code in row.get("secCode", []) and _NOTICE_EVENT_TITLE.search(row["title"])]
 
     def _public_times(self, code, begin, end):
         body = self._request("GET", "https://np-anotice-stock.eastmoney.com/api/security/ann",
@@ -241,7 +332,9 @@ class AnnouncementLookup:
             return [((str(row.get("SECURITY_CODE", "")),),
                      urljoin("https://www.sse.com.cn", row.get("URL", "")))
                     if exchange == "SH" else
-                    (tuple(row.get("secCode", [])), urljoin("https://www.szse.cn", row.get("attachPath", "")))
+                    (tuple(row.get("secCode", [])),
+                     urljoin("https://disc.static.szse.cn/download/",
+                             row.get("attachPath", "").lstrip("/")))
                     for row in rows]
 
         def total_rows(body):
@@ -292,7 +385,7 @@ class AnnouncementLookup:
                     title, url = row.get("title"), row.get("attachPath")
                     formal_date = str(row.get("publishTime", ""))[:10]
                     stamp = None
-                    url = urljoin("https://www.szse.cn", url or "")
+                    url = urljoin("https://disc.static.szse.cn/download/", (url or "").lstrip("/"))
                 if not isinstance(codes, list) or not isinstance(title, str) or not url.endswith((".PDF", ".pdf")):
                     invalid("全市场公告记录缺少证券/标题/附件身份")
                 key = (tuple(codes), url)
@@ -300,7 +393,7 @@ class AnnouncementLookup:
                     invalid("全市场公告重复页或重复记录, 下轮重新扫描")
                 seen.add(key)
                 keys.append(key)
-                if not re.search("停牌|复牌", title):
+                if not _status_event_title(title):
                     continue
                 datetime.fromisoformat(formal_date)
                 for code in codes:
@@ -354,6 +447,8 @@ class AnnouncementLookup:
     def _resolve_notices(self, symbol, notices, begin, end, *, cutoff, collect_future=False):
         code = symbol.split(".")[0]
         diagnostics, events, deferred = [], [], False
+        risk_events = []
+        retry_category = "semantic"
         times = None
         for notice in sorted(notices, key=lambda item: item["formal_date"], reverse=True)[:8]:
             self.check_cancelled()
@@ -382,10 +477,31 @@ class AnnouncementLookup:
                 parsed = parse_announcement(symbol, text, announced_at=stamp, cutoff=cutoff,
                                             source_url=url, collect_future=collect_future)
                 events.extend(parsed)
-                if not parsed:
+                from app.services.issuer_st_status import _event_notice, parse_issuer_st_events
+                risk_parsed = []
+                if collect_future and _event_notice(notice["title"]):
+                    risk_parsed = parse_issuer_st_events(
+                        notice["title"], unicodedata.normalize("NFKC", text), symbol, _local(stamp).date())
+                    risk_events.extend({
+                        "symbol": symbol, "effective_date": event["effective_date"],
+                        "announced_on": _local(stamp).date(), "announced_at": _local(stamp),
+                        "is_risk_warning": event["is_risk_warning_after"], "source_url": url,
+                        "evidence_text": text,
+                    } for event in risk_parsed)
+                # Conversion-only notices have been read, but have no stock event.
+                conversion_only = (
+                    "转股停牌" in _title(notice["title"])
+                    and "股票" not in _title(notice["title"])
+                    and re.search(r"(?<!\d)\d{6}[^\d。;]{1,30}可转债转股停牌", re.sub(r"\s+", "", text))
+                    and not re.search(r"(?:A股|股票)(?:交易)?[^。;]{0,80}(?:停牌|复牌)", re.sub(r"\s+", "", text))
+                )
+                if not parsed and not risk_parsed and not conversion_only:
                     diagnostics.append(f'{notice["title"]}: 正文未确认自身全天停复牌生效日')
             except (ValueError, httpx.HTTPError) as exc:
                 diagnostics.append(f'{notice["title"]}: {exc}')
+                retry_category = "transport"
         if len(notices) > 8:
             diagnostics.append("公告超过8份附件查证上限")
-        return {"events": events, "diagnostics": diagnostics, "deferred": deferred}
+        return {"events": events, "risk_warning_events": risk_events,
+                "diagnostics": diagnostics, "deferred": deferred,
+                "retry_category": retry_category}

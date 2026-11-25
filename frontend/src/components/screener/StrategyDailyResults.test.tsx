@@ -30,6 +30,28 @@ async function render(result: ScreenerResult) {
 }
 
 describe('StrategyDailyResults', () => {
+  it('removes S01 explanation on every result tab', async () => {
+    await render({
+      as_of: '2026-11-23', strategy: 'custom_mvxxcs01', rows: [], total: 0, elapsed_ms: 0,
+      section_mode: 'signals', sections: { sell: [], select: [], buy: [] },
+    })
+    for (const index of [0, 1, 2]) {
+      await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index].click())
+      expect([...host.querySelectorAll('summary')].some(s => s.textContent === '策略说明')).toBe(false)
+      expect(host.querySelector('[aria-label="上涨占比"]')?.textContent).toBe('上涨占比 · —')
+    }
+  })
+  it('removes the S02 explanation in sell, select and buy while reserving four metrics', async () => {
+    await render({
+      as_of: '2026-11-23', strategy: 'custom_mvxxcp88', rows: [], total: 0, elapsed_ms: 0,
+      section_mode: 'signals', sections: { sell: [], select: [], buy: [] },
+    })
+    for (const index of [0, 1, 2]) {
+      await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index].click())
+      expect([...host.querySelectorAll('summary')].some(s => s.textContent === '策略说明')).toBe(false)
+      expect(host.querySelectorAll('[data-progress-step]')).toHaveLength(4)
+    }
+  })
   it('keeps historical S03 score labels and does not invent five-dimensional columns', async () => {
     const rows = [{ symbol: '600001.SH', name: '旧归档', score: 100,
       atr14_previous_close: .05, atr_rank: 1 }]
@@ -44,7 +66,7 @@ describe('StrategyDailyResults', () => {
     expect(headers).not.toContain('综合分')
     expect(headers).not.toContain('技术分')
   })
-  it('shows S03 five-dimensional archive scores and own window without reordering the saved ranking', async () => {
+  it('shows S03 saved five-dimensional scores and removes the explanation on every tab', async () => {
     const rows = [{ symbol: '600002.SH', name: '第一只', score: 85, tech_score: 90,
       fund_score: 80, emotion_score: 85, fundamental_score: 70, news_score: 60 },
       { symbol: '600001.SH', name: '第二只', score: 70, tech_score: 70,
@@ -57,16 +79,20 @@ describe('StrategyDailyResults', () => {
         scoring_policy: 's03_five_dimensions_v1', coverage: { candidate_total: 36, scorable_total: 35 } },
     })
     await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1].click())
-    expect(host.textContent).toContain('21:00～22:00')
-    expect(host.textContent).toContain('技术×40%')
+    expect(host.querySelector('details')).toBeNull()
     const headers = [...host.querySelectorAll('th')].map(th => th.textContent)
     for (const label of ['综合分', '技术分', '资金分', '情绪分', '基本面分', '消息分']) {
       expect(headers).toContain(label)
     }
-    expect(headers).not.toContain('ATR14÷昨收')
+    expect(headers).toContain('ATR14÷昨收')
     const symbols = [...host.querySelectorAll('tbody tr')].map(tr => tr.textContent)
+    // 共享结果组件保持已保存顺位，不在浏览器按代码重新排列。
     expect(symbols[0]).toContain('600002.SH')
     expect(symbols[1]).toContain('600001.SH')
+    for (const index of [0, 2]) {
+      await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index].click())
+      expect(host.querySelector('details')).toBeNull()
+    }
   })
   it('shows S01 saved cumulative metrics and keeps stock navigation in all tabs', async () => {
     const row = { symbol: '600001.SH', name: '第一只', current_return: .025,
@@ -90,7 +116,7 @@ describe('StrategyDailyResults', () => {
   })
   it('keeps strategy explanations collapsed while errors remain visible, preserving disclosure on tab and data changes', async () => {
     const result: ScreenerResult = {
-      as_of: '2026-11-05', strategy: 'custom_mvxxcp88', rows: [], total: 0, elapsed_ms: 0,
+      as_of: '2026-11-05', strategy: 'custom_other', rows: [], total: 0, elapsed_ms: 0,
       section_mode: 'signals', sections: { sell: [], select: [], buy: [] },
       section_errors: { buy: '分钟文件不可读' }, execution_error: '行情读取失败',
       execution_status: { state: 'retrying', reason: '等待行情恢复', updated_at: 1793840000000 },

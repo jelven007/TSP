@@ -1,4 +1,4 @@
-"""Current S01 exits use only recent volume decline, plus unconditional clocks."""
+"""Native S01 exit compatibility retains frozen volume and clock contracts."""
 from datetime import datetime
 from pathlib import Path
 
@@ -108,7 +108,7 @@ def test_stop_and_fallback_rearm_new_volume_only_exit_without_market_evidence():
 
 
 def test_saved_custom_source_runs_new_volume_exit_and_keeps_frozen_signal_independent(tmp_path):
-    source = Path(__file__).resolve().parent / "fixtures/s01_available_minutes.py"
+    source = Path(__file__).resolve().parents[2] / "examples/strategies/s01_signal_sections.py"
     (tmp_path / "s01.py").write_text(source.read_text())
     engine = StrategyEngine([tmp_path])
     assert engine.get("custom_mvxxcs01").meta["name"] == "s01"

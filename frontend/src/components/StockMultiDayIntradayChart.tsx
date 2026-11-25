@@ -87,7 +87,7 @@ export function StockMultiDayIntradayChart({
   // sessions 供绘图, 若参与计数会把缺口撑成 0, 提示条与自动补齐将永不触发 (issue #305)
   const localSessionCount = history.data?.sessions?.length ?? 0
   const missingDays = Math.max(0, days - localSessionCount)
-  const showCoverage = !history.isPlaceholderData && sessions.length > 0 && missingDays > 0 && !isIndex
+  const showCoverage = !history.isLoading && !history.isPlaceholderData && sessions.length > 0 && missingDays > 0 && !isIndex
 
   // 自动补齐: 本地落库天数不足且非指数时, 自动触发同步
   // 用 ref 记录已触发的 symbol:days, 避免重复; 失败后清标记, 允许上限内自动重试
@@ -96,8 +96,9 @@ export function StockMultiDayIntradayChart({
   const { mutate: syncMinuteData, isPending: syncMinutePending } = syncMinute
   useEffect(() => {
     if (!symbol) return
+    // 最新分时可能先返回；历史请求完成前不能用空计数判断缺口。
     // 后端没运行时 history 会 error, 此时 missingDays 计算无意义, 跳过
-    if (history.error || history.isPlaceholderData || loading || isIndex || localSessionCount >= days) return
+    if (history.isLoading || history.error || history.isPlaceholderData || loading || isIndex || localSessionCount >= days) return
     if (syncMinutePending) return
 
     const key = `${symbol}:${days}`
@@ -105,7 +106,7 @@ export function StockMultiDayIntradayChart({
     if ((autoSyncFailsRef.current.get(key) ?? 0) >= 2) return  // 连续失败达上限, 停止自动重试(提示条保留手动重试)
     autoSyncRef.current = key
     syncMinuteData()
-  }, [symbol, days, localSessionCount, loading, isIndex, history.error, history.isPlaceholderData, syncMinutePending, syncMinuteData])
+  }, [symbol, days, localSessionCount, loading, isIndex, history.isLoading, history.error, history.isPlaceholderData, syncMinutePending, syncMinuteData])
 
   const chartHeight = Math.max(260, height - (showCoverage || syncMinute.isPending ? 32 : 0))
 

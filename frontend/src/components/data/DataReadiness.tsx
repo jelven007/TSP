@@ -41,6 +41,7 @@ export function DataReadiness({ quality, initialization }: {
           <p className="text-xs text-muted">
             最近成功同步：{initialization.last_successful_pipeline_at ?? '暂无成功记录'}
           </p>
+          <p className="text-xs text-muted">首次同步完成不认证各策略当日输入；策略卡片显示精确日期归档和任务覆盖。</p>
         </>
       )}
       {quality && (
@@ -51,9 +52,18 @@ export function DataReadiness({ quality, initialization }: {
             <div>相对当前目录覆盖：{ratio(quality.latest_daily.coverage_ratio)}</div>
             <div>异常价格行：{count(quality.latest_daily.invalid_price_rows)}</div>
             <div>异常成交量行：{count(quality.latest_daily.invalid_volume_rows)}</div>
-            <div>财务原公告时间未知比例：{ratio(quality.historical_inputs.financial_publication.unknown_ratio)}</div>
+            <div>财务原公告时点未认证比例：{ratio(quality.historical_inputs.financial_publication.unknown_ratio)}</div>
             <div>历史退市池缺失比例：{ratio(quality.historical_inputs.universe.missing_delisted_ratio)}</div>
           </div>
+          <p className="mt-2 text-muted">保守认证标记，不能据此判断公告字段缺失；字段缺失比例仍未知。</p>
+          {Object.entries(quality.historical_inputs.financial_publication.tables ?? {}).map(([table, evidence]) => {
+            const observation = quality.historical_inputs.financial_publication.observations?.tables[table]
+            return <p key={table} className="mt-1 text-muted break-words">
+              {table}：公告字段 {evidence.publication_fields?.join('、') || '未发现'}
+              {' · 最近保留观察 '}{observation?.observed_at ?? '暂无'}
+              {observation?.content_hash ? ` · 内容摘要 ${observation.content_hash}` : ''}
+            </p>
+          })}
           <p className="mt-3 text-muted leading-relaxed">
             仅检查最新日K分区；当前目录覆盖不代表历史股票池完整。源时间尚未认证，
             历史PIT尚未验证，严格研究仍须通过原有门槛。

@@ -12,7 +12,11 @@ import polars as pl
 
 from app.backtest.costs import buy_quantity_rules
 from app.backtest.engine import BacktestEngine, MatcherConfig, TradeRecord
-from app.backtest.entry_execution import execute_entry_window, expected_trading_minutes
+from app.backtest.entry_execution import (
+    execute_entry_window,
+    expected_trading_minutes,
+    minute_capacity,
+)
 from app.backtest.governance import research_preflight, status_quality
 from app.backtest.minute_replay import (
     MinuteSignalReplayer,
@@ -20,13 +24,14 @@ from app.backtest.minute_replay import (
     minute_panel_start,
     minute_replay_feature_plan,
     requires_full_pool,
+    requires_s03_scoring,
 )
 from app.instrument_suspension import STATUS_COLUMN, dated_status, holding_exit_status
 from app.market_time import published_trading_day
 from app.price_limits import is_risk_warning_name, price_limit_pct
 from app.strategy.morning_liquidation import evaluate, parameters
 from app.strategy.overnight_runtime import next_market_day
-from app.strategy.risk_policy import strategy_policy, valid_price
+from app.strategy.risk_policy import price_exit, strategy_policy, valid_price
 
 EXECUTION = "generic_morning_liquidation_resume_v2"
 
@@ -40,6 +45,8 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
     )
     positions, marks, records, equities, exposures = {}, {}, [], [], []
     cash = float(config.initial_capital)
+    entry_rate = config.entry_participation_pct or 1.
+    exit_rate = config.exit_participation_pct or 1.
     counters = defaultdict(int)
     peak = cash
     replayed = 0
@@ -60,7 +67,8 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                 "remaining_positions": list(positions.values()),
                 "buy_fills": sum(f["side"] == "buy" for f in output.fills),
                 "sell_fills": sum(f["side"] == "sell" for f in output.fills),
-                "capacity_checked": True, "volume_participation_upper_bound": 1.0,
+                "capacity_checked": True, "volume_participation_upper_bound": max(entry_rate, exit_rate),
+                "entry_participation_pct": entry_rate, "exit_participation_pct": exit_rate,
                 "aggregated_order_fees": True,
             },
             "minute_replay": {"replayed_days": replayed},
@@ -94,8 +102,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
     execution_clock = (fallback_clock or clock(15)) if staged else deadline_clock
     observation_clock = stage_clocks[0] if stage_clocks else execution_clock
     risk = strategy_policy(strategy, overrides)
-    if config.regime_filter or any(v is not None for v in asdict(risk).values()):
-        return finish("早盘清仓收益回测暂不支持环境过滤、固定/移动风控或最长持有")
+    risk_enabled = any(v is not None for v in asdict(risk).values())
     from app.strategy.entry_risk import EntryRiskPolicy
     if EntryRiskPolicy.from_mapping(overrides.get("entry_risk")).enabled:
         return finish("冻结日线入场风险暂不支持分钟策略")
@@ -126,7 +133,18 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
     daily_bars = service.strategy_engine.minute_daily_history_bars(
         [config.strategy_id], overrides_map={config.strategy_id: overrides},
     )
+    if requires_s03_scoring(service.strategy_engine, strategy, overrides):
+        from app.services.selection_clock import S02_ID
+        daily_bars = max(daily_bars, 65, service.strategy_engine.minute_daily_history_bars([S02_ID]))
     feature_plan = _with_status_fields(minute_replay_feature_plan(daily_bars, bf, overrides), "stock")
+    if requires_s03_scoring(service.strategy_engine, strategy, overrides):
+        s02 = service.strategy_engine.get(S02_ID)
+        loader = service.strategy_engine._override_loader
+        s02_bf = {**s02.basic_filter, **((loader(S02_ID) if loader else {}).get("basic_filter") or {})}
+        source_plan = minute_replay_feature_plan(daily_bars, s02_bf)
+        feature_plan = replace(feature_plan,
+                               base_columns=feature_plan.base_columns | source_plan.base_columns,
+                               indicator_columns=feature_plan.indicator_columns | source_plan.indicator_columns)
     repo = service.engine.repo
     suspension_history = getattr(repo, "get_suspension_history", lambda: pl.DataFrame())()
     try:
@@ -155,11 +173,11 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
     if config.strict_research and issues:
         return finish("严格研究校验未通过: " + "; ".join(issues))
     output.stats["warnings"] = [
-        *issues, "原始现金账本未计未经核验的分红送转; 分钟成交量100%仅为容量上界",
+        *issues, "原始现金账本未计未经核验的分红送转; 分钟参与率为成交容量上界",
     ]
     output.config.update(
         minute_execution=EXECUTION, minute_exit_fill=minute_exit_fill,
-        volume_participation_upper_bound=1.0,
+        volume_participation_upper_bound=max(entry_rate, exit_rate),
     )
     output.strategy_info = {
         "id": config.strategy_id, "name": strategy.meta.get("name", config.strategy_id),
@@ -167,7 +185,8 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
         "entry_signals": service._effective_signals(overrides, "entry_signals", strategy.entry_signals),
         "exit_signals": exits, "exit_params": sig_params,
         "minute_entry_fill": strategy.meta.get("minute_entry_fill", "signal_close"),
-        "minute_exit_fill": minute_exit_fill, "volume_participation_upper_bound": 1.0,
+        "minute_exit_fill": minute_exit_fill, "volume_participation_upper_bound": max(entry_rate, exit_rate),
+        "entry_participation_pct": entry_rate, "exit_participation_pct": exit_rate,
     } if result_policy.include_strategy_info else {}
     days, day = [], config.start
     while day <= config.end:
@@ -179,6 +198,21 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
         day += timedelta(days=1)
     if not days:
         return finish("区间内无已确认交易日")
+    # 使用与日线回测相同的精确T-1环境过滤, 只限制新入场。
+    prior_day = config.start - timedelta(days=1)
+    while published_trading_day(prior_day) is False:
+        prior_day -= timedelta(days=1)
+    labels = tuple(map(str, [prior_day, *days]))
+    try:
+        from app.config import settings
+        regime_mask = service._build_regime_mask(
+            labels, config.regime_filter,
+            getattr(getattr(repo, "store", None), "data_dir", None) or settings.data_dir,
+            required_start=config.start, required_end=config.end,
+        )
+    except (ValueError, OSError, pl.exceptions.PolarsError) as exc:
+        return finish(f"环境过滤失败: {exc}")
+    output.config["risk_policy"] = asdict(risk)
     minute_days = set(repo.list_minute_dates(config.start, config.end, "stock"))
     replayer = MinuteSignalReplayer(service.engine, service.strategy_engine)
 
@@ -226,7 +260,14 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                 strategy, panel=panel, start=day, end=day, params=params,
                 overrides={**overrides, "exit_signals": []},
                 symbols=config.symbols, cancel_event=cancel_event,
+                strict_research=config.strict_research,
             )
+            if replay.selection_provenance:
+                provenance.setdefault("s03_selection_replay", []).extend(replay.selection_provenance)
+                output.stats["warnings"] = list(dict.fromkeys([
+                    *output.stats.get("warnings", []),
+                    *[warning for row in replay.selection_provenance for warning in row["warnings"]],
+                ]))
             replayed += replay.replayed_days
             if cancel_event is not None and cancel_event.is_set():
                 return finish("cancelled")
@@ -236,7 +277,11 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
             counters["buy_limit_up"] += replay.buy_limit_up
             counters["buy_no_next_minute"] += replay.buy_no_next_minute
             hits_at = defaultdict(list)
-            for hit in replay.hits:
+            entry_hits = replay.hits
+            if regime_mask is not None and not regime_mask[index + 1]:
+                counters["buy_regime_filter"] += len(entry_hits)
+                entry_hits = []
+            for hit in entry_hits:
                 at = datetime.combine(day, clock.fromisoformat(hit.trigger_time))
                 hits_at[(at, 0)].append(hit)
                 output.signals.append({
@@ -245,7 +290,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     "datetime": str(at), "price": hit.raw_entry_price, "score": hit.score,
                     "signal_bar": at.hour * 60 + at.minute, "reason": "entry",
                 })
-            symbols = set(positions) | {h.symbol for h in replay.hits}
+            symbols = set(positions) | {h.symbol for h in entry_hits}
             history = repo.get_minute_by_dates(sorted(symbols), [day], "stock") if symbols else pl.DataFrame()
             if not history.is_empty() and history.schema["datetime"].time_zone:
                 history = history.with_columns(
@@ -286,6 +331,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                 evaluated = evaluate(
                     frame, sig, day=day, now=observation,
                     positions=[{**pos, "entry_date": str(pos["entry_date"]),
+                                "entry_price": pos["price"],
                                 "qty": pos["remaining"], "available_qty": pos["remaining"]}],
                     prev_close={symbol: prev}, suspension_history=suspension_history,
                 )
@@ -293,12 +339,39 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     evaluated = evaluate(
                         frame, sig, day=day, now=datetime.combine(day, observation_clock),
                         positions=[{**pos, "entry_date": str(pos["entry_date"]),
+                                    "entry_price": pos["price"],
                                     "qty": pos["remaining"], "available_qty": pos["remaining"]}],
                         prev_close={symbol: prev}, suspension_history=suspension_history,
                     )
-                if not evaluated.hits:
+                hit = evaluated.hits[0] if evaluated.hits else None
+                if risk_enabled and status != "resume" and not frame.is_empty():
+                    held = sum(published_trading_day(pos["entry_date"] + timedelta(days=i)) is True
+                               for i in range(1, (day - pos["entry_date"]).days + 1))
+                    known_peak = pos.get("risk_peak", pos["price"])
+                    for row in frame.sort("datetime").iter_rows(named=True):
+                        moment = row["datetime"]
+                        if moment.date() != day or not (
+                            clock(9, 31) <= moment.time() <= clock(11, 30)
+                            or clock(13, 1) <= moment.time() <= clock(15)
+                        ):
+                            continue
+                        if hit and moment > datetime.fromisoformat(hit["trigger_time"]):
+                            break
+                        if not all(valid_price(row.get(c)) for c in ("open", "high", "low", "close")):
+                            return finish(f"{day} {symbol} 风控分钟价格缺失或无效")
+                        reason, threshold = price_exit(
+                            risk, pos["price"], known_peak, row["open"], row["low"], row["high"],
+                        )
+                        if reason is None and risk.max_hold_days is not None and held >= risk.max_hold_days:
+                            reason, threshold = "max_hold", row["close"]
+                        if reason:
+                            hit = {"symbol": symbol, "reason": reason,
+                                   "trigger_time": moment.isoformat(sep=" "),
+                                   "price": threshold, "signal_id": "risk_" + reason}
+                            break
+                        known_peak = max(known_peak, row["high"])
+                if hit is None:
                     return finish(f"{day} {symbol} 无法确定早盘清仓触发")
-                hit = evaluated.hits[0]
                 at = datetime.fromisoformat(hit["trigger_time"])
                 if status == "resume":
                     at = at.replace(second=0, microsecond=0) + timedelta(minutes=1)
@@ -337,7 +410,8 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         sell_windows[symbol] = tuple(moment for moment in sell_windows[symbol]
                                                      if moment < end_at or (
                                                          fallback_clock is None and moment == end_at))
-                output.signals.append({"date": str(day), "side": "sell", **hit, "signal_id": exits[0],
+                hit.setdefault("signal_id", exits[0])
+                output.signals.append({"date": str(day), "side": "sell", **hit,
                                        "signal_bar": at.hour * 60 + at.minute})
             # 只用截至当前事件的分钟价估值与分配预算, 不借未来卖款或日终价格。
             events = defaultdict(list)
@@ -367,6 +441,10 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     price_field = "open" if phase == 0 else "close"
                     if valid_price(row.get(price_field)):
                         marks[row["symbol"]] = row[price_field]
+                    pos = positions.get(row["symbol"])
+                    if (risk_enabled and phase == 1 and pos and pos["entry_date"] == day
+                            and at >= pos["last_buy_fill"] and valid_price(row.get("high"))):
+                        pos["risk_peak"] = max(pos["risk_peak"], row["high"])
                 for symbol in list(positions):
                     trigger = triggers.get(symbol)
                     deadline = clock(15) if trigger and trigger["reason"] == "resume" else execution_clock
@@ -417,7 +495,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         counters["sell_limit_down"] += 1
                         continue
                     step = buy_quantity_rules(symbol, "stock")[1] if next_minute_exit else 1
-                    quantity = min(pos["remaining"], math.floor(row["volume"] * 100 / step + 1e-9) * step)
+                    quantity = min(pos["remaining"], minute_capacity(row["volume"], exit_rate, step))
                     if quantity <= 0:
                         continue
                     before = pos["day_sell_notional"]
@@ -443,11 +521,12 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                             pnl_pct=proceeds / pos["entry_value"] - 1,
                             duration=sum(published_trading_day(pos["entry_date"] + timedelta(days=i)) is True
                                          for i in range(1, (day - pos["entry_date"]).days + 1)),
-                            exit_reason="signal", shares=pos["shares"], lots=pos["shares"] / 100,
+                            exit_reason=trigger["reason"] if trigger["signal_id"].startswith("risk_") else "signal",
+                            shares=pos["shares"], lots=pos["shares"] / 100,
                             position_pct=pos["position_pct"], entry_value=pos["entry_value"],
                             exit_value=proceeds, pnl_amount=proceeds - pos["entry_value"],
                             entry_score=pos["score"], entry_signal_date=pos["signal_time"],
-                            exit_signal_date=trigger["trigger_time"], exit_signal_id=exits[0],
+                            exit_signal_date=trigger["trigger_time"], exit_signal_id=trigger["signal_id"],
                             raw_entry_shares=pos["shares"], raw_entry_price=pos["price"],
                         )
                         records.append(record)
@@ -509,6 +588,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                             max(order_budget, 0), price, order_symbol,
                         ),
                         buy_value=matcher.buy_value,
+                        participation_pct=entry_rate,
                         limit_up_price=_scalar_limit_up_price(
                             float(previous_close),
                             price_limit_pct(
@@ -556,6 +636,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         "signal_time": f"{day} {hit.signal_time or hit.trigger_time}",
                         "fill_time": first_fill.datetime.strftime("%Y-%m-%d %H:%M"),
                         "sell_notional": 0., "sell_fees": 0.,
+                        "risk_peak": price, "last_buy_fill": execution.fills[-1].datetime,
                     }
                     marks[symbol] = price
                     output.fills.extend({

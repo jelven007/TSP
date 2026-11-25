@@ -1,4 +1,7 @@
-"""尾盘走强本地回放, 使用策略保存的完整当日股票池快照。"""
+"""共享尾盘模板的本地信号回放, 使用策略保存的完整当日股票池。
+
+回放不恢复S02调度器的独立阶段、修复历史或发布回执; 不模拟成交和收益。
+"""
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
@@ -15,6 +18,12 @@ from app.strategy.late_session_strength import (
 
 
 def replay(repo, storage, sig, *, strategy_id, start, end, symbols):
+    """在含首尾的日期区间计算模板触发, 返回扫描计数、triggers和diagnostics。
+
+    每日按保存完整池计算, symbols只限制返回触发; 缺池记诊断并跳过该日。
+    仅显式entry_groups读取资格快照。定时信号只评估保存确认点, 非定时
+    信号逐完成分钟评估; 仓库或计算异常向上抛出, 不伪装扫描成功。
+    """
     triggers, diagnostics = [], []
     days_scanned = bars_scanned = 0
     params = parameters(sig)
@@ -55,7 +64,7 @@ def replay(repo, storage, sig, *, strategy_id, start, end, symbols):
             bars_scanned += minute.height
         capital = None
         if params["turnover_min_pct"] is not None:
-            # Reuse the repository's capital resolver, independently of minute prices.
+            # 换手率才读取证券股本并套用历史股本, 不从分钟价格推测分母。
             getter = getattr(repo, "get_instruments", None)
             if callable(getter):
                 from app.market_time import cn_today

@@ -54,7 +54,16 @@ class RuntimeStageMetrics(BaseModel):
     duration_ms: DurationMetrics
 
 
+class StreamMetrics(BaseModel):
+    process: ProcessMetrics
+    in_flight: int
+    totals: HttpMetricAggregate
+    routes: list[HttpRouteMetric]
+    first_byte: dict
+
+
 class ObservabilitySnapshot(BaseModel):
+    measurement: str = "http_completion_v1"
     process: ProcessMetrics
     runtime_process: ProcessMetrics
     public_query_cache: dict[str, int | float] = Field(default_factory=dict)
@@ -63,6 +72,7 @@ class ObservabilitySnapshot(BaseModel):
     routes: list[HttpRouteMetric]
     stages: dict[str, RuntimeStageMetrics] = Field(default_factory=dict)
     pools: dict[str, dict[str, int]] = Field(default_factory=dict)
+    streams: StreamMetrics | None = None
 
 
 @router.get("/health")

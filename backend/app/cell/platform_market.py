@@ -73,6 +73,8 @@ class MonitorRepairRequest(BaseModel):
     symbols: list[str] = Field(min_length=1, max_length=10000)
     daily_dates: list[date] = Field(max_length=500)
     minute_end: str | None = None
+    minute_start: str | None = None
+    certify_coverage: bool = False
     retry_until: datetime
 
 
@@ -81,6 +83,39 @@ class MonitorRepairCancel(BaseModel):
     owner: str = Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$")
     strategy_id: str = Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$")
     generation: int = Field(ge=1)
+
+
+class S02InputRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    request: dict
+    phase: Literal["breadth", "stocks"]
+
+
+@router.post("/s02-input")
+def s02_input(request: Request, value: S02InputRequest,
+              authorization: Annotated[str | None, Header()] = None):
+    _authorize(authorization)
+    service = getattr(request.app.state, "s02_input_service", None)
+    if service is None:
+        raise HTTPException(503, "s02_input_service_unavailable")
+    try:
+        return service.request(value.request, value.phase)
+    except (ValueError, KeyError, TypeError) as exc:
+        raise HTTPException(422, "invalid_s02_input") from exc
+
+
+@router.get("/s02-input/package")
+def s02_input_package(request: Request, key: str, phase: Literal["breadth", "stocks"],
+                      authorization: Annotated[str | None, Header()] = None):
+    _authorize(authorization)
+    from app.services.strategy_input_mirror import package
+    service = getattr(request.app.state, "s02_input_service", None)
+    if service is None or service.mirror:
+        raise HTTPException(503, "s02_authority_unavailable")
+    try:
+        return package(service.store, key, phase) or {"state": "waiting_input"}
+    except ValueError as exc:
+        raise HTTPException(422, "invalid_s02_input_package") from exc
 
 
 def _repair_service(request):
@@ -98,6 +133,7 @@ def monitor_repair(request: Request, value: MonitorRepairRequest,
     now = cn_now()
     try:
         end = clock_time.fromisoformat(value.minute_end) if value.minute_end else None
+        start = clock_time.fromisoformat(value.minute_start) if value.minute_start else None
     except ValueError:
         raise HTTPException(422, "invalid_repair_window") from None
     deadline = as_cn_datetime(value.retry_until)
@@ -108,6 +144,7 @@ def monitor_repair(request: Request, value: MonitorRepairRequest,
             or deadline.time().replace(tzinfo=None) > latest
             or any(day > value.day for day in value.daily_dates)
             or any(not re.fullmatch(SYMBOL_PATTERN, symbol) for symbol in value.symbols)
+            or (start and (end is None or not clock_time(9, 30) <= start <= end))
             or (end and (end > now.time().replace(tzinfo=None) or not clock_time(9, 30) <= end <= clock_time(15)))):
         raise HTTPException(422, "invalid_repair_window")
     try:

@@ -269,6 +269,9 @@ async def _application_lifespan(app: FastAPI):
     from app.services.financial_sync import financial_scheduler
     financial_scheduler.start(store.data_dir, capset, write_lock=repo._write_lock)
     app.state.financial_scheduler = financial_scheduler
+    from app.services.related_market_data import related_market_data_scheduler
+    related_market_data_scheduler.start(store.data_dir, repo=repo)
+    app.state.related_market_data_scheduler = related_market_data_scheduler
 
     # 自愈看门狗: 探测 polars 闸与写锁, 僵死时退出交由 supervisor 拉起 (兜底层)。
     from app.watchdog import start_watchdog
@@ -311,7 +314,10 @@ async def _application_lifespan(app: FastAPI):
                     logger.warning("daily stock pools deferred: %d strategies", len(status["errors"]))
             except Exception:
                 logger.warning("daily stock pools awaiting market inputs")
-        app.state.scheduler.add_job(_daily_stock_pools, "cron", hour="8,9", minute=0,
+        app.state.scheduler.add_job(_daily_stock_pools, "cron", hour=8, minute=30,
+                                    timezone="Asia/Shanghai", id="daily_stock_pools_first",
+                                    max_instances=1, coalesce=True)
+        app.state.scheduler.add_job(_daily_stock_pools, "cron", hour=9, minute=0,
                                     timezone="Asia/Shanghai", id="daily_stock_pools_slots",
                                     max_instances=1, coalesce=True)
         app.state.scheduler.add_job(_daily_stock_pools, "interval", seconds=60,
@@ -321,14 +327,16 @@ async def _application_lifespan(app: FastAPI):
             try:
                 status = generate_scheduled_local(strategy_engine, _screener_svc, store.data_dir,
                     repair=getattr(strategy_engine, "_monitor_repair", None))
-                if status["saved"] or status.get("watchlist_changed"):
+                if status["saved"] or status.get("watchlist_changed") or status.get("status_refresh", {}).get("saved"):
                     app.state.quote_service.notify_strategy_results_updated(
                         watchlist_changed=bool(status.get("watchlist_changed")))
                 if status["errors"]:
                     logger.warning("postclose selection deferred: %d strategies", len(status["errors"]))
+                if status.get("status_refresh", {}).get("errors"):
+                    logger.warning("custom strategy stock status refresh deferred")
             except Exception:
                 logger.warning("postclose selection awaiting market inputs")
-        app.state.scheduler.add_job(_daily_selections, "cron", hour=20, minute=0,
+        app.state.scheduler.add_job(_daily_selections, "cron", hour="21,22", minute=0,
                                     timezone="Asia/Shanghai", id="daily_selections_slot",
                                     max_instances=1, coalesce=True, misfire_grace_time=3600)
         app.state.scheduler.add_job(_daily_selections, "interval", seconds=60,
@@ -464,6 +472,9 @@ async def _application_lifespan(app: FastAPI):
         fsc = getattr(app.state, "financial_scheduler", None)
         if fsc:
             fsc.stop()
+        related = getattr(app.state, "related_market_data_scheduler", None)
+        if related:
+            related.stop()
         qs = getattr(app.state, "quote_service", None)
         if qs:
             qs.stop()

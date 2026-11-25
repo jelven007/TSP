@@ -1,4 +1,5 @@
 """Custom monitoring saves a lifecycle; enabling never requires market data."""
+from copy import deepcopy
 from datetime import date, datetime
 from types import SimpleNamespace
 
@@ -29,16 +30,19 @@ def test_custom_monitor_switch_saves_all_directions_without_running(tmp_path, mo
 
 
 @pytest.mark.parametrize("stamp,expected", [
-    ("2026-10-30T19:59:59", None),
-    ("2026-10-30T20:00:00", (date(2026, 10, 30), date(2026, 11, 2))),
+    ("2026-10-30T20:00:00", None),
+    ("2026-10-30T20:59:59", None),
     ("2026-10-30T21:00:00", (date(2026, 10, 30), date(2026, 11, 2))),
-    ("2026-10-30T21:00:01", None),
-    ("2026-10-31T20:00:00", None),
+    ("2026-10-30T21:00:01", (date(2026, 10, 30), date(2026, 11, 2))),
+    ("2026-10-30T22:00:00", (date(2026, 10, 30), date(2026, 11, 2))),
+    ("2026-10-30T22:00:01", None),
+    ("2026-10-31T21:00:00", None),
     ("2026-11-02T08:00:00", None),
 ])
 def test_monitored_selection_window_is_bounded_and_has_no_weekend_catchup(stamp, expected):
+    # 普通策略窗口含起止边界; 周末不补跑, 周五资格冻结到精确下一交易日。
     assert due_window(datetime.fromisoformat(stamp).replace(tzinfo=CN_TZ),
-                      monitored_only=True) == expected
+                      monitored_only=True, strategy_id="custom_mvxxcs01") == expected
 
 
 def test_task_summary_is_read_only_and_new_pool_strategy_is_off(tmp_path):
@@ -67,7 +71,7 @@ def test_nightly_failure_receipts_keep_other_tasks_and_deduplicate_alerts(tmp_pa
     task_receipt(tmp_path, "custom_test", "2026-10-30", {"tasks": {"sell": {"state": "success"}}})
     job = {"as_of": "2026-11-02", "source_date": "2026-10-30",
            "state": "failed", "errors": {"custom_test": "缺日线"}}
-    now = datetime(2026, 10, 30, 20, tzinfo=CN_TZ)
+    now = datetime(2026, 10, 30, 21, tzinfo=CN_TZ)
     monkeypatch.setattr("time.time", lambda: now.timestamp())
     selection_receipts(tmp_path, job, now)
     selection_receipts(tmp_path, job, now)
@@ -109,17 +113,28 @@ def test_task_windows_read_tenant_signal_storage_when_engine_has_no_source_direc
     assert windows["sell"][0]["end"] == "11:30:00"
 
 
-def test_buy_task_window_and_status_match_real_time_cutoff_without_changing_saved_signal(monkeypatch):
+@pytest.mark.parametrize("meta", [
+    {},
+    {"entry_phase_policy": "independent_v1"},
+    {"entry_breadth_observation": True},
+])
+def test_buy_task_window_and_status_match_real_time_cutoff_without_changing_saved_signal(monkeypatch, meta):
     from app.services.strategy_monitor_tasks import task_windows, window_state
     signal = {"id": "late", "enabled": True, "template": "late_session_strength", "params": {
         "time": "14:50:00", "end_time": "15:00:00", "evaluation_delay_minutes": .5}}
+    saved_signal = deepcopy(signal)
+    strategy = SimpleNamespace(meta=meta)
     monkeypatch.setattr("app.strategy.s01_signals.optional_triggers", lambda _: True)
     monkeypatch.setattr("app.strategy.s01_signals.trigger_definitions",
                         lambda *_a, **_k: {"entry": [signal], "exit": []})
-    windows = task_windows(None, None, {})
+    windows = task_windows(None, strategy, {})
+    assert windows["buy"][0]["start"] == "14:50:00"
     assert windows["buy"][0]["end"] == "14:55:00"
-    assert signal["params"]["end_time"] == "15:00:00"
+    assert windows["buy"][0].get("phase_policy") == meta.get("entry_phase_policy")
+    assert windows["buy"][0].get("observe_breadth", False) == meta.get("entry_breadth_observation", False)
+    assert signal == saved_signal
     now = datetime(2026, 11, 20, 14, 55, tzinfo=CN_TZ)
+    assert window_state(windows, "buy", now.replace(minute=49, second=59)) == "waiting"
     assert window_state(windows, "buy", now) == "running"
     assert window_state(windows, "buy", now.replace(second=1)) == "expired"
 
@@ -128,10 +143,12 @@ def test_cleared_late_start_allows_morning_monitoring_and_keeps_live_cutoff(monk
     from app.services.strategy_monitor_tasks import task_windows, window_state
     signal = {"id": "late", "enabled": True, "template": "late_session_strength", "params": {
         "time": None, "end_time": None, "evaluation_delay_minutes": .5}}
+    saved_signal = deepcopy(signal)
     monkeypatch.setattr("app.strategy.s01_signals.optional_triggers", lambda _: True)
     monkeypatch.setattr("app.strategy.s01_signals.trigger_definitions",
                         lambda *_a, **_k: {"entry": [signal], "exit": []})
-    windows = task_windows(None, None, {})
+    windows = task_windows(None, SimpleNamespace(meta={}), {})
     assert windows["buy"][0]["start"] == "09:30:00"
     assert windows["buy"][0]["end"] == "14:55:00"
     assert window_state(windows, "buy", datetime(2026, 11, 20, 10, 30, tzinfo=CN_TZ)) == "running"
+    assert signal == saved_signal

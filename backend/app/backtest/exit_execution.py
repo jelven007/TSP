@@ -9,7 +9,12 @@ from datetime import datetime, timedelta
 import polars as pl
 
 from app.backtest.costs import buy_quantity_rules
-from app.backtest.entry_execution import EntryFill, expected_trading_minutes
+from app.backtest.entry_execution import (
+    EntryFill,
+    expected_trading_minutes,
+    minute_capacity,
+    participation_rate,
+)
 
 
 @dataclass(frozen=True)
@@ -31,12 +36,16 @@ def execute_exit_window(
     quantity: int, sell_value: Callable[[float], float],
     limit_down_price: float | None = None, slippage_bps: float = 0.,
     asset_type: str = "stock",
+    participation_pct: float = 1.0,
+    minute_price_rule: str = "legacy",
+    start_at: datetime | None = None,
 ) -> ExitExecution:
     """Confirm the first downward close crossing, then execute five minute bars.
 
     Missing bars consume their time slot. No order survives the session.
     Volume is in lots; each fragment uses its open and aggregate fee increment.
     """
+    rate = participation_rate(participation_pct)
     target = max(0, int(quantity))
     signal_at = None
     window = ()
@@ -44,7 +53,8 @@ def execute_exit_window(
     shares, notional = 0, 0.
     required = {"datetime", "open", "high", "low", "close", "volume"}
     if not frame.is_empty() and required <= set(frame.columns) and (
-        reference_price is not None and math.isfinite(reference_price) and reference_price > 0
+        start_at is not None or (
+            reference_price is not None and math.isfinite(reference_price) and reference_price > 0)
     ):
         source = frame.filter(pl.col("symbol") == symbol) if "symbol" in frame.columns else frame
         rows = source.to_dicts()
@@ -52,15 +62,15 @@ def execute_exit_window(
         if moments != sorted(moments) or len(moments) != len(set(moments)):
             raise ValueError("卖出窗口分钟重复或时间顺序错误")
         previous_above = True
-        for row in rows:
+        for row in rows if start_at is None else ():
             close = row["close"]
             valid = close is not None and math.isfinite(close) and close > 0
             if valid and close < reference_price and previous_above:
                 signal_at = row["datetime"]
                 break
             previous_above = bool(valid and close >= reference_price)
-        if signal_at is not None:
-            window = expected_trading_minutes(signal_at + timedelta(minutes=1))
+        if signal_at is not None or start_at is not None:
+            window = expected_trading_minutes(start_at or signal_at + timedelta(minutes=1))
             lookup = {row["datetime"]: row for row in rows}
             _, step, _ = buy_quantity_rules(symbol, asset_type)
             for moment in window:
@@ -75,13 +85,14 @@ def execute_exit_window(
                 if limit_down_price is not None and row["high"] <= limit_down_price + 1e-9:
                     continue
                 volume = row["volume"] * 100
-                capacity = math.floor(volume / step + 1e-9) * step
+                capacity = minute_capacity(row["volume"], rate, step)
                 remaining = target - shares
                 # A full residual odd lot may be sold, but cannot exceed capacity.
                 quantity_now = min(remaining, capacity)
                 if quantity_now <= 0:
                     continue
-                price = row["open"] * (1 - slippage_bps / 10000)
+                price = (row["low"] if minute_price_rule == "high_low_v1"
+                         else row["open"] * (1 - slippage_bps / 10000))
                 if limit_down_price is not None:
                     price = max(price, limit_down_price)
                 before_fee = notional - sell_value(notional) if notional else 0.

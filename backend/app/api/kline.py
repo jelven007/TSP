@@ -1055,13 +1055,13 @@ def get_minute(
     stock_name = stock_info.get("name")
 
     if trade_date is None:
-        # 默认看今天, 而不是本地落盘的最近日 (盘中后者是昨天)。
-        # 非交易日(周末/节假日)才回退到本地最近有数据的交易日。
+        # 盘中默认看今天; 盘前尚未形成分钟K, 显示最近已有数据的交易日。
         today = cn_today()
         # 同 /minute-batch: 周末必回退, 工作日休市以交易日探针「确定休市」为准
         need_fallback = today.weekday() >= 5 or trading_day.is_trading_day() is False
         if not need_fallback:
             now_cn = cn_now()
+            need_fallback = now_cn.hour < 9 or (now_cn.hour == 9 and now_cn.minute < 30)
             after_close = now_cn.hour > 15 or (now_cn.hour == 15 and now_cn.minute >= 30)
             if after_close:
                 latest_daily = repo.latest_daily_date()
@@ -1153,12 +1153,14 @@ def get_minute(
 
     is_complete = not df.is_empty() and len(df) >= expected * 0.9  # 允许 10% 容差
 
-    if is_complete:
+    # 还没有完成分钟时, 空分区也无需向数据源补拉。
+    if expected == 0 or is_complete:
         return _gzip_payload(
             request,
             {
                 "symbol": symbol, "name": stock_name, "stock_info": stock_info,
-                "date": str(trade_date), "rows": df.to_dicts(), "source": "local",
+                "date": str(trade_date), "rows": df.to_dicts(),
+                "source": "local" if not df.is_empty() else "none",
                 "asset_type": asset_type,
                 "price_limit": price_limit,
                 "prev_close": prev_close,

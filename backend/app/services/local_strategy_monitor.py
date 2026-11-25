@@ -1,4 +1,4 @@
-"""Standalone uses the same phase executor as the tenant worker."""
+"""单机顺序监控复用阶段内核; Full 隔离编排由 Worker 经 Broker 启动任务容器。"""
 from copy import deepcopy
 from dataclasses import asdict
 from types import SimpleNamespace
@@ -8,7 +8,7 @@ from app.market_time import cn_now, published_trading_day
 from app.multitenancy.documents import json_value
 from app.multitenancy.monitor_compute import (
     evaluate_snapshot,
-    evaluate_strategy_phases,
+    evaluate_strategy_phases_serial,
     failure_events,
 )
 from app.services.alert_store import append_many
@@ -35,6 +35,13 @@ from app.strategy.version import runtime_identity
 
 
 def run(engine, service, storage, *, repair=None):
+    """冻结本轮定义及按日输入, 计算后在锁内重新校验身份/世代并保存。
+
+    单机 executor 没有 isolated 能力, 先广度后个股在本进程调用同一内核。
+    已有按日归档优先于缺失回执; 归档、通知、任务状态沿本地保存边界写入。
+    返回本次保存的策略ID; 保存前重新校验当前身份、启用世代及提交时钟。
+    本地归档/通知/回执分步写入, 不具有Full业务库同一事务的原子提交语义。
+    """
     now = cn_now()
     if published_trading_day(now.date()) is not True:
         return []
@@ -62,7 +69,7 @@ def run(engine, service, storage, *, repair=None):
         archived = StrategyResults(storage).read(identity, str(now.date()))
         daily = (archived or {}).get("result") or {}
         if daily.get("monitor_contract") == CONTRACT and daily.get("as_of") == str(now.date()):
-            # The dated archive remains authoritative if a later receipt write failed.
+            # 归档已成功而之后回执写入失败时, 以同日正式归档的阶段状态为准。
             saved = {**saved, "tasks": deepcopy(daily.get("monitor_tasks") or {})}
         planning = plan(windows, saved.get("tasks", {}), now, trading=True)
         if repair:
@@ -94,7 +101,7 @@ def run(engine, service, storage, *, repair=None):
     if not identities:
         return []
     executor = SimpleNamespace(execute=lambda task: evaluate_snapshot(task, service.repo, frozen, storage))
-    result = json_value(evaluate_strategy_phases(payload, service.repo, executor))
+    result = json_value(evaluate_strategy_phases_serial(payload, service.repo, executor))
     if repair:
         request_phase_repairs(payload, result["results"], repair, now)
     changed = []

@@ -1,4 +1,4 @@
-"""Daily maintenance uses Beijing 21:00 and persistent day checkpoints."""
+"""Finance remains 21:00; related maintenance starts 20:30 in Beijing time."""
 import asyncio
 from datetime import datetime
 
@@ -81,7 +81,7 @@ def test_financial_failure_is_recorded_without_repeating_daily_attempt(tmp_path,
     assert scheduler._load_schedule()["status"] == "failed"
 
 
-def test_related_maintenance_2100_checkpoint_freezes_date_across_midnight(tmp_path, monkeypatch):
+def test_related_maintenance_2030_checkpoint_freezes_date_across_midnight(tmp_path, monkeypatch):
     scheduler = related_market_data.RelatedMarketDataScheduler()
     calls = []
     def sync(data_dir, **kwargs):
@@ -90,7 +90,7 @@ def test_related_maintenance_2100_checkpoint_freezes_date_across_midnight(tmp_pa
         return {"schema_version": 1, "datasets": {}}
     monkeypatch.setattr(related_market_data, "sync_related_data", sync)
     scheduler._run_scheduled(tmp_path, now(hour=18))
-    scheduler._run_scheduled(tmp_path, now(hour=20, minute=59))
+    scheduler._run_scheduled(tmp_path, now(hour=20, minute=29))
     assert calls == []
     scheduler._run_scheduled(tmp_path, now())
     related_market_data.RelatedMarketDataScheduler()._run_scheduled(tmp_path, now(hour=22))

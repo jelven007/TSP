@@ -57,11 +57,18 @@ export function PostCloseIntegritySummary({ status, enabled, unavailable = false
           ? ` · 修复前异常 ${review.before.invalid_count} 只` : ''}
       </p> : null}
       {result ? <p className="mt-0.5 text-secondary">
+        {status?.completion === 'partial' ? '部分已验证，整体未完成 · ' : ''}
         已验证结果：修复日线/收盘证据 {result.repaired_symbols?.length ?? 0} 只
         {gaps?.rows != null ? ` · 补缺写入 ${gaps.rows} 行` : ''}
         {gaps?.remaining != null ? ` · 剩余缺口 ${gaps.remaining}` : ''}
         {current && status.status === 'succeeded' ? ' · 收盘证据与加工表已重验' : ''}
       </p> : null}
+      {status?.coverage?.suspended_skipped != null && <p className="mt-0.5 text-muted">
+        已有停牌证据跳过 {status.coverage.suspended_skipped} 只
+      </p>}
+      {status?.retry_eligible === false && status.next_retry_at && <p className="mt-0.5 text-muted">
+        原日重试窗口已结束或同步已暂停；保留原失败记录。
+      </p>}
       {status?.error ? <p className="mt-0.5 break-words text-warning">{status.error}</p> : null}
       {!enabled ? <p className="mt-0.5 text-muted">随自动同步总开关暂停，保留最近结果。</p> : null}
     </div>

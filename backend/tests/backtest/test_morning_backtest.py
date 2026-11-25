@@ -136,6 +136,28 @@ def test_no_signal_is_valid_zero_trade_result(tmp_path):
     assert not result.fills
 
 
+def test_generic_custom_morning_entry_exit_caps_and_high_low_prices(tmp_path):
+    service, _, frames = service_fixture(tmp_path)
+    for day in frames:
+        frames[day] = frames[day].with_columns(pl.lit(100.).alias("volume"))
+    result = service.run(configuration(
+        initial_capital=1000000, entry_participation_pct=.1, exit_participation_pct=.05,
+        minute_price_rule="high_low_v1", commission_pct=0, minimum_commission=0,
+    ))
+    assert result.error and "剩余4500股" in result.error
+    assert result.stats["execution"]["remaining_positions"][0]["remaining"] == 4500
+    buys = [f for f in result.fills if f["side"] == "buy"]
+    sells = [f for f in result.fills if f["side"] == "sell"]
+    assert buys and sells
+    assert all(f["participation"] <= .1 for f in buys)
+    assert all(f["participation"] <= .05 for f in sells)
+    source = {str(row["datetime"]): row for part in frames.values() for row in part.to_dicts()}
+    assert all(f["price"] == pytest.approx(source[f["datetime"]]["high"]) for f in buys)
+    assert all(f["price"] == pytest.approx(source[f["datetime"]]["low"]) for f in sells)
+    assert result.config["entry_participation_pct"] == .1
+    assert result.config["exit_participation_pct"] == .05
+
+
 def test_morning_cash_ledger_uses_five_minute_entry_capacity_window(tmp_path):
     buy = _minute_frame(BUY, [
         (SYMBOL, "14:30", 10.2),
@@ -335,9 +357,7 @@ def test_cancel_after_buy_retains_cash_and_position(tmp_path):
 
 @pytest.mark.parametrize("patch, text", [
     ({"mode": "full"}, "连续资金"),
-    ({"regime_filter": {"states": ["strong"]}}, "环境过滤"),
     ({"overrides": {"exit_signals": [EXIT, "signal_ma_death_5_20"]}}, "混合"),
-    ({"overrides": {"exit_signals": [EXIT], "stop_loss": .05}}, "风控"),
 ])
 def test_unsupported_options_are_explicitly_rejected(tmp_path, patch, text):
     service, _, _ = service_fixture(tmp_path)

@@ -875,7 +875,7 @@ def replay_positions(
     """由台账重放推导 (持仓, 现金)。纯函数 — 重建与校验的唯一权威实现。
 
     持仓结构: {symbol: {asset_type, qty, avg_cost, available_qty,
-                        lots: [{date: 'YYYY-MM-DD', qty}]}}
+                        lots: [{date: 'YYYY-MM-DD', qty, entry_price}]}}
     corp_action 行: 数量乘 factor、成本除以 factor、日期归属保持原 buy_date。
     """
     acc = get_account(data_dir, account_id)
@@ -887,6 +887,11 @@ def replay_positions(
         if kind == "corporate_action":
             from app.strategy.paper_actions import apply_entry
 
+            if f.get("stage") == "ex":
+                # Event journals do not allocate the remaining FIFO cost basis.
+                # Do not compare today's raw price against a pre-ex fill price.
+                for lot in positions.get(symbol, {}).get("lots", []):
+                    lot["entry_price"] = None
             cash += apply_entry(positions, f)
             continue
         if kind == "corp_action":
@@ -896,6 +901,8 @@ def replay_positions(
             factor = float(f["factor"])
             for lot in pos["lots"]:
                 lot["qty"] = round(lot["qty"] * factor, 6)
+                if valid_price(lot.get("entry_price")) and factor:
+                    lot["entry_price"] /= factor
             pos["qty"] = round(pos["qty"] * factor, 6)
             pos["avg_cost"] = round(pos["avg_cost"] / factor, 6) if factor else 0.0
             if pos.get("risk_entry_price") and factor:
@@ -931,7 +938,7 @@ def replay_positions(
             pos["entry_notional"] += qty * price
             pos["entry_value"] += qty * price + fee
             pos["avg_cost"] = round(total_cost / pos["qty"], 6) if pos["qty"] else 0.0
-            pos["lots"].append({"date": f.get("date", ""), "qty": qty})
+            pos["lots"].append({"date": f.get("date", ""), "qty": qty, "entry_price": price})
         else:
             cash += qty * price - fee
             pos = positions.get(symbol)
