@@ -27,7 +27,7 @@ const preferences = {
 } as const
 
 describe('buildDataScheduleItems', () => {
-  it('shows both evening maintenance tasks at Beijing 21:00 with the automatic switch', () => {
+  it('shows related maintenance at 20:30 and finance at 21:00 with the automatic switch', () => {
     for (const enabled of [true, false]) {
       const items = buildDataScheduleItems({
         preferences: { data_sync_auto_enabled: enabled },
@@ -44,7 +44,7 @@ describe('buildDataScheduleItems', () => {
       expect(items.find(item => item.id === 'related-market-data')).toMatchObject({
         label: '相关市场数据维护',
         detail: expect.stringContaining('资金流、公告索引和历史ST状态'),
-        schedule: '每天 21:00（北京时间）',
+        schedule: '每天 20:30（北京时间）',
         state: enabled ? 'enabled' : 'disabled',
       })
     }

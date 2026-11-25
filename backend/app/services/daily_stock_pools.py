@@ -164,24 +164,33 @@ class DailyStockPools:
             return {row["strategy_id"]: json.loads(row["value"]) for row in rows}
 
 
-def generate_local(engine, service, storage, as_of, *, slot=None):
+def generate_local(engine, service, storage, as_of, *, slot=None, status=None, now=None):
     from app.services.daily_pool_schedule import batch_pool
     from app.services.strategy_results import capture_identities, execution_snapshot
     from app.strategy.config import list_overrides
     from app.strategy.daily_pool import DEFINITION_VERSION, build_pool
 
+    live_engine = engine
     engine = execution_snapshot(engine, storage)
     overrides = list_overrides(storage)
     ids = [sid for sid, strategy in engine._strategies.items()
            if not strategy.meta.get("research_only") and "stock" in strategy.meta.get("asset_types", ["stock"])]
     identities = capture_identities(engine, storage, ids, overrides_map=overrides, timeframe="all")
     store = DailyStockPools(storage)
+    from app.services.custom_status_refresh import (
+        compute_pools,
+        custom_stock_ids,
+        save_refresh,
+        state_digest,
+    )
     marker = digest({"definition_version": DEFINITION_VERSION,
-                     "identities": {sid: identity.fingerprint for sid, identity in identities.items()}})
+                     "identities": {sid: identity.fingerprint for sid, identity in identities.items()},
+                     **({"status": state_digest(status)} if status else {})})
     job_key = f"{as_of}:{slot}"
     previous = store.job(job_key) if slot else {}
     successful = (previous.get("state") == "succeeded"
-                  and previous.get("definition_version") == DEFINITION_VERSION)
+                  and previous.get("definition_version") == DEFINITION_VERSION
+                  and (not status or previous.get("signature") == marker))
     completed = (set(previous.get("completed", []))
                  if successful or previous.get("signature") == marker else set())
     pending = [sid for sid in ids if sid not in completed]
@@ -190,14 +199,17 @@ def generate_local(engine, service, storage, as_of, *, slot=None):
     if slot:
         store.job(job_key, {"signature": marker, "definition_version": DEFINITION_VERSION,
                            "state": "running", "completed": sorted(completed),
+                           **({"stock_status": status} if status else {}),
                            "started_at": int(time.time() * 1000),
                            "attempts": previous.get("attempts", 0) + 1})
     saved, errors = [], {}
     started_at = time.time_ns()
+    attempt_start = time.monotonic()
     try:
         from datetime import datetime
         from datetime import time as clock_time
-        context = (service.build_daily_pool_context(as_of, premarket=True,
+        response = compute_pools(engine, service.repo, as_of, pending, overrides, status) if status else None
+        context = None if status else (service.build_daily_pool_context(as_of, premarket=True,
                    observed_at=datetime.combine(as_of, clock_time.fromisoformat(slot))) if slot
                    else service.build_daily_pool_context(as_of))
     except Exception:
@@ -205,12 +217,31 @@ def generate_local(engine, service, storage, as_of, *, slot=None):
             store.job(job_key, {**store.job(job_key), "state": "failed", "errors": {
                 sid: "当日股票池缺少所需参考数据" for sid in pending}})
         raise
+    custom_ids = set(custom_stock_ids(engine))
     for sid in pending:
         try:
-            pool = build_pool(engine, sid, context, overrides=overrides.get(sid), premarket=bool(slot))
+            if response and sid in response["errors"]:
+                raise ValueError(response["errors"][sid])
+            pool = (response["pools"][sid] if response else
+                    build_pool(engine, sid, context, overrides=overrides.get(sid), premarket=bool(slot)))
             if slot:
                 pool = batch_pool(pool, as_of, slot)
-            store.save(identities[sid], pool, started_at=started_at)
+            if status:
+                from datetime import timedelta
+
+                from app.services.announced_stock_status import morning_status
+                from app.services.daily_pool_schedule import due_slot
+                latest = capture_identities(execution_snapshot(live_engine, storage), storage, [sid],
+                                            overrides_map=list_overrides(storage), timeframe="all")[sid]
+                if (latest.fingerprint != identities[sid].fingerprint
+                        or due_slot(now + timedelta(seconds=time.monotonic() - attempt_start)) != slot
+                        or state_digest(morning_status(service.repo, as_of, observed_at=now, slot=slot))
+                        != state_digest(status)):
+                    raise ValueError("本轮股票状态、配置或批次已更新, 将重试")
+            if status and sid in custom_ids:
+                save_refresh(storage, identities[sid], pool, status, started_at=started_at)
+            else:
+                store.save(identities[sid], pool, started_at=started_at)
             saved.append(sid)
         except (ValueError, AccessError) as exc:
             errors[sid] = str(exc)
@@ -223,7 +254,7 @@ def generate_local(engine, service, storage, as_of, *, slot=None):
 
 def generate_scheduled_local(engine, service, storage, *, now=None):
     from app.market_time import as_cn_datetime, cn_now
-    from app.services.daily_pool_schedule import due_slot
+    from app.services.daily_pool_schedule import SLOTS, due_slot
     now = as_cn_datetime(now or cn_now())
     slot = due_slot(now)
     if slot is None or not _scheduled_lock.acquire(blocking=False):
@@ -231,11 +262,15 @@ def generate_scheduled_local(engine, service, storage, *, now=None):
     try:
         store = DailyStockPools(storage)
         if slot == "09:00":
-            earlier = f"{now.date()}:08:00"
+            earlier = f"{now.date()}:{SLOTS[0]}"
             previous = store.job(earlier)
             if previous.get("state") not in {"succeeded", "interrupted"}:
                 store.job(earlier, {**previous, "state": "interrupted",
-                                   "reason": "已错过08:00批次, 生成最近09:00批次"})
-        return generate_local(engine, service, storage, now.date(), slot=slot)
+                                   "reason": "已错过08:30批次, 生成最近09:00批次"})
+        status = None
+        if getattr(service, "repo", None) is not None:
+            from app.services.announced_stock_status import morning_status
+            status = morning_status(service.repo, now.date(), observed_at=now, slot=slot)
+        return generate_local(engine, service, storage, now.date(), slot=slot, status=status, now=now)
     finally:
         _scheduled_lock.release()

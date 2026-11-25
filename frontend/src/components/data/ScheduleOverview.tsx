@@ -265,8 +265,8 @@ export function buildDataScheduleItems({
       id: 'related-market-data',
       category: 'maintenance',
       label: '相关市场数据维护',
-      detail: '维护资金流、公告索引和历史ST状态；保留覆盖检查点，当日自动执行一次，失败可手动处理。',
-      schedule: '每天 21:00（北京时间）',
+      detail: '优先核验下一交易日停牌、复牌和ST戴帽、摘帽；维护资金流、公告索引和历史ST状态，保留覆盖及异常检查点。',
+      schedule: '每天 20:30（北京时间）',
       state: stateForAuto(),
     },
     {

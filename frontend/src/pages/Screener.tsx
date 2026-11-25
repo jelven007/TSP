@@ -770,7 +770,9 @@ export function Screener() {
   }
 
 
-  const inlineDailyToolbar = !showAll && ['custom_mvxxcp88', 'custom_mvxxcs01'].includes(result?.strategy ?? '') && !!result?.sections
+  // 按返回结果所属策略布置卖／选／买工具栏；切换卡片期间不以新选择解释旧结果。
+  // 名单、日期和上涨占比消费服务端归档，浏览器不重新筛选完整池或生成信号。
+  const inlineDailyToolbar = !showAll && ['custom_mvxxcp88', 'custom_mvxxcs01', 'custom_mvxxcs03'].includes(result?.strategy ?? '') && !!result?.sections
 
   return (
     <>
@@ -1013,7 +1015,7 @@ export function Screener() {
           {isFutureQuery && (showAll || !result || result.section_mode !== 'signals') && (
             <p role="status" className="text-xs text-muted">
               {asOf} · 下一交易日归档查询：可查看已保存的卖／选／买，选名单在前一交易日
-              {showAll ? '普通策略20:00～21:00、S03专属21:00～22:00' : selectionWindow(activeStrategy)}生成；
+              {showAll ? '自定义策略盘后“选”任务21:00～22:00、S03专属22:00～23:00' : selectionWindow(activeStrategy)}生成；
               买入信号等待该交易日运行。
             </p>
           )}
@@ -1038,9 +1040,11 @@ export function Screener() {
               <div role={inlineDailyToolbar ? 'group' : undefined}
                 aria-label={inlineDailyToolbar ? '每日策略工具栏' : undefined}
                 className={inlineDailyToolbar
-                  ? 'flex min-w-0 flex-wrap items-center gap-2'
+                  ? result?.strategy === 'custom_mvxxcs03'
+                    ? 'flex min-w-0 flex-nowrap items-center gap-2'
+                    : 'flex min-w-0 flex-wrap items-center gap-2'
                   : 'flex flex-wrap items-center justify-between gap-2 min-w-0'}>
-                {!inlineDailyToolbar && (
+                {!inlineDailyToolbar && (showAll || activeStrategy !== 'custom_mvxxcs03') && (
                 <h2 className="text-sm font-medium text-foreground flex items-center gap-2">
                   {!showAll && activeStrategy && (
                     <span className="text-secondary">{strategyIdToName[activeStrategy] ?? ''}</span>

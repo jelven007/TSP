@@ -26,8 +26,29 @@ def next_market_day(day: date) -> date:
     raise ValueError("无法确定次个交易日")
 
 
+def annotate_prior_ex_dates(frame: pl.DataFrame, repo) -> pl.DataFrame:
+    """标记成员在各参考日的已记录除权事件, 只读绑定目录的公司行为。"""
+    if frame.is_empty():
+        return frame
+    data_dir = getattr(getattr(repo, "store", None), "data_dir", None)
+    if data_dir is not None:
+        from app.services.corporate_actions import load_actions
+
+        events = load_actions(data_dir, set(frame["symbol"]))
+        if events:
+            excluded = pl.DataFrame({
+                "symbol": [e.symbol for e in events], "date": [e.ex_date for e in events],
+                "prior_ex_date": [True] * len(events),
+            }).unique(["symbol", "date"])
+            frame = frame.drop("prior_ex_date", strict=False).join(
+                excluded, on=["symbol", "date"], how="left")
+    if "prior_ex_date" not in frame.columns:
+        return frame.with_columns(pl.lit(False).alias("prior_ex_date"))
+    return frame.with_columns(pl.col("prior_ex_date").fill_null(False))
+
+
 def annotate_daily(frame: pl.DataFrame, repo) -> pl.DataFrame:
-    """冻结目录与已记录风险警示的并集, 排除已记录前日除权事件。"""
+    """冻结目录与已记录风险警示的并集, 标记参考日除权事件。"""
     if frame.is_empty():
         return frame
     from app.strategy.eligibility import attach_listing_age
@@ -44,18 +65,7 @@ def annotate_daily(frame: pl.DataFrame, repo) -> pl.DataFrame:
             warnings.update(source.filter(pl.col("name").fill_null("").str.to_uppercase().str.contains("ST"))["symbol"].to_list())
     previous = pl.col("is_risk_warning").fill_null(False) if "is_risk_warning" in frame.columns else pl.lit(False)
     frame = frame.with_columns((previous | pl.col("symbol").is_in(sorted(warnings))).alias("is_risk_warning"))
-    data_dir = getattr(getattr(repo, "store", None), "data_dir", None)
-    if data_dir is not None:
-        from app.services.corporate_actions import load_actions
-
-        events = load_actions(data_dir)
-        if events:
-            excluded = pl.DataFrame({
-                "symbol": [e.symbol for e in events], "date": [e.ex_date for e in events],
-                "prior_ex_date": [True] * len(events),
-            }).unique(["symbol", "date"])
-            frame = frame.drop("prior_ex_date", strict=False).join(excluded, on=["symbol", "date"], how="left")
-    return frame
+    return annotate_prior_ex_dates(frame, repo)
 
 
 def monitor_context(loader, engine, strategy_id, as_of, current, data_dir):

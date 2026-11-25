@@ -80,6 +80,20 @@ def test_new_overnight_rule_selects_each_minute_low_in_the_cash_engine(tmp_path)
     assert all(fill["price"] == pytest.approx(10.09) for fill in sales)
 
 
+def test_common_overnight_uses_separate_entry_and_exit_participation(tmp_path):
+    result = replay(tmp_path, count=1, partial=True, exit_signal=True,
+                    entry_participation_pct=.2, exit_participation_pct=.1,
+                    minute_price_rule="high_low_v1")
+    assert result.error and "保留实际持仓" in result.error
+    buys = [f for f in result.fills if f["side"] == "buy"]
+    sells = [f for f in result.fills if f["side"] == "sell"]
+    assert buys and sells
+    assert all(f["participation"] <= .2 for f in buys)
+    assert all(f["participation"] <= .1 for f in sells)
+    assert result.config["entry_participation_pct"] == .2
+    assert result.config["exit_participation_pct"] == .1
+
+
 def test_common_equal_weight_reserves_unused_slots(tmp_path):
     result = replay(tmp_path, count=2, max_positions=4, max_exposure_pct=.8)
     assert result.error is None

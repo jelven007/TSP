@@ -24,17 +24,49 @@ def test_saved_atr_ranks_hits_with_bad_daily_history_and_retains_missing_atr(sou
         "close": [10.2, 10.1, 10.3], "csgi_late_session_strength": [True] * 3,
     })
     saved = {"source_date": "2026-11-03", "rows": [
-        {"symbol": "a", "atr14": .2, "atr14_previous_close": .02, "reference_close": 10.},
-        {"symbol": "b", "atr14": .4, "atr14_previous_close": .04, "reference_close": 10.},
+        {"symbol": "a", "atr14": .2, "atr14_previous_close": .02, "reference_close": 10.,
+         "atr_rank": 4, "atr_rank_score": 25., "atr_rank_population": 5},
+        {"symbol": "b", "atr14": .4, "atr14_previous_close": .04, "reference_close": 10.,
+         "atr_rank": 2, "atr_rank_score": 75., "atr_rank_population": 5},
         {"symbol": "c", "atr14": None, "atr14_previous_close": None, "reference_close": 10.},
     ]}
     result = source.filter_minute_history(frame, {}, daily=pl.DataFrame(), selection=saved)
     assert result["symbol"].to_list() == ["b", "a", "c"]
-    assert result["score"].to_list() == [100., 0., None]
-    assert result["atr_rank"].to_list() == [1, 2, None]
+    assert result["score"].to_list() == [75., 25., None]
+    assert result["atr_rank"].to_list() == [2, 4, None]
+    assert result["atr_rank_population"].to_list() == [5, 5, None]
     assert result["atr14_previous_close"].to_list() == [.04, .02, None]
     assert result["atr_metric_error"][-1]
     assert result["change_pct"].to_list() == pytest.approx([.01, .02, .03])
+
+
+def test_equal_atr_keeps_selection_order_when_trigger_changes_are_opposite(source):
+    frame = pl.DataFrame({
+        "symbol": ["a", "b"], "datetime": [datetime(2026, 11, 4, 14, 30)] * 2,
+        "close": [10.1, 10.3], "csgi_late_session_strength": [True, True],
+    })
+    saved = {"source_date": "2026-11-03", "rows": [
+        {"symbol": symbol, "reference_close": 10., "atr14": .2, "atr14_previous_close": .02,
+         "atr_rank": rank, "atr_rank_score": score, "atr_rank_population": 4}
+        for symbol, rank, score in [("a", 1, 100.), ("b", 3, 100. / 3)]
+    ]}
+    result = source.filter_minute_history(frame, {}, selection=saved)
+    assert result["symbol"].to_list() == ["a", "b"]
+    assert result["atr_rank"].to_list() == [1, 3]
+    assert result["score"].to_list() == [100., 100. / 3]
+
+
+def test_saved_metric_without_saved_rank_does_not_invent_rank_or_score(source):
+    frame = pl.DataFrame({
+        "symbol": ["a"], "datetime": [datetime(2026, 11, 4, 14, 30)],
+        "close": [10.2], "csgi_late_session_strength": [True],
+    })
+    result = source.filter_minute_history(frame, {}, selection={"rows": [
+        {"symbol": "a", "atr14": .2, "atr14_previous_close": .02, "reference_close": 10.},
+    ]})
+    assert result["atr14"].to_list() == [.2]
+    assert result["atr_rank"].to_list() == [None]
+    assert result["score"].to_list() == [None]
 
 
 def test_all_saved_atr_missing_retains_all_buy_hits_with_unknown_scores(source):

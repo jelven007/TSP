@@ -36,7 +36,10 @@ export const STRATEGY_RESULT_WIDTHS: Record<string, number> = {
 export function resolveStrategyResultColumns(
   tab: StrategyResultTab, strategyId: string | null | undefined, columns: ColumnConfig[],
 ): ColumnConfig[] {
-  if (strategyId === 'custom_mvxxcs03' && tab === 'select') {
+  if (strategyId === 'custom_mvxxcs03') {
+    columns = columns.filter(col => !col.id.startsWith('builtin:atr'))
+    if (tab !== 'select') return columns
+    columns = columns.filter(col => col.id !== 'builtin:selection_rank')
     const scores = [['tech_score', '技术分'], ['fund_score', '资金分'], ['emotion_score', '情绪分'],
       ['fundamental_score', '基本面分'], ['news_score', '消息分']] as const
     const missing = scores.filter(([key]) => !columns.some(col => col.id === `builtin:${key}`))

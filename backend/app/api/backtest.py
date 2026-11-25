@@ -465,6 +465,8 @@ class StrategyBacktestRequest(BaseModel):
     entry_fill: Literal["close_t", "open_t+1"] | None = None
     exit_fill: Literal["close_t", "open_t+1", "signal_next_minute"] | None = None
     minute_price_rule: Literal["legacy", "high_low_v1"] = "high_low_v1"
+    entry_participation_pct: float = Field(.1, gt=0, le=1, allow_inf_nan=False)
+    exit_participation_pct: float = Field(.1, gt=0, le=1, allow_inf_nan=False)
     fees_pct: float = 0.0002
     commission_pct: float | None = None
     stamp_tax_pct: float | None = None
@@ -534,6 +536,8 @@ def strategy_run(req: StrategyBacktestRequest, request: Request):
         entry_fill=req.entry_fill,
         exit_fill=req.exit_fill,
         minute_price_rule=req.minute_price_rule,
+        entry_participation_pct=req.entry_participation_pct,
+        exit_participation_pct=req.exit_participation_pct,
         fees_pct=req.fees_pct,
         commission_pct=req.commission_pct,
         stamp_tax_pct=req.stamp_tax_pct,
@@ -646,10 +650,13 @@ def _make_job_key(
     minimum_commission: float = 0.0,
     transfer_fee_pct: float = 0.0,
     minute_price_rule: str = "high_low_v1",
+    entry_participation_pct: float = .1,
+    exit_participation_pct: float = .1,
 ) -> str:
     raw = f"{strategy_id}|{symbols}|{start}|{end}|{matching}|{entry_fill}|{exit_fill}|{fees_pct}|{slippage_bps}|{max_positions}|{max_exposure_pct}|{initial_capital}|{position_sizing}|{params}|{overrides}|{mode}|{holding_days}|{commission_pct}|{stamp_tax_pct}|{asset_type}|{minute_fill}|{regime_filter}|{strict_research}"
     raw += f"|minimum_commission={minimum_commission}|transfer_fee_pct={transfer_fee_pct}"
     raw += f"|minute_price_rule={minute_price_rule}"
+    raw += f"|entry_participation_pct={entry_participation_pct}|exit_participation_pct={exit_participation_pct}"
     return hashlib.md5(raw.encode()).hexdigest()[:12]
 
 
@@ -688,6 +695,8 @@ async def strategy_stream(
     minimum_commission: float = 0.0,
     transfer_fee_pct: float = 0.0,
     minute_price_rule: Literal["legacy", "high_low_v1"] = "high_low_v1",
+    entry_participation_pct: float = .1,
+    exit_participation_pct: float = .1,
     input_snapshot_id: str | None = None,
     experiment_id: str | None = None,
 ):
@@ -702,8 +711,15 @@ async def strategy_stream(
       - done: {result} (完整回测结果)
       - error: {message}
     """
+    from app.backtest.entry_execution import participation_rate
     from app.backtest.strategy import StrategyBacktestConfig
     from app.backtest.worker import make_worker_task, run_worker_task
+
+    try:
+        participation_rate(entry_participation_pct)
+        participation_rate(exit_participation_pct)
+    except ValueError as exc:
+        raise HTTPException(422, detail=str(exc)) from exc
 
     for name, value, length in (
         ("input_snapshot_id", input_snapshot_id, 64), ("experiment_id", experiment_id, 32),
@@ -744,6 +760,8 @@ async def strategy_stream(
         minimum_commission=minimum_commission,
         transfer_fee_pct=transfer_fee_pct,
         minute_price_rule=minute_price_rule,
+        entry_participation_pct=entry_participation_pct,
+        exit_participation_pct=exit_participation_pct,
     )
     job_key = _experiment_job_key(job_key, input_snapshot_id, experiment_id)
 
@@ -832,6 +850,8 @@ async def strategy_stream(
                 entry_fill=entry_fill,
                 exit_fill=exit_fill,
                 minute_price_rule=minute_price_rule,
+                entry_participation_pct=entry_participation_pct,
+                exit_participation_pct=exit_participation_pct,
                 fees_pct=fees_pct,
                 commission_pct=commission_pct,
                 stamp_tax_pct=stamp_tax_pct,
@@ -961,6 +981,8 @@ async def strategy_cancel(request: Request):
         minimum_commission=float(_get("minimum_commission", "0")),
         transfer_fee_pct=float(_get("transfer_fee_pct", "0")),
         minute_price_rule=_get("minute_price_rule", "high_low_v1"),
+        entry_participation_pct=float(_get("entry_participation_pct", "0.1")),
+        exit_participation_pct=float(_get("exit_participation_pct", "0.1")),
     )
     job_key = _experiment_job_key(
         job_key, _get("input_snapshot_id") or None, _get("experiment_id") or None,

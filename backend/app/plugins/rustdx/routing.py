@@ -117,13 +117,14 @@ class TaskRuntime:
                     candidates = [candidates[0], *backups] if candidates else []
             else:
                 candidates = [explicit, *backups]
-            # Sparse partitions can leave a qualified node unused while the
-            # minute reference already holds the native endpoint quota.
+            # Prefer unused qualified endpoints. If every endpoint is bound,
+            # sharing still obeys the native physical endpoint quota.
             if not candidates and group in {"realtime", "history"}:
                 candidates = [node for node in (self._nodes or [])
                               if node not in self._bindings.values()]
-                if not candidates and self.reference in (self._nodes or []):
-                    candidates = [self.reference]
+                if not candidates:
+                    candidates = ([self.reference] if self.reference in (self._nodes or [])
+                                  else (self._nodes or [])[:1])
             if not candidates:
                 raise RuntimeError(f"rustdx {group} group has no qualified candidates")
             if self.closed:

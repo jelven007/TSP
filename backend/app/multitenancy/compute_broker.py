@@ -20,7 +20,7 @@ from pathlib import Path
 
 from app.config import settings
 from app.market_time import cn_now
-from app.multitenancy.executor import KINDS, MAX_MESSAGE_BYTES
+from app.multitenancy.executor import KINDS, MAX_MESSAGE_BYTES, monitor_timeout
 from app.services.observability import measure_runtime_stage, observe_runtime_duration
 from app.services.strategy_resources import (
     BudgetPermits,
@@ -79,6 +79,7 @@ class ComputeBroker(socketserver.ThreadingUnixStreamServer):
         super().__init__(str(socket_path), Handler)
 
     def _resource_policy(self) -> dict:
+        """工作日关键窗口保留实时槽; 有效并发至少为2时再保留一个个股槽。"""
         configured = self.config.read() if self.config is not None else self.capacity
         policy = budget_status(
             self.host_memory_mb, self.host_cpus, configured,
@@ -87,10 +88,9 @@ class ComputeBroker(socketserver.ThreadingUnixStreamServer):
         )
         now = cn_now()
         clock = (now.hour, now.minute, now.second)
-        policy["realtime_reserved_slots"] = int(
-            now.weekday() < 5 and (14, 25, 0) <= clock <= (14, 55, 0)
-            and policy["effective_concurrency"] >= 1
-        )
+        critical = now.weekday() < 5 and (14, 25, 0) <= clock <= (14, 55, 0)
+        policy["realtime_reserved_slots"] = min(2, policy["effective_concurrency"]) if critical else 0
+        policy["stocks_reserved_slots"] = int(critical and policy["effective_concurrency"] >= 2)
         return policy
 
     def resource_status(self) -> dict:
@@ -124,6 +124,17 @@ class ComputeBroker(socketserver.ThreadingUnixStreamServer):
         memory = "4g" if memory_mb == 4096 else f"{memory_mb}m"
         # No host credentials, private files, Docker socket, network, or writable
         # shared mounts enter this container. env -i also removes image defaults.
+        mounts = ["--mount", f"type=bind,src={market_path or self.market_root},dst=/market,readonly"]
+        if market_path is not None and market_path.parent.name == "releases":
+            from app.multitenancy.public_reader import PublicReleaseLease
+
+            lease = PublicReleaseLease.acquire(market_path)
+            try:
+                for dependency in lease.dependencies:
+                    mounts.extend(["--mount", f"type=bind,src={dependency.release_dir},"
+                                   f"dst=/{dependency.release_dir.name},readonly"])
+            finally:
+                lease.close()
         return [
             "docker", "run", "--rm", "--name", name, "-i", "--network", "none",
             "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
@@ -131,7 +142,7 @@ class ComputeBroker(socketserver.ThreadingUnixStreamServer):
             "--memory-swap", memory, "--cpus", f"{cpus:.6f}".rstrip("0").rstrip("."),
             "--ulimit", "nofile=256:256",
             "--tmpfs", "/tmp:rw,nosuid,nodev,size=512m,uid=10001,gid=10001",
-            "--mount", f"type=bind,src={market_path or self.market_root},dst=/market,readonly",
+            *mounts,
             "--entrypoint", "/usr/bin/env", self.image, "-i",
             "PATH=/app/.venv/bin:/usr/local/bin:/usr/bin:/bin", "PYTHONPATH=/app",
             "PYTHONDONTWRITEBYTECODE=1", "HOME=/tmp", "XDG_CACHE_HOME=/tmp/xdg",
@@ -236,15 +247,24 @@ class Handler(socketserver.StreamRequestHandler):
         self.wfile.flush()
 
     def handle(self):
+        """绑定公共发布租约, 在受控计算槽启动一任务容器, 回收后才发送终态。
+
+        个股与广度各自取得进程和预算; 实时期限从排队前开始计时,
+        超时/客户端断开/协议错误均走 finally 回收, 不能只释放许可。
+        两侧可否物理并行取决于资源槽及租户许可; 收到终态只证明计算回执
+        已返回并完成回收, 租户Worker仍须守卫归档与最终业务提交。
+        """
         broker = self.server
         tenant = None
         name = "tsp-compute-" + uuid.uuid4().hex
         process = None
         acquired = False
+        tenant_acquired = False
         terminal_message = None
         stderr_tail = bytearray()
         timing = {}
         sandbox_started = None
+        market_lease = None
         try:
             self.connection.settimeout(30)
             line = self.rfile.readline(MAX_MESSAGE_BYTES + 1)
@@ -262,6 +282,10 @@ class Handler(socketserver.StreamRequestHandler):
             from app.multitenancy.publication import release_path
 
             market_path = release_path(broker.market_root, payload.get("public_release_id"))
+            from app.multitenancy.public_reader import PublicReleaseLease
+
+            if market_path.parent.name == "releases":
+                market_lease = PublicReleaseLease.acquire(market_path)
             if payload.get("kind") == "health":
                 self.send({"type": "result", "payload": broker.health(market_path)})
                 return
@@ -269,7 +293,12 @@ class Handler(socketserver.StreamRequestHandler):
             if (payload.get("kind") not in KINDS or not isinstance(tenant, str)
                     or not 1 <= len(tenant) <= 128):
                 raise ValueError("计算任务格式错误")
-            priority = payload["kind"] == "monitor"
+            priority = payload["kind"] in {"monitor", "monitor_breadth"}
+            stocks = payload["kind"] == "monitor" and payload.get("monitor_phase") in {"stocks", "joined"}
+            # 排队计入单请求期限, 获得槽位后不重置; joined 可使用自己的默认监控预算。
+            phase_deadline = time.monotonic() + monitor_timeout(payload) if priority else None
+            if phase_deadline is not None and time.monotonic() >= phase_deadline:
+                raise ValueError("计算任务有效时段已结束")
             waiters = broker.realtime_waiters if priority else broker.waiters
             if not waiters.acquire(blocking=False):
                 self.send({"type": "error", "status": 429, "message": "计算任务繁忙，请稍后重试"})
@@ -277,35 +306,39 @@ class Handler(socketserver.StreamRequestHandler):
             try:
                 queued, queued_at = time.perf_counter(), time.time()
                 with measure_runtime_stage("compute.queue"):
-                    acquired = broker.permits.acquire(timeout=broker.queue_seconds, priority=priority)
+                    acquired = broker.permits.acquire(timeout=broker.queue_seconds, priority=priority, stocks=stocks)
                 timing = {"queued_at": queued_at, "queue_ms": round((time.perf_counter() - queued) * 1000, 3)}
             finally:
                 waiters.release()
             if not acquired:
                 self.send({"type": "error", "status": 429, "message": "计算任务繁忙，请稍后重试"})
                 return
+            if phase_deadline is not None and time.monotonic() >= phase_deadline:
+                raise ValueError("计算任务有效时段已结束")
             if not broker.acquire_tenant(tenant, administrator=priority or payload.get("administrator") is True):
                 self.send({"type": "error", "status": 429, "message": "当前租户已有计算任务，请稍后重试"})
                 tenant = None
                 return
+            tenant_acquired = True
             with tempfile.TemporaryFile() as task, selectors.DefaultSelector() as events:
                 task.write(line)
                 task.seek(0)
                 sandbox_started = time.perf_counter()
                 timing["started_at"] = time.time()
                 command = broker.command(name, market_path)
-                # Keep exit state until diagnosis; the finally block removes
-                # every job container before releasing its tenant and slot.
+                # 保留退出状态用于异常诊断; finally 先移除任务容器,
+                # 再释放租户许可、资源槽和行情租约。
                 if command[:3] == ["docker", "run", "--rm"]:
                     command.pop(2)
                 process = subprocess.Popen(
                     command, stdin=task, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 )
                 timing["spawn_ms"] = round((time.perf_counter() - sandbox_started) * 1000, 3)
+                timing.update(sandbox_name=name, process_pid=process.pid)
                 events.register(process.stdout, selectors.EVENT_READ, "stdout")
                 events.register(process.stderr, selectors.EVENT_READ, "stderr")
                 events.register(self.connection, selectors.EVENT_READ, "client")
-                deadline = time.monotonic() + (
+                deadline = phase_deadline if priority else time.monotonic() + (
                     60 if payload["kind"] in {"describe", "plan"}
                     else 300 if payload["kind"] == "daily_selections" else 7200)
                 buffer = bytearray()
@@ -379,12 +412,14 @@ class Handler(socketserver.StreamRequestHandler):
                 with suppress(subprocess.SubprocessError):
                     _stdout, remaining_stderr = process.communicate(timeout=5)
                     append_stderr_tail(stderr_tail, remaining_stderr)
-            if tenant is not None and acquired:
+            if tenant_acquired:
                 broker.release_tenant(tenant)
             if acquired:
                 broker.permits.release()
-            # The next task may start as soon as the client receives a terminal
-            # event. Release both permits after cleanup, before sending it.
+            if market_lease is not None:
+                market_lease.close()
+            # 客户端收到终态即可提交下一任务; 必须先回收, 再释放两种许可,
+            # 最后发送终态。cleanup_ms 属于真实回执, 不能算作业务计算完成时刻。
             if terminal_message is not None:
                 if sandbox_started is not None:
                     timing.update({
@@ -405,8 +440,10 @@ class Handler(socketserver.StreamRequestHandler):
                     logger.info("compute job finished kind=%s release=%s queue_ms=%.3f sandbox_ms=%.3f",
                                 payload["kind"], payload.get("public_release_id"),
                                 timing["queue_ms"], timing["sandbox_ms"])
-                    if terminal_message.get("type") == "result" and payload["kind"] == "monitor":
+                    if terminal_message.get("type") == "result" and priority:
                         terminal_message["payload"]["_compute_timing"] = timing
+                    elif priority:
+                        terminal_message["_compute_timing"] = timing
                 if terminal_message.get("type") == "error" and stderr_tail:
                     logger.warning(
                         "compute job %s stderr tail: %s",

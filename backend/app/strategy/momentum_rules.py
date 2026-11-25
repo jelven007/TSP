@@ -1,4 +1,9 @@
-"""净止损、毛止盈和分钟容量退出; 同分钟双触发采用止损优先。"""
+"""冻结momentum_capacity_v1执行契约: 净止损、毛止盈及分钟容量退出。
+
+历史回放和声明此能力的执行路径仍调用本模块, 保留冻结参数与成交口径。
+它不是当前S02的规则入口; 当前S02见docs/reference/s02.md。
+同分钟双触发采用止损优先, 不按新策略信号重写历史结果。
+"""
 import math
 
 from app.strategy.builtin._overnight import minute_number

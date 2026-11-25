@@ -32,6 +32,7 @@ it('summarizes new check time and preserves frozen legacy scheduled time', () =>
 it('offers independent return thresholds and both default clocks', () => {
   expect(MORNING_LIQUIDATION_DEFAULTS).toEqual({
     start_time: null, decline_3m_pct: null, volume_ratio_min: null,
+    take_profit_pct: null, stop_loss_pct: null,
     time: '10:30:00', fallback_time: '10:45:00', rise_pct: 6, fall_pct: 6,
   })
   const lines = morningLiquidationSummary({

@@ -125,7 +125,7 @@ def test_nightly_summary_requires_normal_archive_instead_of_terminal_receipt(tmp
     task_receipt(tmp_path,"custom_test","2026-11-19",{"tasks":{
         "select":{"state":"success","terminal":True}}})
     rows=monitoring_summary(engine,tmp_path,
-        now=datetime(2026,11,19,20,59,tzinfo=CN_TZ))["strategies"]
+        now=datetime(2026,11,19,21,1,tzinfo=CN_TZ))["strategies"]
     selected=rows[0]["tasks"]["select"]
     assert selected["state"]=="running"
     assert selected["terminal"] is False
@@ -154,7 +154,7 @@ def test_failure_trigger_record_includes_counts_and_all_stock_diagnostics():
     assert "14:30:30" in events[0]["message"]
 
 
-def test_phase_plan_uses_receipts_and_strict_breadth_deadline():
+def test_phase_plan_uses_receipts_and_entry_window_breadth_deadline():
     from app.services.strategy_monitor_state import plan
 
     windows = {"buy": [{
@@ -166,7 +166,8 @@ def test_phase_plan_uses_receipts_and_strict_breadth_deadline():
         return datetime(2026, 11, 19, 14, minute, second, tzinfo=CN_TZ)
     assert plan(windows, {}, at(30, 14), trading=True)["actions"] == []
     assert plan(windows, {}, at(30, 15), trading=True)["actions"][0]["phase"] == "breadth"
-    assert plan(windows, {}, at(30, 30), trading=True)["actions"][0]["phase"] == "expire"
+    assert plan(windows, {}, at(30, 30), trading=True)["actions"][0]["phase"] == "breadth"
+    assert plan(windows, {}, at(55, 0), trading=True)["actions"][0]["phase"] == "expire"
     passed = {"buy": {"signals": {"late": {"breadth": {"state": "success", "terminal": True}}}}}
     assert plan(windows, passed, at(30, 30), trading=True)["actions"][0]["phase"] == "stocks"
     done = {"buy": {"state": "rejected", "terminal": True}}
@@ -212,7 +213,7 @@ def test_breadth_stage_uses_shared_kernel_without_starting_strategy_sandbox(monk
         "daily_identities": {"custom_test": {"runtime_identity": "def", "asset_type": "stock", "timeframe": "1m"}},
         "selection_snapshots": {}, "sell_rosters": {},
     }
-    computed = monitor_compute.evaluate_strategy_phases(payload, repo, SimpleNamespace(execute=forbidden))
+    computed = monitor_compute.evaluate_strategy_phases_serial(payload, repo, SimpleNamespace(execute=forbidden))
     task = computed["results"]["custom_test"]["monitor_tasks"]["buy"]
     assert task["signals"]["late"]["breadth"]["state"] == "success"
     assert task["terminal"] is False

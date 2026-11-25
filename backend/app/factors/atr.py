@@ -1,4 +1,4 @@
-"""Daily SMA14 true range: one kernel for factor, matrix and minute references."""
+"""ATR14简单均值的共享日线内核, 供因子、矩阵和冻结分钟策略参考复用。"""
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -11,7 +11,7 @@ FACTOR_ID = "atr14_sma_pct"
 
 
 def daily_links(days: Sequence[date]) -> np.ndarray:
-    """Published daily adjacency; unknown days and intraday axes stay missing."""
+    """按已发布交易日历确认相邻日; 未知日历或分钟轴不能充当完整日线窗口。"""
     from app.strategy.basic_filter import previous_session, published_trading_day
 
     links = np.zeros(len(days), dtype=bool)
@@ -31,7 +31,12 @@ def daily_links(days: Sequence[date]) -> np.ndarray:
 def atr14_sma_arrays(
     high: np.ndarray, low: np.ndarray, close: np.ndarray, links: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """15 valid rows, 14 TRs, Python 3.12 Float64 compensated sum; no fill."""
+    """计算一维日线或按日期和股票组织的矩阵ATR及ATR/末日收盘价, 与输入形状对齐。
+
+    links标记当前日与前一日相邻; 15根有效日K形成14个TR, Float64补偿
+    求和后取简单均值。预热、缺值、非法OHLC或窗口断链位置保留NaN。
+    本内核不复权, 调用方须提供一致价格口径。
+    """
     high, low, close = (np.asarray(value, dtype=np.float64) for value in (high, low, close))
     atr = np.full(close.shape, np.nan, dtype=np.float64)
     ratio = np.full(close.shape, np.nan, dtype=np.float64)
@@ -58,8 +63,7 @@ def atr14_sma_arrays(
             np.abs(total) >= np.abs(value), (total - added) + value, (value - added) + total,
         )
         total = added
-    # The second row's published predecessor proves the first daily identity;
-    # a gap before that first row is outside this 15-bar window.
+    # 第二根与首根的相邻关系证明窗口起点; 首根之前的缺口不属于本次15根窗口。
     total += compensation
     ok &= np.isfinite(total)
     np.copyto(atr[14:], total / 14.0, where=ok)
@@ -68,7 +72,7 @@ def atr14_sma_arrays(
 
 
 def atr14_sma_expr() -> pl.Expr:
-    """Group by symbol and chronological daily date, preserving row alignment."""
+    """按股票和日期计算因子, 缺值转null并保持原行对齐。"""
     def values(series: pl.Series) -> pl.Series:
         frame = series.struct.unnest()
         _, ratio = atr14_sma_arrays(
@@ -87,7 +91,13 @@ def atr14_sma_expr() -> pl.Expr:
 def exact_atr14_sma_reference(
     daily: pl.DataFrame | None, symbols: Sequence[str], expected_dates: Sequence[date],
 ) -> pl.DataFrame:
-    """Use caller's exact published 15-session window; bad candidates abort scan."""
+    """按调用方给出的15个交易日验证每股窗口, 返回末日ATR及两种昨收参考。
+
+    expected_dates须已按交易日历解析, 本函数检查数量、顺序、唯一性及每股
+    实际日期完全匹配。ATR分母为一致复权close, atr_raw_previous_close为
+    未复权价格。任一成员缺根、重复或价格异常即抛ValueError, 不返回半份
+    批量结果; 预选调用方负责逐股重算、隔离并保留资格。
+    """
     required = {"symbol", "date", "high", "low", "close", "raw_close"}
     if daily is None or not required <= set(daily.columns):
         raise ValueError("ATR14排名缺少完整日K或未复权昨收")

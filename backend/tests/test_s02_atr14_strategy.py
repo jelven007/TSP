@@ -90,7 +90,7 @@ def test_future_daily_values_cannot_change_rank(strategy):
     assert actual.equals(expected)
 
 
-def test_all_hits_retained_first_trigger_ties_change_then_symbol(strategy):
+def test_all_hits_retained_first_trigger_keeps_saved_ties_by_symbol(strategy):
     symbols = tuple(f"60000{i}.SH" for i in range(1, 7))
     minute, daily = frames(symbols, (2.,) * 6, (.02, .03, .03, .01, .01, .01))
     later = minute.with_columns(pl.lit(datetime(2026, 11, 2, 15)).alias("datetime"),
@@ -98,7 +98,7 @@ def test_all_hits_retained_first_trigger_ties_change_then_symbol(strategy):
     selection = saved_selection(strategy, minute, daily)
     result = strategy.filter_minute_history(pl.concat([later, minute]), {}, selection=selection)
     assert result.height == 6
-    assert result["symbol"].to_list() == [symbols[1], symbols[2], symbols[0], *symbols[3:]]
+    assert result["symbol"].to_list() == list(symbols)
     assert set(result["last_datetime"]) == {datetime(2026, 11, 2, 14, 30)}
 
 

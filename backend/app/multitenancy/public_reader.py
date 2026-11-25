@@ -64,11 +64,15 @@ class PublicReleaseLease:
         self._identity = os.fstat(fd)
         self._locked = locked
         self._read_lock = threading.Lock()
+        self.dependencies = []
+        self.inherited_dirs = []
+        self._dependencies_ready = False
 
     @classmethod
-    def acquire(cls, release_dir: Path):
+    def acquire(cls, release_dir: Path, *, _dependency=False):
         path = release_directory(release_dir)
         fd = None
+        lease = None
         try:
             fd = os.open(
                 path / ".public_release.json",
@@ -82,10 +86,30 @@ class PublicReleaseLease:
                 except OSError:
                     raise PublicReleaseError("reader_lock_busy") from None
             lease = cls(path, fd, locked=fcntl is not None)
-            lease.validate()
+            marker = lease.validate()
+            base_id = marker.get("base_release_id")
+            if base_id is not None:
+                from app.multitenancy.publication import PUBLIC_DIRS
+
+                names = marker.get("inherited_dirs")
+                if (_dependency or not isinstance(base_id, str)
+                        or not RELEASE_ID.fullmatch(base_id) or base_id == path.name
+                        or not isinstance(names, list)
+                        or any(not isinstance(name, str) or name not in PUBLIC_DIRS - {"kline_minute"}
+                               for name in names) or len(names) != len(set(names))):
+                    raise PublicReleaseError()
+                dependency = cls.acquire(path.parent / base_id, _dependency=True)
+                lease.dependencies.append(dependency)
+                if dependency.validate().get("digest") != marker.get("base_release_digest"):
+                    raise PublicReleaseError()
+                lease.inherited_dirs = names
+            lease._dependencies_ready = True
+            lease._validate_dependencies()
             return lease
         except (OSError, ValueError) as exc:
-            if fd is not None:
+            if lease is not None:
+                lease.close()
+            elif fd is not None:
                 os.close(fd)
             if isinstance(exc, PublicReleaseError):
                 raise
@@ -93,7 +117,23 @@ class PublicReleaseLease:
 
     @property
     def held(self):
-        return self._fd is not None and self._locked
+        return self._fd is not None and self._locked and all(item.held for item in self.dependencies)
+
+    def _validate_dependencies(self):
+        if not self._dependencies_ready:
+            return
+        for dependency in self.dependencies:
+            dependency.release_id()
+            for name in self.inherited_dirs:
+                path = self.release_dir / name
+                target = dependency.release_dir / name
+                if (not path.is_symlink() or target.is_symlink()
+                        or not target.is_dir() or path.resolve(strict=True) != target):
+                    raise PublicReleaseError()
+        # Only the declared top-level immutable directories can be aliases.
+        declared = set(self.inherited_dirs)
+        if any(path.is_symlink() and path.name not in declared for path in self.release_dir.iterdir()):
+            raise PublicReleaseError()
 
     def release_id(self):
         """Use the ID verified on acquisition while checking the immutable inode."""
@@ -108,6 +148,7 @@ class PublicReleaseLease:
                 != (original.st_dev, original.st_ino, original.st_size, original.st_mtime_ns, original.st_ctime_ns)
             ):
                 raise PublicReleaseError()
+            self._validate_dependencies()
             return self.release_dir.name
         except OSError:
             raise PublicReleaseError() from None
@@ -141,6 +182,7 @@ class PublicReleaseLease:
                 != (current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns)
             ):
                 raise PublicReleaseError()
+            self._validate_dependencies()
             return marker
         except (OSError, ValueError, TypeError):
             raise PublicReleaseError() from None
@@ -149,6 +191,8 @@ class PublicReleaseLease:
         fd, self._fd = self._fd, None
         if fd is not None:
             os.close(fd)
+        for dependency in self.dependencies:
+            dependency.close()
 
 
 def _finish_store(connection, lease):
@@ -169,17 +213,18 @@ def attach_public_lease(store, lease=None):
     return lease
 
 
-def open_public_repository(release_dir):
+def open_public_repository(release_dir, *, bounded=False):
     from app.tickflow.repository import DataStore, KlineRepository
 
     lease = PublicReleaseLease.acquire(release_dir)
     store = None
     try:
-        store = DataStore(lease.release_dir, read_only=True)
+        store = DataStore(lease.release_dir, read_only=True, **({"register_views": False} if bounded else {}))
         attach_public_lease(store, lease)
         repo = KlineRepository(store)
-        repo._refresh_instruments()
-        repo._refresh_index_instruments()
+        if not bounded:
+            repo._refresh_instruments()
+            repo._refresh_index_instruments()
         return repo
     except BaseException:
         if store is not None:

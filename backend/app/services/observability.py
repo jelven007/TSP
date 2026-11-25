@@ -143,6 +143,11 @@ class _HttpMetrics:
         with self._lock:
             self._in_flight += 1
 
+    def abandon(self) -> None:
+        """Transfer an exchange to a separately measured streaming population."""
+        with self._lock:
+            self._in_flight = max(0, self._in_flight - 1)
+
     def finish(
         self,
         *,
@@ -253,10 +258,13 @@ class _HttpMetrics:
 
 
 _http_metrics = _HttpMetrics()
+_stream_metrics = _HttpMetrics()
+_stream_first_byte = _HttpMetrics()
 _runtime_metrics = _HttpMetrics()
 _RUNTIME_STAGES = frozenset({
     "identity.authenticate", "tenant.context", "tenant.factor_definitions",
     "public.refresh_wait", "public.refresh", "public.publish_wait", "public.publish",
+    "public.minute_wait", "public.minute",
     "public.binding_check", "public.binding_prepare", "public.binding_commit",
     "monitor.prepare", "monitor.compute", "monitor.commit", "compute.queue", "compute.sandbox",
     "compute.spawn", "compute.first_output", "compute.process", "compute.cleanup",
@@ -312,7 +320,7 @@ def reset_runtime_metrics() -> None:
 
 @contextmanager
 def measure_runtime_lock(lock, stage: str):
-    if stage not in {"public.refresh", "public.publish"}:
+    if stage not in {"public.refresh", "public.publish", "public.minute"}:
         raise ValueError("unknown runtime lock stage")
     with measure_runtime_stage(stage + "_wait"):
         lock.acquire()
@@ -325,12 +333,16 @@ def measure_runtime_lock(lock, stage: str):
 
 def http_metrics_snapshot() -> dict[str, Any]:
     """Return a stable snapshot that contains no URLs, queries, or headers."""
-    return _http_metrics.snapshot()
+    return {**_http_metrics.snapshot(), "measurement": "http_completion_v2",
+            "streams": {**_stream_metrics.snapshot(),
+                        "first_byte": _stream_first_byte.snapshot()}}
 
 
 def reset_http_metrics() -> None:
     """Reset process-local counters. Intended for tests and controlled diagnostics."""
     _http_metrics.reset()
+    _stream_metrics.reset()
+    _stream_first_byte.reset()
 
 
 def observe_http_duration(
@@ -414,18 +426,32 @@ class ObservabilityMiddleware:
         context_token = _request_id.set(request_id)
         started = time.perf_counter()
         status_code = 500
+        streaming = False
+        first_byte = False
         _http_metrics.begin()
 
         async def send_with_request_id(message: Message) -> None:
-            nonlocal status_code
+            nonlocal status_code, streaming, first_byte
             if message["type"] == "http.response.start":
                 status_code = int(message["status"])
-                MutableHeaders(scope=message)[_REQUEST_ID_HEADER] = request_id
+                headers = MutableHeaders(scope=message)
+                headers[_REQUEST_ID_HEADER] = request_id
+                if headers.get("content-type", "").split(";", 1)[0].strip().lower() == "text/event-stream":
+                    streaming = True
+                    _http_metrics.abandon()
+                    _stream_metrics.begin()
             await send(message)
+            if streaming and not first_byte and message["type"] == "http.response.body" and message.get("body"):
+                first_byte = True
+                _stream_first_byte.observe(
+                    method=_normalized_method(scope), route=_normalized_route(scope, self.router),
+                    status_code=status_code, duration_ms=(time.perf_counter() - started) * 1000,
+                )
 
         try:
             await self.app(scope, receive, send_with_request_id)
         except Exception:
+            status_code = 500
             logger.exception(
                 "Unhandled HTTP request exception method=%s route=%s",
                 _normalized_method(scope),
@@ -433,7 +459,7 @@ class ObservabilityMiddleware:
             )
             raise
         finally:
-            _http_metrics.finish(
+            (_stream_metrics if streaming else _http_metrics).finish(
                 method=_normalized_method(scope),
                 route=_normalized_route(scope, self.router),
                 status_code=status_code,

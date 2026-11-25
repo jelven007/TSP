@@ -17,7 +17,7 @@ def env(tmp_path, monkeypatch):
     from app.services import selection_daily_repair as repair
 
     day = date(2026, 11, 10)
-    clock = [datetime(2026, 11, 10, 20, tzinfo=CN_TZ)]
+    clock = [datetime(2026, 11, 10, 21, tzinfo=CN_TZ)]
     repo = KlineRepository(DataStore(tmp_path))
     raw = pl.DataFrame({"symbol": ["000001.SZ"], "date": [day], "close": [10.],
                         "open": [10.], "high": [10.], "low": [10.],

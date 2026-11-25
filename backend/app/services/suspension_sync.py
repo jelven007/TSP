@@ -1,10 +1,12 @@
 """Independent, resumable discovery of newly announced halt/resume events."""
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import threading
 from datetime import date, datetime, timedelta
+from pathlib import Path
 
 from app.config import settings
 from app.market_time import cn_now
@@ -43,6 +45,17 @@ def _load(repo):
         raise ValueError("停复牌自动同步观察时间晚于当前时钟")
     if state.get("next_retry_at") and datetime.fromisoformat(state["next_retry_at"]).tzinfo is None:
         raise ValueError("停复牌自动同步重试时间缺少时区")
+    retries = state.setdefault("notice_retries", {})
+    if (not isinstance(retries, dict) or type(state.get("failure_streak", 0)) is not int
+            or state.get("failure_streak", 0) < 0):
+        raise ValueError("停复牌重试状态无效")
+    for key, retry in retries.items():
+        if (not isinstance(key, str) or not isinstance(retry, dict)
+                or not isinstance(retry.get("fingerprint"), str)
+                or retry.get("category") not in {"semantic", "transport"}
+                or type(retry.get("attempts")) is not int or retry["attempts"] < 1
+                or datetime.fromisoformat(retry["next_retry_at"]).tzinfo is None):
+            raise ValueError("停复牌逐公告重试状态无效")
     for exchange, feed in state["feeds"].items():
         if (exchange not in {"SH", "SZ"} or not isinstance(feed, dict)
                 or type(feed.get("pages")) is not int or not 1 <= feed["pages"] <= 64
@@ -78,6 +91,28 @@ def _save(repo, state):
 def _key(notice):
     return f'{notice["symbol"]}|{notice["formal_date"]}|{notice["url"]}'
 
+def _fingerprint(notice):
+    from app.data_providers import suspension_announcements
+    # A parser change or revised list metadata makes the pending evidence eligible
+    # immediately. A bounded later retry also detects changed content at the same URL.
+    return hashlib.sha256(
+        Path(suspension_announcements.__file__).read_bytes()
+        + json.dumps(notice, sort_keys=True, ensure_ascii=False).encode()
+    ).hexdigest()
+
+
+def _notice_retry(state, notice, category):
+    key = _key(notice)
+    previous = state["notice_retries"].get(key, {})
+    fingerprint = _fingerprint(notice)
+    attempts = (previous.get("attempts", 0) if previous.get("fingerprint") == fingerprint else 0) + 1
+    delay = min(1800 if category == "semantic" else 900,
+                (900 if category == "semantic" else 60) * 2 ** min(attempts - 1, 5))
+    state["notice_retries"][key] = {
+        "fingerprint": fingerprint, "category": category, "attempts": attempts,
+        "next_retry_at": (cn_now() + timedelta(seconds=delay)).isoformat(),
+    }
+
 
 def _coverage(state):
     unscanned = {s for s in state["universe"] if s.split(".")[1] not in state["feeds"]}
@@ -87,6 +122,9 @@ def _coverage(state):
             "covered_count": len(set(state["universe"]) - pending),
             "pending_count": len(pending), "pending_symbols": sorted(pending),
             "pending_notices": len(state["pending"]),
+            "unscanned_count": len(unscanned), "unresolved_count": len(unresolved),
+            "completion": "complete" if not pending and not state["errors"] and not state["publish_pending"]
+                          else "partial_verified" if set(state["universe"]) - pending else "unverified",
             "coverage_complete": (not pending and len(state["feeds"]) == 2
                                   and not state["errors"] and not state["publish_pending"]),
             "coverage_basis": "complete_official_market_lists"}
@@ -100,7 +138,8 @@ def summary(repo):
     if state is None:
         return {"status": "not_started", "coverage_complete": False}
     fields = ("day", "cutoff", "updated_at", "status", "attempts", "added",
-              "errors", "next_retry_at", "publish_pending", "data_release_id", "public_release_id")
+              "errors", "next_retry_at", "publish_pending", "data_release_id", "public_release_id",
+              "failure_streak", "notice_retries", "evidence_policy")
     return {**{key: state.get(key) for key in fields}, **_coverage(state),
             "feeds": state["feeds"],
             "partial_pages": {market: scan["page"] for market, scan in state["scans"].items()}}
@@ -125,9 +164,10 @@ def _publish(repo, publisher):
     return {"data_release_id": release["release_id"], "public_release_id": (public or {}).get("id")}
 
 
-def request_sync(repo, publisher=None, *, stop=None, lookup=None, max_notices=32):
+def request_sync(repo, publisher=None, *, stop=None, lookup=None, max_notices=32, refresh=False):
     """Small tracked job; daily-price gaps and heavy pipeline slots are irrelevant."""
     from app.data_providers.suspension_announcements import AnnouncementLookup
+    from app.services.announced_stock_status import merge_risk_events
     from app.services.instrument_sync import load_current_stock_pool
     from app.services.selection_suspension_repair import merge_events
 
@@ -144,7 +184,9 @@ def request_sync(repo, publisher=None, *, stop=None, lookup=None, max_notices=32
             state_error = exc
         if state and state["status"] == "cancelled" and state["day"] == str(now.date()):
             return state
-        if state and state.get("next_retry_at") and datetime.fromisoformat(state["next_retry_at"]) > now:
+        if (state and not refresh and state.get("evidence_policy") == "stock_status_v2"
+                and state.get("next_retry_at")
+                and datetime.fromisoformat(state["next_retry_at"]) > now):
             return state
         store = pipeline_jobs.job_store
         job_id, created = store.create(kind="suspension_sync", source="scheduled",
@@ -168,13 +210,19 @@ def request_sync(repo, publisher=None, *, stop=None, lookup=None, max_notices=32
             if not universe:
                 raise ValueError("完整股票目录为空, 不能认证停复牌覆盖")
             if (state is None or state["day"] != str(now.date()) or state["universe"] != universe
-                    or state["status"] == "succeeded"):
+                    or state["status"] == "succeeded" or refresh
+                    or state.get("evidence_policy") != "stock_status_v2"):
                 previous = state or {}
                 state = {"schema_version": 1, "day": str(now.date()), "cutoff": now.isoformat(),
                          "universe": universe, "feeds": {}, "scans": {},
                          "pending": [n for n in previous.get("pending", []) if n["symbol"] in universe],
                          "errors": {}, "verified": previous.get("verified", []) if previous.get("day") == str(now.date()) else [],
                          "added": 0, "attempts": 0,
+                         "notice_retries": {k: v for k, v in previous.get("notice_retries", {}).items()
+                                            if k in {_key(n) for n in previous.get("pending", [])
+                                                     if n["symbol"] in universe}},
+                         "failure_streak": 0,
+                         "evidence_policy": "stock_status_v2",
                          "publish_pending": bool(previous.get("publish_pending"))}
             elif now - datetime.fromisoformat(state["cutoff"]) >= timedelta(minutes=5):
                 # Old unresolved PDFs must not stop discovery of newer events.
@@ -208,6 +256,8 @@ def request_sync(repo, publisher=None, *, stop=None, lookup=None, max_notices=32
                     )
                     check()
                     known = {_key(n) for n in state["pending"]} | set(state["verified"])
+                    refreshed = {_key(n): n for n in feed["notices"]}
+                    state["pending"] = [refreshed.get(_key(n), n) for n in state["pending"]]
                     relevant = [n for n in feed["notices"] if n["symbol"] in universe and _key(n) not in known]
                     state["pending"].extend(relevant)
                     state["feeds"][exchange] = {"pages": feed["pages"], "rows": feed["rows"]}
@@ -222,7 +272,10 @@ def request_sync(repo, publisher=None, *, stop=None, lookup=None, max_notices=32
 
             # Failed notices rotate behind unattempted ones so a broken PDF
             # cannot starve newly announced events later in the feed.
-            batch = state["pending"][:max_notices]
+            batch = [n for n in state["pending"]
+                     if not (retry := state["notice_retries"].get(_key(n)))
+                     or retry["fingerprint"] != _fingerprint(n)
+                     or datetime.fromisoformat(retry["next_retry_at"]) <= cn_now()][:max_notices]
             for index, notice in enumerate(batch):
                 check()
                 key = _key(notice)
@@ -232,32 +285,37 @@ def request_sync(repo, publisher=None, *, stop=None, lookup=None, max_notices=32
                     response = lookup.verify_notice(notice, cutoff=cutoff)
                     check()
                     events = response["events"]
+                    risk_events = response.get("risk_warning_events", [])
                     wall = cutoff.replace(tzinfo=None)
                     if any(e["symbol"] != notice["symbol"] or e.get("announced_at") is None
-                           or e["announced_at"] > wall for e in events):
+                           or e["announced_at"] > wall for e in [*events, *risk_events]):
                         raise ValueError("公告返回证券或公开时钟与本轮不符")
-                    if events:
+                    if events or risk_events:
                         # Journal before writing; interruption cannot lose the
                         # need to publish evidence already merged into Parquet.
                         publish_pending = state["publish_pending"]
                         state["publish_pending"] = True
                         state = _save(repo, state)
                         added = merge_events(repo, events)
+                        added += merge_risk_events(repo, risk_events)
                         state["added"] += added
                         state["publish_pending"] = publish_pending or bool(added)
                     state["pending"].remove(notice)
                     if response.get("diagnostics"):
                         state["pending"].append(notice)
                         state["errors"][key] = response["diagnostics"]
+                        _notice_retry(state, notice, response.get("retry_category", "transport"))
                     else:
                         state["errors"].pop(key, None)
-                        if events or not response.get("deferred"):
+                        state["notice_retries"].pop(key, None)
+                        if events or risk_events or not response.get("deferred"):
                             state["verified"].append(key)
                 except (pipeline_jobs.JobCancelledError, SyncInterruptedError):
                     raise
                 except Exception as exc:
                     check()
                     state["errors"][key] = str(exc)
+                    _notice_retry(state, notice, "transport")
                     state["pending"].remove(notice)
                     state["pending"].append(notice)
                 state = _save(repo, state)
@@ -270,6 +328,7 @@ def request_sync(repo, publisher=None, *, stop=None, lookup=None, max_notices=32
             if state["errors"]:
                 raise ValueError("停复牌查证未完成, 保留覆盖与逐股异常并继续重试")
             state["status"] = "succeeded" if coverage["coverage_complete"] else "queued"
+            state["failure_streak"] = 0
             state["next_retry_at"] = (cn_now() + timedelta(
                 seconds=300 if state["status"] == "succeeded" else 30)).isoformat()
             state = _save(repo, state)
@@ -292,8 +351,15 @@ def request_sync(repo, publisher=None, *, stop=None, lookup=None, max_notices=32
                 # No trustworthy directory: leave a visible job failure, not
                 # a fictitious successful sweep over an empty universe.
                 return {"status": "failed", "error": str(exc), "coverage_complete": False}
+            streak = state.get("failure_streak", 0) + 1
+            delay = min(900, 60 * 2 ** min(streak - 1, 5))
+            if not state.get("publish_pending") and not any(k in state["errors"] for k in ("SH", "SZ")):
+                # Continue discovery at least every five minutes. Old semantic
+                # failures remain pending, without re-downloading every minute.
+                delay = min(delay, 300)
             state = _save(repo, {**state, "status": "failed", "error": str(exc),
-                                 "next_retry_at": (cn_now() + timedelta(seconds=60)).isoformat()})
+                                 "failure_streak": streak,
+                                 "next_retry_at": (cn_now() + timedelta(seconds=delay)).isoformat()})
             return state
         finally:
             if owned and lookup is not None:

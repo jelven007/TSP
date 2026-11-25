@@ -1,4 +1,4 @@
-"""Completed original-price references, independent of quote receipt clocks."""
+"""原始收盘定版校验: 可定位异常按股隔离, 整份证据错误明确抛出。"""
 from datetime import date, datetime, time
 
 import polars as pl
@@ -10,6 +10,7 @@ CLOCK_COLUMNS = ("quote_ts", "quote_time_basis")
 
 
 def _reject(day: date, frame: pl.DataFrame, reason: str, rejected: dict | None = None) -> None:
+    # 只有可关联到明确symbol才记逐股错误; 无法定位的整份证据不能被隔离模式吞掉。
     if rejected is not None and "symbol" in frame.columns and not frame["symbol"].is_null().any():
         for symbol in frame["symbol"].unique():
             rejected[str(symbol)] = f"{day} {symbol} 收盘校验失败: {reason}"
@@ -22,7 +23,12 @@ def _reject(day: date, frame: pl.DataFrame, reason: str, rejected: dict | None =
 def require_final_daily_rows(
     frame: pl.DataFrame, day: date, *, isolate_symbols: bool = False,
 ) -> dict | None:
-    """Null clocks retain the official batch contract; receipt clocks never finalize."""
+    """校验准确日线、价格、唯一性及源端定版时钟; 返回逐股拒绝或抛整份错误。
+
+    无时钟的正式批量日线保留原契约; 接收/事件时钟不证明源端15点后定版。
+    默认成功返回None, 首个错误抛ValueError; isolate_symbols模式返回错误
+    映射但不修改frame。调用方须剔除映射中的成员, 无symbol可定位仍抛错。
+    """
     if frame.is_empty() or not {"symbol", "date"} <= set(frame.columns):
         _reject(day, frame, "缺少准确交易日日线")
     price = "raw_close" if "raw_close" in frame.columns else "close"
@@ -56,7 +62,12 @@ def validate_daily_close(
     repo, day: date, rows: pl.DataFrame | None = None, *, isolate_symbols: bool = False,
     check_closing_minute: bool = True,
 ) -> dict | None:
-    """Validate original daily prices; replay does not require 15:00 minute evidence."""
+    """比对原始、加工昨收及可选收盘分钟; 隔离结果不会改变策略完整范围。
+
+    回放及只依赖日线的路径可关闭收盘分钟证据, 仍须校验原始日线。
+    确认停牌成员可无收盘分钟; 已提供分钟仍须唯一且与原始日线价格一致。
+    rows为加工/策略参考时另校验原始价格一致性; 本函数不补数或改写输入。
+    """
     try:
         raw, closing = (
             repo.get_daily_close_inputs(day)
@@ -121,7 +132,11 @@ def validate_daily_close(
 def validate_completed_pipeline(
     repo, start: date, end: date, *, now: datetime, minute_start: date | None = None,
 ) -> None:
-    """Initial history retains batch finality outside its configured minute window."""
+    """逐个完成交易日检查定版, 初始化分钟起点之前沿正式日线批次契约。
+
+    有minute_start时按现存日线分区枚举; 窗口内校验收盘分钟, 窗口之前
+    只校验日线。首次校验错误向上抛出, 不据分区存在宣称完整初始化成功。
+    """
     from app.market_time import published_trading_day
 
     now = now.astimezone(CN_TZ) if now.tzinfo else now.replace(tzinfo=CN_TZ)

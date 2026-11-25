@@ -29,7 +29,7 @@ export function EntryGroupsEditor({ value, onChange }: {
             </label>
             <p className="text-[10px] text-muted">{name === 'a'
               ? '优先于B组；组内按五维排名升序。'
-              : '组内按资金分降序，同分按五维排名、代码。'}</p>
+              : '组内按情绪分降序，再按五维排名、代码升序。'}</p>
             {ENTRY_GROUP_FIELDS.map(([key, label, min, max, step]) =>
               <label key={key} className="block space-y-1">
                 <span className="text-[11px] text-muted">{label}</span>

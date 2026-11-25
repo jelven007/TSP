@@ -20,13 +20,14 @@ def test_slots_calendar_timezone_and_next_due():
     from app.services.daily_pool_schedule import due_slot, next_check
 
     assert due_slot(wall(7, 59)) is None
-    assert due_slot(wall(8)) == "08:00"
-    assert due_slot(wall(8, 59).astimezone(UTC)) == "08:00"
+    assert due_slot(wall(8, 29)) is None
+    assert due_slot(wall(8, 30)) == "08:30"
+    assert due_slot(wall(8, 59).astimezone(UTC)) == "08:30"
     assert due_slot(wall(9)) == "09:00"
     assert due_slot(wall(20)) == "09:00"
-    assert due_slot(wall(8).replace(day=25)) is None
-    assert due_slot(wall(8).replace(month=10, day=1)) is None
-    assert next_check(wall(7, 59).replace(second=50)) == wall(8)
+    assert due_slot(wall(8, 30).replace(day=25)) is None
+    assert due_slot(wall(8, 30).replace(month=10, day=1)) is None
+    assert next_check(wall(8, 29).replace(second=50)) == wall(8, 30)
     assert next_check(wall(8, 59).replace(second=50)) == wall(9)
 
 
@@ -107,11 +108,11 @@ def test_local_slots_retry_failed_only_and_survive_restart(engine, tmp_path):
         current=frames().filter(pl.col("date") == DAY), pool_history=frames())
     calls = []
     service = SimpleNamespace(build_daily_pool_context=lambda *a, **k: calls.append(k) or context)
-    first = generate_scheduled_local(engine, service, tmp_path, now=wall(8))
+    first = generate_scheduled_local(engine, service, tmp_path, now=wall(8, 30))
     assert first["saved"] == ["sample"]
     record8 = DailyStockPools(tmp_path).read("sample", DAY)
-    assert record8["generation_slot"] == "08:00"
-    assert generate_scheduled_local(engine, service, tmp_path, now=wall(8, 1))["saved"] == []
+    assert record8["generation_slot"] == "08:30"
+    assert generate_scheduled_local(engine, service, tmp_path, now=wall(8, 31))["saved"] == []
     engine.get("sample").basic_filter = {**BF, "float_cap_max": 11e9}
     second = generate_scheduled_local(engine, service, tmp_path, now=wall(9))
     assert second["saved"] == ["sample"]
@@ -131,7 +132,7 @@ def test_local_failed_batch_retries_and_late_start_marks_missed_slot(engine, tmp
     broken = StrategyDataContext("stock", "1d", DAY, current=pl.DataFrame())
     service = SimpleNamespace(build_daily_pool_context=lambda *a, **k: broken)
     assert set(generate_scheduled_local(engine, service, tmp_path, now=wall(9))["errors"]) == {"sample"}
-    assert DailyStockPools(tmp_path).job(f"{DAY}:08:00")["state"] == "interrupted"
+    assert DailyStockPools(tmp_path).job(f"{DAY}:08:30")["state"] == "interrupted"
     good = StrategyDataContext("stock", "1d", DAY, current=frames(), pool_history=frames())
     service.build_daily_pool_context = lambda *a, **k: good
     assert generate_scheduled_local(engine, service, tmp_path, now=wall(9, 1))["saved"] == ["sample"]
@@ -142,14 +143,14 @@ def test_local_failed_batch_retries_and_late_start_marks_missed_slot(engine, tmp
 def test_local_old_success_marker_rebuilds_new_definition_once(engine, tmp_path, hour):
     from app.services.daily_stock_pools import generate_scheduled_local
 
-    slot = f"{hour:02}:00"
+    slot = "08:30" if hour == 8 else "09:00"
     store = DailyStockPools(tmp_path)
     store.job(f"{DAY}:{slot}", {"state": "succeeded", "definition_version": "scope_float_cap_v2",
                               "completed": ["sample"]})
     context = StrategyDataContext("stock", "1d", DAY, current=frames())
     calls = []
     service = SimpleNamespace(build_daily_pool_context=lambda *a, **k: calls.append(k) or context)
-    assert generate_scheduled_local(engine, service, tmp_path, now=wall(hour))["saved"] == ["sample"]
+    assert generate_scheduled_local(engine, service, tmp_path, now=wall(hour, 30 if hour == 8 else 0))["saved"] == ["sample"]
     assert store.job(f"{DAY}:{slot}")["definition_version"] == "strategy_scope_v4"
-    assert generate_scheduled_local(engine, service, tmp_path, now=wall(hour, 1))["saved"] == []
+    assert generate_scheduled_local(engine, service, tmp_path, now=wall(hour, 31 if hour == 8 else 1))["saved"] == []
     assert len(calls) == 1

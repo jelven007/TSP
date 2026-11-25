@@ -15,6 +15,7 @@
 | `vendor_rustdx.py` | 离线核验固定rustdx源码、补丁与桥接身份；升级时显式刷新 | `python3 scripts/vendor_rustdx.py` |
 | `acceptance/` | 候选镜像构建、计算验收、持续验收启动 | `python3 scripts/acceptance/build_full_candidate.py --help` |
 | `release/` | 最新及最多一个历史源码归档、清单和离线核验 | `python3 scripts/release/source_recovery.py --help` |
+| `release/production_connection.py` | 唯一受控生产连接、专用公钥及TSP运行单元校验 | `~/.local/bin/tsp-remote check` |
 | `performance/` | 两个工作区的内存预算对比 | `python3 scripts/performance/benchmark_memory_budget.py --help` |
 | `research/` | 策略试验、质量研究与结果汇总 | `PYTHONPATH=backend python3 scripts/research/research_quality_strategies.py --help` |
 

@@ -602,6 +602,10 @@ def test_platform_lifecycle_rewarms_catalog_with_quotes_disabled(tmp_path, monke
 
     async def check():
         async with lifespan(request):
+            repair = getattr(request.state, "monitor_input_repair", None)
+            assert repair is not None, "platform must register its monitor input repair service"
+            assert repair.state is request.state
+            assert not repair.stopped
             repo._warmup_thread.join(timeout=5)
             assert repo.enriched_ready
             subscriber = request.state.quote_service.subscribe()
@@ -637,6 +641,7 @@ def test_platform_lifecycle_rewarms_catalog_with_quotes_disabled(tmp_path, monke
         assert repo._on_warmup_done is None
 
     asyncio.run(check())
+    assert request.state.monitor_input_repair.stopped
 
 
 def test_platform_full_snapshot_serializes_cache_fill():

@@ -66,6 +66,7 @@ it('uses the shared second picker for both clocks and reloads their saved exact 
   await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent?.includes('保存'))!.click())
   expect(f.save).toHaveBeenCalledWith(expect.objectContaining({
     params: { start_time: null, decline_3m_pct: null, volume_ratio_min: null,
+      take_profit_pct: null, stop_loss_pct: null,
       time: '10:15:32', fallback_time: '10:50:15', rise_pct: 6, fall_pct: 6 },
   }), { createOnly: false })
   await f.render(f.save.mock.calls[0][0] as typeof definition)
@@ -86,6 +87,7 @@ it('clears all morning clocks and retains disabled clocks on reload', async () =
   expect(f.save.mock.calls[0][0].params).toEqual({
     start_time: null, time: null, fallback_time: null, rise_pct: 6, fall_pct: 6,
     decline_3m_pct: null, volume_ratio_min: null,
+    take_profit_pct: null, stop_loss_pct: null,
   })
   await f.render(f.save.mock.calls[0][0])
   expect(f.time('启动时间').textContent).toBe('选择时间')

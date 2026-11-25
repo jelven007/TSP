@@ -54,7 +54,7 @@ def test_generic_confirmation_is_separate_from_its_completed_bar(observed, expec
     ctx.observed_at = datetime.fromisoformat("2026-08-25T" + observed)
     ctx.selection_snapshots = {"s01": {
         "as_of": "2026-08-25", "source_date": "2026-08-24",
-        "rows": [{"symbol": "600001.SH"}],
+        "rows": [{"symbol": "600001.SH", "reference_close": 10.}],
     }}
     with custom_signals.private_signal_registry([ENTRY]):
         result = engine.run("s01", ctx)

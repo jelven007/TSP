@@ -75,6 +75,7 @@ it('saves and reloads two independent return thresholds and both times', async (
     await f.submit()
     expect(f.save).toHaveBeenCalledWith(expect.objectContaining({
       params: { start_time: null, decline_3m_pct: null, volume_ratio_min: null,
+        take_profit_pct: null, stop_loss_pct: null,
         time: '10:15:32', fallback_time: '10:50:15', rise_pct: 8, fall_pct: 2 },
     }), { createOnly: true })
     await f.render(f.save.mock.calls[0][0])
@@ -110,14 +111,15 @@ it('converts legacy amplitude editing explicitly while preserving its chosen sto
     await f.submit()
     expect(f.save.mock.calls[0][0].params).toEqual({
       start_time: null, decline_3m_pct: null, volume_ratio_min: null,
+      take_profit_pct: null, stop_loss_pct: null,
       time: '10:15:32', fallback_time: '10:45:00', rise_pct: 6, fall_pct: 6,
     })
   } finally { await f.close() }
 })
 
-it('shows seven parameters in order and preserves all empty fields on save and reopen', async () => {
+it('shows nine parameters in order and preserves all empty fields on save and reopen', async () => {
   const empty = { start_time: null, rise_pct: null, fall_pct: null, decline_3m_pct: null,
-    volume_ratio_min: null, time: null, fallback_time: null }
+    volume_ratio_min: null, take_profit_pct: null, stop_loss_pct: null, time: null, fallback_time: null }
   const f = await fixture({ id: 'optional', name: '早盘清仓', kind: 'exit', timeframe: 'intraday',
     template: 'morning_liquidation', enabled: true, conditions: [], params: empty })
   try {
@@ -126,7 +128,8 @@ it('shows seven parameters in order and preserves all empty fields on save and r
     expect(grid.classList.contains('sm:grid-cols-3')).toBe(true)
     expect([...grid.querySelectorAll('label > span')].map(span => span.textContent)).toEqual([
       '启动时间（北京时间）', '涨幅阈值（%）', '跌幅阈值（%）',
-      '3分钟跌幅门槛（%）', '最近3根/之前10根量比下限', '止损时间（北京时间）', '兜底时间（北京时间）',
+      '3分钟跌幅门槛（%）', '最近3根/之前10根量比下限', '止盈（%）', '止损（%）',
+      '止损时间（北京时间）', '兜底时间（北京时间）',
     ])
     expect(f.time('启动时间')?.textContent).toBe('选择时间')
     expect(f.input('3分钟跌幅门槛（%）')?.value).toBe('')
@@ -145,5 +148,37 @@ it('shows seven parameters in order and preserves all empty fields on save and r
     expect(f.time('止损时间')?.textContent).toBe('选择时间')
     expect(f.time('兜底时间')?.textContent).toBe('选择时间')
     expect(f.input('涨幅阈值（%）')?.value).toBe('')
+  } finally { await f.close() }
+})
+
+it('places optional holding take profit and stop loss before stop time and persists clearing', async () => {
+  const f = await fixture({
+    id: 'morning_liquidation_s03', name: 's03_早盘清仓', kind: 'exit', timeframe: 'intraday',
+    template: 'morning_liquidation', enabled: true, conditions: [],
+    params: { start_time: null, rise_pct: null, fall_pct: null, decline_3m_pct: null,
+      volume_ratio_min: null, time: '14:30:00', fallback_time: '14:53:00' },
+  })
+  try {
+    const grid = f.host.querySelector('[aria-label="早盘清仓参数"]')!
+    const labels = [...grid.querySelectorAll('label > span')].map(span => span.textContent)
+    expect(labels.slice(-4)).toEqual([
+      '止盈（%）', '止损（%）', '止损时间（北京时间）', '兜底时间（北京时间）',
+    ])
+    expect(f.input('止盈（%）')?.value).toBe('')
+    expect(f.input('止损（%）')?.value).toBe('')
+    await f.fill('止盈（%）', '1')
+    await f.fill('止损（%）', '6')
+    await f.submit()
+    expect(f.save.mock.calls[0][0].params).toMatchObject({ take_profit_pct: 1, stop_loss_pct: 6 })
+    await f.render(f.save.mock.calls[0][0])
+    expect(f.input('止盈（%）')?.value).toBe('1')
+    expect(f.input('止损（%）')?.value).toBe('6')
+    await f.fill('止盈（%）', '')
+    await f.fill('止损（%）', '')
+    await f.submit()
+    expect(f.save.mock.calls[1][0].params).toMatchObject({ take_profit_pct: null, stop_loss_pct: null })
+    await f.render(f.save.mock.calls[1][0])
+    expect(f.input('止盈（%）')?.value).toBe('')
+    expect(f.input('止损（%）')?.value).toBe('')
   } finally { await f.close() }
 })

@@ -100,6 +100,17 @@ def release_candidates(
         reverse=True,
     )
     retained = {path.name for path in values[:keep]} | protected | {current.name}
+    # A minute view still needs its immutable full baseline even after readers
+    # close. Retain dependencies of all extant views; orphan baselines become
+    # eligible on the next maintenance pass after the views are deleted.
+    for path in values:
+        for directory in path.iterdir():
+            if directory.is_symlink():
+                target = directory.resolve(strict=True)
+                if (target.parent.parent != releases or not RELEASE_ID.fullmatch(target.parent.name)
+                        or target.name != directory.name or target.parent == path):
+                    raise ValueError("invalid public release dependency")
+                retained.add(target.parent.name)
     age_seconds = min_age_days * 86400 if min_age_hours is None else min_age_hours * 3600
     cutoff = (now if now is not None else time.time()) - age_seconds
     return [

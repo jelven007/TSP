@@ -23,6 +23,11 @@ def candidate_pool_order(result, strategy_id: str, params: dict) -> dict[str, di
     metric = None
     if mode == "signals" and strategy_id == "custom_mvxxcp88":
         metric, rule = "atr14_previous_close", "s02_atr14_previous_close_desc_v1"
+    elif mode == "signals" and strategy_id == "custom_mvxxcs03":
+        from app.strategy.selection_order import POLICY, atr_key
+        if snapshot.get("selection_ordering") == POLICY:
+            rows = sorted(rows, key=atr_key)
+            rule = POLICY
     elif sections is not None and mode != "signals":
         limit = params.get("position_limit", 5)
         if isinstance(limit, bool) or not isinstance(limit, (int, float)) or not math.isfinite(limit) or limit <= 0:

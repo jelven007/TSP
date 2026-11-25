@@ -135,6 +135,21 @@ def test_s02_replays_from_raw_daily_parquet_without_derived_limit_signals(replay
     assert result.config["params"]["take_profit_pct"] == .06
 
 
+def test_momentum_custom_replay_honors_independent_minute_rates_and_low_exit(replay):
+    replay.config.entry_participation_pct = .01
+    replay.config.exit_participation_pct = .005
+    replay.config.minute_price_rule = "high_low_v1"
+    result = _run(replay)
+    assert not result.error, result.error
+    buys = [f for f in result.fills if f["side"] == "buy"]
+    sells = [f for f in result.fills if f["side"] == "sell"]
+    assert buys and sells
+    assert all(f["participation"] <= .01 for f in buys)
+    assert all(f["participation"] <= .005 for f in sells)
+    lookup = {str(row["datetime"]): row for part in replay.minutes.values() for row in part.to_dicts()}
+    assert all(f["price"] == pytest.approx(lookup[f["datetime"]]["low"]) for f in sells)
+
+
 @pytest.mark.parametrize("column", ["name", "float_shares"])
 def test_s02_still_rejects_missing_required_instrument_fields(replay, column):
     replay.service.engine.repo.get_instruments_asset = lambda _: replay.instruments.drop(column)

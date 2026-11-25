@@ -36,6 +36,8 @@
 (TickFlow: fetch_intraday_full_market_burst / fetch_intraday_universe_increment;
 自定义: fetch_intraday_custom_batch / fetch_intraday_custom_latest),
 保持插件化边界不泄漏。
+冻结预选成员另由监督线程/spawn子进程采集, 全市场轮次阻塞不影响该通道;
+两者共用跨进程写锁、请求顺序和既有Publisher, 自动同步总开关同时约束。
 """
 from __future__ import annotations
 
@@ -107,9 +109,21 @@ class MinuteRefreshService:
         self._provider_unavailable_log_key: tuple[str, str] | None = None
         self._priority_lock = threading.Lock()
         self._priority_plans: dict[str, tuple[float, dict]] = {}
+        from app.services.selected_minute_process import SelectedMinuteProcess
+        self._selected_process = SelectedMinuteProcess()
+        self._selected_thread: threading.Thread | None = None
+        self._selected_key = None
+        self._selected_next = 0.0
+        self._selected_success = 0.0
+        self._selected_publish_pending = False
+        self._selected_gate = "no_selected_stocks"
+        self._selected_publish_error = None
 
     def set_priority(self, owner: str, plan: dict) -> None:
-        """Trusted internal Worker plans stay in memory, outside public files."""
+        """接收可信Worker的内存采集提示; 同日旧序号不覆盖新计划。
+
+        owner隔离各请求来源, 本次接收续期; 租户预选代码不写公共文件。
+        """
         with self._priority_lock:
             old = self._priority_plans.get(owner)
             if old and old[1]["day"] == plan["day"] and old[1]["sequence"] > plan["sequence"]:
@@ -117,6 +131,7 @@ class MinuteRefreshService:
             self._priority_plans[owner] = (time.monotonic(), plan)
 
     def priority_symbols(self, now=None) -> list[str]:
+        """清理跨日/超时提示, 返回预选在前、完整范围其余成员在后的去重列表。"""
         day = str((now or cn_now()).date())
         with self._priority_lock:
             self._priority_plans = {
@@ -127,6 +142,13 @@ class MinuteRefreshService:
         selected = sorted({symbol for plan in plans for symbol in plan["selected"]})
         scope = {symbol for plan in plans for symbol in plan["symbols"]}
         return [*selected, *sorted(scope - set(selected))]
+
+    def selected_symbols(self, now=None) -> list[str]:
+        """采集只取冻结预选; 完整范围仍由原全市场轮次保障广度。"""
+        self.priority_symbols(now)  # 统一清理过期/跨日计划
+        with self._priority_lock:
+            return sorted({symbol for _, plan in self._priority_plans.values()
+                           for symbol in plan["selected"]})
 
     # ------------------------------------------------------------------
     # 生命周期
@@ -140,17 +162,88 @@ class MinuteRefreshService:
 
     def start(self) -> bool:
         """启动后台线程 (幂等)。开关/时段/能力判断都在循环内每轮做, 热生效。"""
-        if self._thread is not None and self._thread.is_alive():
-            return True
         self._stop.clear()
-        self._thread = threading.Thread(
-            target=self._loop, name="minute-refresh", daemon=True,
-        )
-        self._thread.start()
+        if self._selected_thread is None or not self._selected_thread.is_alive():
+            self._selected_thread = threading.Thread(
+                target=self._selected_loop, name="selected-minute-supervisor", daemon=True,
+            )
+            self._selected_thread.start()
+        if self._thread is None or not self._thread.is_alive():
+            self._thread = threading.Thread(
+                target=self._loop, name="minute-refresh", daemon=True,
+            )
+            self._thread.start()
         return True
 
     def stop(self) -> None:
         self._stop.set()
+        self._selected_process.close()
+
+    def _selected_tick(self) -> None:
+        """检查同步门控后推进一次预选采集监督, 不占全市场轮次锁。
+
+        成员/源变化重新全量采集, 有近期成功批次才尝试增量。
+        采集回执和公共发布分别记录, 发布失败保留pending供下一轮重试。
+        """
+        reason = self._gate_reason()
+        symbols = self.selected_symbols() if reason is None else []
+        self._selected_gate = reason or (None if symbols else "no_selected_stocks")
+        if self._selected_gate is not None or self._stop.is_set():
+            self._selected_process.advance(None)
+            self._selected_key = None
+            self._selected_publish_pending = False
+            return
+        provider = self.active_provider()
+        custom, _ = self._resolve_custom()
+        caps = getattr(self._app_state, "capabilities", None)
+        cap_data = caps.to_dict() if provider == "tickflow" and hasattr(caps, "to_dict") else {}
+        key = (str(self._repo.store.data_dir), str(cn_now().date()), provider, tuple(symbols),
+               repr(cap_data), id(custom) if custom is not None else None)
+        if key != self._selected_key:
+            self._selected_next = self._selected_success = 0.0
+            self._selected_publish_pending = False
+            self._selected_key = key
+        now = time.monotonic()
+        if self._selected_process.status()["inflight"] or now >= self._selected_next:
+            job = {"data_dir": key[0], "day": key[1], "provider": provider,
+                   "symbols": symbols, "capabilities": cap_data,
+                   "source_generation": key[5],
+                   "mode": "increment" if self._selected_success
+                   and now - self._selected_success <= 180 else "full"}
+            reply = self._selected_process.advance(job)
+            if reply is not None:
+                self._selected_next = time.monotonic() + self._effective_interval()
+                if reply["error"] is None:
+                    # 采集完成与公共发布完成是两份事实; 发布失败仍保留pending等待重试。
+                    self._selected_success = time.monotonic()
+                    self._selected_publish_pending = True
+        if self._stop.is_set():
+            self._selected_process.close()
+            return
+        if self._selected_publish_pending:
+            publisher = getattr(self._app_state, "public_publisher", None)
+            try:
+                if publisher is not None:
+                    # 只有父进程发布不可变公共快照; 不能冒充全市场轮次完成。
+                    publisher.publish_priority(cn_now())
+                self._selected_publish_pending = False
+                self._selected_publish_error = None
+            except (OSError, ValueError) as exc:
+                # 与全市场并发写时完整性校验可能拒绝本次发布, 下次监督步重试。
+                self._selected_publish_error = f"priority publication: {type(exc).__name__}"
+
+    def _selected_loop(self) -> None:
+        """监督异常保留错误并继续下一步; 服务停止时回收进程, 不挂起全市场采集。"""
+        try:
+            while not self._stop.is_set():
+                try:
+                    self._selected_tick()
+                except Exception as exc:
+                    self._selected_publish_error = f"selected supervisor: {type(exc).__name__}"
+                    logger.warning("预选股分钟监督异常: %s", type(exc).__name__)
+                self._stop.wait(0.5)
+        finally:
+            self._selected_process.close()
 
     # ------------------------------------------------------------------
     # 门控
@@ -335,58 +428,14 @@ class MinuteRefreshService:
         try:
             minute_dir = self._repo.store.data_dir / "kline_minute"
             request_seq = begin_minute_request(minute_dir)
-            priority_requests = 0
-            priority_written = 0
-            priority_error = None
-            priority = []
-            if custom is not None:
-                universe = self._universe()
-                universe_set = set(universe)
-                priority = [symbol for symbol in self.priority_symbols() if symbol in universe_set]
-                if priority:
-                    priority_started = time.perf_counter()
-                    try:
-                        if mode == "increment":
-                            fetched = kline_sync.fetch_intraday_custom_latest(
-                                custom, provider_name, symbols=priority)
-                            first, priority_requests = fetched if fetched is not None else (pl.DataFrame(), 0)
-                        else:
-                            first, priority_requests = kline_sync.fetch_intraday_custom_batch(
-                                custom, provider_name, priority)
-                    except kline_sync.MinuteFetchError as exc:
-                        first, priority_requests = pl.DataFrame(), exc.requests
-                        priority_error = str(exc)
-                    if not first.is_empty():
-                        priority_written = kline_sync._write_minute_partition(
-                            first, minute_dir, request_seq=request_seq,
-                            isolate_suspension_conflicts=True)
-                        publisher = getattr(self._app_state, "public_publisher", None)
-                        if publisher is not None:
-                            try:
-                                publish = getattr(publisher, "publish_priority", publisher.request_minute_publish)
-                                publish(cn_now())
-                            except (OSError, ValueError) as exc:
-                                priority_error = f"priority publication: {type(exc).__name__}"
-                                logger.warning("分钟优先发布等待重试: %s", priority_error)
-                        self._state.extra = {
-                            "priority_symbols": len(priority),
-                            "priority_completed_at": time.time(),
-                            "priority_ms": (time.perf_counter() - priority_started) * 1000,
-                        }
-                    # Empty priority data must not exclude these members from repair.
-                    elif priority_error is None:
-                        priority = []
             if mode == "increment":
                 # fetch 计时只覆盖网络取数; full 分支的 universe 维表读取不计入
                 fetch_started = time.perf_counter()
                 if custom is not None:
-                    symbols = [symbol for symbol in self._universe() if symbol not in set(priority)]
+                    symbols = self._universe()
                     if not symbols:
-                        if priority_written:
-                            df, requests = first, 0
-                        else:
-                            self._state.last_error = "empty universe (instruments 未加载)"
-                            return
+                        self._state.last_error = "empty universe (instruments 未加载)"
+                        return
                     else:
                         latest = kline_sync.fetch_intraday_custom_latest(
                             custom, provider_name, symbols=symbols,
@@ -398,14 +447,11 @@ class MinuteRefreshService:
                     df["symbol"].n_unique() if not df.is_empty() else 0
                 )
             else:
-                symbols = [symbol for symbol in self._universe() if symbol not in set(priority)]
+                symbols = self._universe()
                 self._state.last_symbols = len(symbols)
                 if not symbols:
-                    if priority_written:
-                        df, requests = first, 0
-                    else:
-                        self._state.last_error = "empty universe (instruments 未加载)"
-                        return
+                    self._state.last_error = "empty universe (instruments 未加载)"
+                    return
                 fetch_started = time.perf_counter()
                 if custom is not None and symbols:
                     df, requests = kline_sync.fetch_intraday_custom_batch(
@@ -415,8 +461,7 @@ class MinuteRefreshService:
                     capset = getattr(self._app_state, "capabilities", None) if self._app_state else None
                     df, requests = kline_sync.fetch_intraday_full_market_burst(symbols, capset)
             fetch_ms = (time.perf_counter() - fetch_started) * 1000
-            self._state.last_requests = requests + priority_requests
-            self._state.last_symbols += len(priority)
+            self._state.last_requests = requests
             if df.is_empty():
                 self._empty_rounds += 1
                 self._state.last_error = f"intraday {mode} returned no data"
@@ -434,7 +479,7 @@ class MinuteRefreshService:
             write_ms = (time.perf_counter() - write_started) * 1000
         except kline_sync.MinuteFetchError as exc:
             self._empty_rounds += 1
-            self._state.last_requests = exc.requests + priority_requests
+            self._state.last_requests = exc.requests
             self._state.last_error = str(exc)
             logger.warning("全量分钟[%s] 取数失败, 不提交本轮: %s", mode_label, exc)
             return
@@ -446,9 +491,9 @@ class MinuteRefreshService:
         self._state.last_round_ms = (time.perf_counter() - t0) * 1000
         self._state.last_fetch_ms = fetch_ms
         self._state.last_write_ms = write_ms
-        self._state.last_rows = written + priority_written
+        self._state.last_rows = written
         self._state.last_mode = mode
-        self._state.last_error = priority_error
+        self._state.last_error = None
         # Notify only after the entire provider round is committed. Publication
         # runs on its own thread and still validates an immutable full release.
         publisher = getattr(self._app_state, "public_publisher", None)
@@ -526,7 +571,11 @@ class MinuteRefreshService:
             "last_mode": self._state.last_mode,
             "next_round_at": self._state.next_round_at,
             "last_error": self._state.last_error,
-            "priority": dict(self._state.extra),
+            "priority": {
+                **self._selected_process.status(), "gate_reason": self._selected_gate,
+                "publication_pending": self._selected_publish_pending,
+                "publication_error": self._selected_publish_error,
+            },
         }
 
     def trigger_manual_round(self) -> dict[str, Any]:

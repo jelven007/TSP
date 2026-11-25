@@ -47,7 +47,7 @@ def test_local_commit_discards_cancelled_changed_or_late_output(scan, tmp_path, 
         return {"results": {"custom_test": daily}, "state": {}, "events": [{
             "strategy_id": "custom_test", "type": "buy_signal", "symbol": row["symbol"],
             "ts": int(time.time() * 1000)}]}
-    monkeypatch.setattr(local_strategy_monitor, "evaluate_strategy_phases", evaluate)
+    monkeypatch.setattr(local_strategy_monitor, "evaluate_strategy_phases_serial", evaluate)
     repo = SimpleNamespace(get_instruments_asset=lambda *_: context.current)
     changed = local_strategy_monitor.run(engine, ScreenerService(repo), tmp_path)
     if change == "deadline":
@@ -82,9 +82,16 @@ def test_local_start_plus_fifteen_confirmation_and_restart_are_fixed(scan, tmp_p
     identity = capture_identity(engine, tmp_path, "custom_test", timeframe="1m")
     DailySelections(tmp_path).save(identity, {
         "as_of": str(context.as_of), "source_date": "2026-10-30",
-        "rows": context.current.filter(pl.col("symbol").str.starts_with("600")).to_dicts()}, started_at=1)
+        "rows": context.daily_history.filter(pl.col("symbol").str.starts_with("600"))
+        .with_columns(pl.col("close").alias("reference_close")).to_dicts()}, started_at=1)
+
+    def selected_minutes(symbols, days):
+        assert days == [context.as_of]
+        return context.history.filter(pl.col("symbol").is_in(symbols))
+
     repo = SimpleNamespace(get_instruments_asset=lambda *_: context.current,
-                           get_minute_batch=lambda *_a, **_k: context.history)
+                           get_minute_batch=lambda *_a, **_k: context.history,
+                           get_minute_by_dates=selected_minutes)
     monkeypatch.setattr(ScreenerService, "_load_enriched_history", lambda *_: context.daily_history)
     def load(*_a, **_k):
         from dataclasses import replace

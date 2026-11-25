@@ -193,8 +193,13 @@ class StrategyDataContext:
     # Caller-owned stage receipts; monitor workers persist them transactionally.
     signal_task_states: dict | None = None
     signal_task_scope: str = ""
+    # 仅定时监控的独立个股阶段使用; 普通执行和历史冻结输入沿原有契约。
+    independent_entry_phase: str | None = None
     # Local repository callback, never serialized into a task or result.
     holding_history_loader: Callable | None = None
+    # 权威阶段输入摘要绑定计算身份; 不可用成员只隔离计算帧, 完整池仍保留。
+    source_input_sha256: str | None = None
+    unavailable_input_symbols: dict[str, dict] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -803,8 +808,11 @@ class StrategyEngine:
 
     def minute_daily_history_bars(self, strategy_ids: list[str], *, overrides_map: dict | None = None,
                                   entry: bool = False) -> int:
-        """1m 分支需要的日线 enriched 窗口大小: 各 minute_filter 策略声明的
-        META["daily_history_bars"] 取 max, 未声明 (纯分钟策略) 为 0。"""
+        """汇总分钟执行实际需要的日线窗口, 不只取源码声明的最大值。
+
+        冻结预选入场复用其昨收和资格, 免去候选路径的基础日线加载;
+        仍为已启用量比、日线/原生信号、评分和叠加条件保留各自预热依赖。
+        """
         required = 0
         from app.strategy import custom_signals
         from app.strategy.late_session_strength import TEMPLATE, parameters
@@ -828,12 +836,22 @@ class StrategyEngine:
                     required = max(required, 2)
                 conditions = overlay.effective_conditions(override)
                 from app.strategy.s01_signals import optional_triggers
-                if optional_triggers(strategy):
+                selection_entry = entry and strategy.minute_selection_snapshot
+                daily_triggers = any(not name.startswith("csgi_") for name in selected)
+                native_triggers = any(
+                    sig.get("template") == "s01_late_entry"
+                    and custom_signals.intraday_column_name(sig["id"]) in selected
+                    for sig in definitions
+                )
+                if optional_triggers(strategy) and (
+                    not selection_entry or daily_triggers or native_triggers
+                ):
                     from app.backtest.minute_replay import minute_replay_feature_plan
                     required = max(required, minute_replay_feature_plan(
                         strategy.minute_daily_bars, overrides={
                             "entry_signals": strategy.entry_signals,
                             "exit_signals": strategy.exit_signals, **(override or {}),
+                            **({"exit_signals": []} if selection_entry else {}),
                         }).warmup_bars + 1)
                 if conditions and (not strategy.meta.get("minute_execution") or optional_triggers(strategy)):
                     # Leave room for today's row while evaluating the previous
@@ -841,12 +859,12 @@ class StrategyEngine:
                     required = max(required, overlay.warmup_bars(conditions) + 1)
             from app.strategy.basic_filter import uses_previous
             bf = {**(strategy.basic_filter or {}), **((overrides_map or {}).get(strategy_id, {}).get("basic_filter") or {})}
-            if uses_previous(bf):
+            if uses_previous(bf) and not (entry and strategy.minute_selection_snapshot):
                 required = max(required, 2)
         return required
 
     def minute_entry_daily_history_bars(self, strategy_ids: list[str], *, overrides_map=None) -> int:
-        """Saved-selection consumers need daily data only for remaining shared dependencies."""
+        """冻结预选消费者只加载尚需的共享日线依赖; 不重新计算前日资格。"""
         return self.minute_daily_history_bars(strategy_ids, overrides_map=overrides_map, entry=True)
 
     def required_history_bars(
@@ -1037,7 +1055,10 @@ class StrategyEngine:
                                      context.history, context.pool_universe))
         daily_pool = (context.daily_pool_snapshots or {}).get(strategy_id)
         loader = getattr(self, "_daily_pool_loader", None)
-        if daily_pool is None and callable(loader):
+        independent_stocks = context.independent_entry_phase == "stocks"
+        if independent_stocks:
+            daily_pool = None
+        if daily_pool is None and callable(loader) and not independent_stocks:
             daily_pool = loader(strategy_id, context.as_of)
         pool_error = None
         if daily_pool is not None:
@@ -1049,15 +1070,16 @@ class StrategyEngine:
                 raise ValueError("当日股票池身份、日期或完整成员数量不匹配")
             if context.realtime and daily_pool.get("definition_version") != DEFINITION_VERSION:
                 daily_pool = None
-        if daily_pool is None and has_rows and context.asset_type == "stock":
+        if daily_pool is None and has_rows and context.asset_type == "stock" and not independent_stocks:
             try:
                 daily_pool = build_pool(self, strategy_id, context, overrides=overrides)
             except ValueError as exc:
                 pool_error = str(exc)
         strategy = self.get(strategy_id)
-        from app.strategy.signal_sections import supports_signal_sections
+        from app.strategy.signal_sections import pending_entry_time, supports_signal_sections
 
         signal_sections = supports_signal_sections(strategy)
+        pending = pending_entry_time(self, strategy, overrides, context) if signal_sections else None
         selection, selection_error = None, None
         if signal_sections:
             from app.market_time import cn_today
@@ -1085,6 +1107,8 @@ class StrategyEngine:
         if daily_pool is not None and strategy.execution_backend != "composite":
             execution_context = scope_context(execution_context, daily_pool["symbols"])
         if signal_sections:
+            from app.strategy.selection_order import for_strategy
+            selection = for_strategy(selection, strategy.meta)
             execution_context = replace(execution_context, selection_snapshots={
                 **(context.selection_snapshots or {}), strategy_id: selection or {"rows": []},
             })
@@ -1143,9 +1167,11 @@ class StrategyEngine:
                         pool_symbols=daily_pool["symbols"] if daily_pool else None,
                         prev_close={}, diagnostic_symbols=[
                             row["symbol"] for row in (selection or {"rows": []})["rows"]],
-                        task_state=state, input_error=reason)
+                        task_state=state, input_error=reason, selection=selection,
+                        independent_phase=context.independent_entry_phase,
+                        historical=not context.realtime and context.signal_task_states is None)
                     progress = attempted.progress
-                if (progress["observed_at"] is None
+                if pending is None and (progress["observed_at"] is None
                         or progress["steps"]["breadth"]["scheduled_at"] is None
                         or progress["observed_at"] >= progress["steps"]["breadth"]["scheduled_at"]):
                     failed_progress(progress, reason)
@@ -1157,17 +1183,17 @@ class StrategyEngine:
         if execution_context.exit_errors:
             result.exit_filter_error = "; ".join(execution_context.exit_errors)
         if signal_sections:
-            from app.strategy.late_session_strength import previous_closes
+            from app.strategy.late_session_strength import previous_closes, selection_closes
             from app.strategy.s01_signals import optional_triggers
             from app.strategy.signal_price_suggestions import suggested_lots
-            from app.strategy.signal_sections import pending_entry_time
 
             result.section_mode = "signals"
             if not optional_triggers(strategy):
                 try:
                     result.price_suggestion_reference = {
                         "reference_date": str(previous_session(context.as_of)),
-                        "closes": previous_closes(holding_context, isolate_symbols=True),
+                        "closes": (selection_closes(selection)
+                            if independent_stocks else previous_closes(holding_context, isolate_symbols=True)),
                     }
                 except ValueError:
                     # Display-only sell suggestions cannot invalidate evaluated signals.
@@ -1180,24 +1206,27 @@ class StrategyEngine:
             result.section_statuses = {"select": "success", "buy": "success", "sell": "success"}
             selected = _sanitize(selection["rows"]) if selection is not None else []
             result.selection_snapshot = selection
-            pending = pending_entry_time(self, strategy, overrides, context)
+            pending_buy = pending is not None and (not optional_triggers(strategy) or not result.rows)
             if selection_error:
                 result.section_errors.update(select=selection_error, buy=selection_error)
                 result.section_statuses.update(select="waiting", buy="waiting")
-            elif pending is not None and (not optional_triggers(strategy) or not result.rows):
+            elif pending_buy:
                 result.rows = []
                 result.total = 0
                 result.scores = {}
                 result.entry_signal_hits = []
                 result.section_errors["buy"] = f"等待{pending.time().isoformat()}确认入场触发器"
                 result.section_statuses["buy"] = "waiting"
-            if result.entry_filter_error:
+            # A scheduled entry cannot fail on inputs before its confirmation.
+            # Exit evaluation and due/historical input failures remain independent.
+            if not pending_buy and result.entry_filter_error:
                 result.section_errors["buy"] = result.entry_filter_error
                 result.section_statuses["buy"] = "failed" if entry_failed or context.input_errors else "waiting"
-            elif context.input_errors:
+            elif not pending_buy and context.input_errors:
                 result.section_errors["buy"] = "; ".join(context.input_errors)
                 result.section_statuses["buy"] = "failed"
-            elif context.history is None or context.history.is_empty():
+            elif not pending_buy and (context.history is None or context.history.is_empty()) and not (
+                    independent_stocks and selection is not None and selection.get("rows") == []):
                 result.section_errors["buy"] = "缺少指定交易日分钟行情。买入信号暂不可确认"
                 result.section_statuses["buy"] = "waiting"
             if execution_context.exit_errors:
@@ -1230,7 +1259,11 @@ class StrategyEngine:
         daily_pool: dict | None = None,
         holding_context: StrategyDataContext | None = None,
     ) -> StrategyResult:
-        """执行策略: 基础过滤 → 策略过滤 → 评分排序
+        """执行策略并返回候选与持仓信号; 归档和委托不在本函数提交。
+
+        S01 可选信号先注入真实分钟真值, 再以 _s01_skip_entry 投影冻结预选,
+        避免叠加源码适配基线的另一套入场门槛。出场使用独立持仓上下文,
+        买入缺输入不阻断已可计算的出场。
 
         Args:
             strategy_id:        策略 ID
@@ -1356,7 +1389,7 @@ class StrategyEngine:
         if morning_signals and not selectable:
             from app.market_time import cn_now, cn_today
             from app.strategy.late_session_strength import previous_closes
-            from app.strategy.morning_liquidation import evaluate
+            from app.strategy.morning_liquidation import evaluate, requires_previous_close
 
             for sig in morning_signals:
                 try:
@@ -1371,7 +1404,7 @@ class StrategyEngine:
                         holding_context.history, sig, day=as_of, now=now, positions=context.positions,
                         prev_close=previous_closes(
                             holding_context, exact_session="amplitude_pct" not in (sig.get("params") or {}),
-                        ), quotes=holding_context.current,
+                        ) if requires_previous_close(sig) else {}, quotes=holding_context.current,
                         suspension_history=context.suspension_history,
                     )
                     if result.diagnostics:
@@ -1406,7 +1439,10 @@ class StrategyEngine:
             # 每个命中行自带最后K线时间戳 (last_datetime)。
             if history is None:
                 raise ValueError(f"strategy {strategy_id} requires minute history data")
-            if history.is_empty():
+            frozen = (context.selection_snapshots or {}).get(strategy_id)
+            if history.is_empty() and not (
+                frozen is not None and frozen.get("as_of") == str(as_of) and frozen.get("rows") == []
+            ):
                 return StrategyResult(
                     as_of=as_of,
                     strategy_id=strategy_id,
@@ -1424,7 +1460,8 @@ class StrategyEngine:
                 ),
                 selection=(context.selection_snapshots or {}).get(strategy_id),
             )
-            # Build market-wide signal features first; eligibility only limits entries.
+            # 全池广度与预选个股由共享内核分阶段处理, 完整池身份不随名单改变。
+            # trigger_history 留下信号输入; 缩至冻结预选的 history 只用于候选投影。
             trigger_history = history
             frozen = (context.selection_snapshots or {}).get(strategy_id)
             if frozen is not None:
@@ -1440,6 +1477,7 @@ class StrategyEngine:
                     + ", ".join(sorted(missing_csgi))
                     + " — 请先在「自定义信号」中创建(timeframe=intraday)后再运行"
                 )
+            # 声明的daily/selection关键字是候选输入契约; 冻结预选不重复前日资格筛选。
             arguments = {"daily": context.daily_history} if s.minute_daily_bars > 0 else {}
             if s.minute_selection_snapshot:
                 arguments["selection"] = frozen
@@ -1462,13 +1500,14 @@ class StrategyEngine:
                     df = timed_entry(timed, history, context, params, candidates_only=selectable).with_columns(
                         pl.lit(True).alias("csgi_" + timed["id"]))
             else:
+                # 可选信号路径只投影候选, 不再次施加适配基线阈值; 非可选路径沿原参数执行。
                 df = s.filter_minute_history_fn(
                     history, {**params, "_s01_skip_entry": True} if selectable else params, **arguments)
             if selectable:
                 from app.strategy.s01_signals import entry_frame
                 df = entry_frame(self, s, df, trigger_history, context, params, selected_triggers["entry"])
-            # Minute strategies commonly project only their display columns.
-            # Restore trigger columns at the row's actual signal close label.
+            # 候选投影可能只保留展示列, 按该行真实信号分钟恢复触发列和确认时间;
+            # 不以当前最新分钟替换 last_datetime, 避免评分或多信号交集借用后续行情。
             time_column = "last_datetime" if "last_datetime" in df.columns else "datetime"
             missing_signals = [name for name in entry_signals + exit_signals
                                if name.startswith("csgi_") and name in history.columns and name not in df.columns]
@@ -1673,13 +1712,13 @@ class StrategyEngine:
         priorities = [f"{signal}__entry_priority" for signal in entry_signals
                       if f"{signal}__entry_priority" in df.columns]
         if priorities:
-            # Group ranking is the explicit entry order, independent of optional ATR display scores.
+            # 信号内核已固定执行优先序; 源码投影或通用评分不能重新排候选。
             df = df.sort([*priorities, "symbol"], nulls_last=True)
             from app.strategy.entry_groups import OUTPUT_FIELDS
             prefix = priorities[0].removesuffix("entry_priority")
             df = df.with_columns([pl.col(prefix + key).alias(key) for key in OUTPUT_FIELDS])
-            # Monitor receipts and score-based execution consume this same rank.
-            # Preserve the strategy's former score separately from five-factor score.
+            # score映射最终顺位供监控/执行共用, strategy_score保存投影原分。
+            # selection_score独立保存前日五维分; 任意冻结源码的投影分未必与它相同。
             df = df.with_columns(
                 (pl.col("score") if "score" in df.columns else pl.lit(None)).alias("strategy_score"),
                 pl.Series("score", [
@@ -2346,8 +2385,11 @@ class StrategyEngine:
     ) -> pl.DataFrame:
         """向当日分钟K帧注入自定义盘中信号列(csgi_, 当日条件上升沿)。
 
-        单点注入: 实盘分钟扫描与分钟回测 worker 共用本方法, 特征计算与
-        监控评估同源(intraday_features), 保证口径一致。无定义/帧为空时原样返回。
+        单点注入由实时扫描和明确历史回放共用。context 提供完成时间、冻结预选、
+        完整池及阶段状态; 非分组S01/S02个股复用冻结昨收, 独立广度由其
+        阶段入口计算。是否在隔离进程执行由执行器和编排决定。
+        无定义时原样返回; 有上下文但缺分钟仍建立空 schema, 让模板返回真实
+        等待/失败诊断, 不能将空输入解释为正常无信号。
         """
         if context is not None:
             context.intraday_errors.clear()
@@ -2430,15 +2472,28 @@ class StrategyEngine:
                     breadth_due = (not optional or clock is None or p["time"] is None
                                    or clock >= datetime.combine(context.as_of, clock_time.fromisoformat(p["time"]))
                                    + timedelta(seconds=15))
+                    if context.independent_entry_phase == "stocks":
+                        # 个股终态只读取自己一侧; 广度成败不触发全池参考加载。
+                        breadth_due = False
+                        phase_state = (state or {}).get("independent_v1", {}).get("stocks", {})
+                        stock_due = not phase_state.get("terminal")
                     reference_due = (p.get("entry_groups") is not None or not (state or {}).get("terminal")) and ((not optional and needs_previous_close(sig)) or (
                         optional and (
                             (breadth_due and p["pool_up_min_pct"] is not None and not (state or {}).get("breadth"))
                             or (stock_due and (needs_previous(p.get("entry_groups")) or any(p[key] is not None for key in (
                                 "change_min_pct", "change_max_pct", "amplitude_max_pct")))))))
                     if reference_due:
-                        reference = previous_closes(context, isolate_symbols=True)
+                        from app.strategy.late_session_strength import selection_closes
+                        full_reference_due = (p["pool_up_min_pct"] is not None and breadth_due
+                                              and not (state or {}).get("breadth"))
+                        reference = (selection_closes(selection) if optional and selection is not None
+                                     and p.get("entry_groups") is None and not full_reference_due else
+                                     previous_closes(context, isolate_symbols=True))
                     if stock_due:
-                        inputs = condition_inputs(context, sig)
+                        from app.strategy.daily_pool import scope_context
+                        stock_context = (scope_context(context, [row["symbol"] for row in selection["rows"]])
+                                         if optional and selection is not None else context)
+                        inputs = condition_inputs(stock_context, sig)
                 except Exception as exc:
                     if not optional:
                         progress = failed_progress(progress_plan(
@@ -2454,6 +2509,10 @@ class StrategyEngine:
                         completed_through=observed, diagnostic_symbols=diagnostic_symbols,
                         task_state=state, input_error=input_error, **inputs,
                         selection=selection,
+                        independent_phase=context.independent_entry_phase,
+                        historical=not context.realtime and context.signal_task_states is None,
+                        unavailable_symbols=context.unavailable_input_symbols,
+                        source_input_sha256=context.source_input_sha256,
                     )
                 except Exception as exc:
                     progress = failed_progress(progress_plan(
@@ -2477,6 +2536,8 @@ class StrategyEngine:
                     "stage": result.stage,
                     "warnings": result.warnings,
                     "reference_errors": context.reference_errors,
+                    "input_sha256": context.source_input_sha256,
+                    "input_excluded_symbols": context.unavailable_input_symbols,
                     "entry_group_errors": result.entry_group_errors,
                     "progress": result.progress,
                 }
@@ -2486,6 +2547,8 @@ class StrategyEngine:
                     context.intraday_errors.extend(result.diagnostics)
                 target = bar_time(sig, context.as_of, completed_through=(
                     datetime.fromisoformat(result.progress["bar_at"]) if result.progress["bar_at"] else None))
+                # 真值写在启动分钟标签; 实际可用时钟另存entry_evaluated_at,
+                # 避免把确认延迟或迟到汇合时间当作行情价格所属分钟。
                 output = output.with_columns(
                     ((pl.col("datetime") == target) & pl.col("symbol").is_in(result.symbols)).fill_null(False)
                     .alias(column))

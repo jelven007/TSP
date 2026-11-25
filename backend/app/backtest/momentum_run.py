@@ -97,7 +97,7 @@ def run_momentum(service, config, strategy, values, overrides, *,
     repo = service.engine.repo
     try:
         plan = minute_replay_feature_plan(3, service._effective_basic_filter(strategy, overrides))
-        # S02 uses raw prices, not daily limit signals; omit their required columns too.
+        # This frozen capacity executor uses raw prices, not daily limit signals.
         plan = replace(plan, base_columns=plan.base_columns - plan.signal_columns,
                        signal_columns=frozenset())
         panel = service.engine.load_panel_for_backtest(
@@ -141,7 +141,12 @@ def run_momentum(service, config, strategy, values, overrides, *,
                     history=context.daily_history, as_of=day)
             if config.symbols is not None and not selected.is_empty():
                 selected = selected.filter(pl.col("symbol").is_in(config.symbols))
-            result = run_day(context, params, selected, previous_state=state, allow_buy=i < len(days) - 1)
+            result = run_day(
+                context, params, selected, previous_state=state, allow_buy=i < len(days) - 1,
+                entry_participation_pct=config.entry_participation_pct,
+                exit_participation_pct=config.exit_participation_pct,
+                minute_price_rule=config.minute_price_rule,
+            )
             state = result["state"]
             output.daily_results.append({k: result[k] for k in (
                 "as_of", "rows", "total", "sections", "state", "portfolio_scope", "error")})

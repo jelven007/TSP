@@ -1,5 +1,7 @@
 # 开始使用 Tick Stock Platform（TSP）
 
+使用 S01 前核对 [S01 当前实现](reference/s01.md) 中的保存参数、输入和结果含义。
+
 先选择运行模式，再按对应模板安装并核对初始化配置。日常操作见
 [操作说明书](../操作说明书.md)，配置与故障处理见[运维手册](operations.md)，
 开发验证见[CONTRIBUTING](../CONTRIBUTING.md)。运行身份见[版本基线](version-baseline.md)。

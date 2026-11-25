@@ -72,6 +72,21 @@ def _finite_positive(value: object) -> bool:
     return math.isfinite(number) and number > 0
 
 
+def participation_rate(value: float) -> float:
+    rate = float(value)
+    if not math.isfinite(rate) or not 0 < rate <= 1:
+        raise ValueError("分钟参与率必须大于0且不超过100%")
+    return rate
+
+
+def minute_capacity(volume_lots: float, rate: float, step: int) -> int:
+    """Market volume is stored in lots; never round capacity up."""
+    volume = float(volume_lots)
+    if not math.isfinite(volume) or volume <= 0:
+        return 0
+    return math.floor(volume * 100 * rate / step + 1e-9) * step
+
+
 def _valid_price_row(row: dict[str, object]) -> bool:
     return all(_finite_positive(row.get(field)) for field in ("open", "high", "low", "close"))
 
@@ -122,8 +137,10 @@ def execute_entry_window(
     window_minutes: int = 5,
     end_at: datetime | None = None,
     asset_type: str = "stock",
+    participation_pct: float = 1.0,
 ) -> EntryExecution:
     """An explicit deadline replaces the legacy five-bar limit; missing slots never extend it."""
+    rate = participation_rate(participation_pct)
     if not _finite_positive(prior_close):
         raise ValueError("缺少有效上一交易日收盘价")
     if not math.isfinite(float(budget)) or budget < 0:
@@ -201,7 +218,7 @@ def execute_entry_window(
 
         price = min(limit_up, high)
         minute_volume_shares = volume * 100
-        capacity = math.floor(minute_volume_shares / step + 1e-9) * step
+        capacity = minute_capacity(volume, rate, step)
         proposed = min(target - shares, capacity)
         quantity = _affordable_quantity(
             current_notional=notional,

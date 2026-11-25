@@ -1,4 +1,9 @@
-"""S01 trigger adapters; frozen legacy bindings retain their original behavior."""
+"""S01 所选信号、参数基线与原生冻结定义的共用适配。
+
+当前 custom_mvxxcs01 选择通用尾盘/早盘模板, 规则正文见 docs/reference/s01.md。
+本模块保留真实调用的原生与历史冻结契约, 不能将这些契约的默认值补入当前信号。
+这里只解析、投影和返回信号; 任务持久化与委托由外层负责。
+"""
 from __future__ import annotations
 
 import copy
@@ -11,6 +16,7 @@ ENTRY_KEYS = frozenset({
     "current_amount_min", "current_return_min", "current_return_max",
     "current_range_max", "market_positive_min",
 })
+# 冻结契约的字段集合仅用于识别原输入, 不是当前策略的条件或默认表。
 LEGACY_ENTRY_KEYS = ENTRY_KEYS | {"market_min_valid"}
 EXIT_KEYS = frozenset({
     "vwap_buffer", "peak_profit_min", "peak_retrace_min", "return_15m_max",
@@ -27,7 +33,7 @@ ENTRY_TIMING_DEFAULTS = {"time": "14:45:00", "evaluation_delay_minutes": 1}
 
 
 def entry_clock(signal, day):
-    """Use the saved clock; six-field frozen signals retain zero delay."""
+    """原生信号的启动、分钟标签和确认时钟; 冻结缺延迟输入仍取零延迟。"""
     from datetime import datetime, time, timedelta
 
     values = signal_parameters(signal)
@@ -38,12 +44,14 @@ def entry_clock(signal, day):
 
 
 def optional_triggers(strategy) -> bool:
+    """按执行能力声明识别可选信号接入, 不依赖策略名称或稳定 ID。"""
     return (strategy.execution_backend == "minute_filter"
             and strategy.meta.get("minute_execution") == "overnight_capacity_v1"
             and strategy.meta.get("trigger_selection") == "optional_v1")
 
 
 def stored_definitions(engine) -> list[dict]:
+    """优先读取调用级冻结注册表, 其次读取所属租户/单机保存定义。"""
     from app.strategy import custom_signals
 
     scoped = custom_signals.scoped_definitions()
@@ -56,7 +64,11 @@ def stored_definitions(engine) -> list[dict]:
 
 
 def trigger_definitions(engine, strategy, overrides=None, *, strict=True) -> dict:
-    """Validate optional selections before either saving or executing them."""
+    """校验所选信号的唯一性、方向、周期与启用状态, 再返回定义副本。
+
+    strict 用于保存及执行时拒绝错误引用; 展示读取可保留带 error 的停用占位,
+    不能把不存在的信号或空选择补成默认入场/出场条件。
+    """
     from app.indicators.pipeline import LIMIT_SIGNAL_OUTPUTS, SIGNAL_DEPENDENCIES
     from app.strategy import custom_signals
 
@@ -100,7 +112,11 @@ def trigger_definitions(engine, strategy, overrides=None, *, strict=True) -> dic
 
 
 def signal_parameters(signal: dict) -> dict:
-    """Validate complete stored values without silently supplying old defaults."""
+    """原生 S01 模板按完整保存字段解析, 非法数值/时钟直接抛错。
+
+    结构决定冻结契约; 不静默补旧默认。当前通用 late_session_strength 和
+    morning_liquidation 模板分别由自身 parameters 入口校验。
+    """
     kind = next((k for k, template in TEMPLATES.items() if signal.get("template") == template), None)
     if kind is None or signal.get("kind") != kind or signal.get("timeframe") != "intraday":
         raise ValueError("S01信号模板须匹配盘中入场或出场类型")
@@ -170,7 +186,10 @@ def signal_parameters(signal: dict) -> dict:
 
 
 def bound_definitions(engine, strategy, *, overrides: dict | None = None, strict: bool = True) -> dict:
-    """Resolve ordinary trigger references; retain old frozen META bindings."""
+    """解析原生参数绑定, 保留仍被回放使用的冻结 META 引用。
+
+    可选触发器只提取所选原生模板; 通用信号不变成原生参数绑定。
+    """
     if optional_triggers(strategy):
         selected = trigger_definitions(engine, strategy, overrides, strict=strict)
         output = {}
@@ -244,7 +263,12 @@ def bound_definitions(engine, strategy, *, overrides: dict | None = None, strict
 
 def resolve_parameters(engine, strategy, values: dict, *, definitions: dict | None = None,
                        overrides: dict | None = None) -> dict:
-    # The window belongs to the saved source, including immutable research snapshots.
+    """合并源码适配基线和原生信号值, 隔离用户传入的内部口径标记。
+
+    通用信号由注入内核决定真实条件; 基线仍服务无预选、原生及冻结适配,
+    因此不能据当前单选信号删除。返回新字典, 不改变源码或保存覆盖。
+    """
+    # 分钟口径由实际源码声明决定, 包含不可变研究快照; 不从调用参数改写。
     values = {k: v for k, v in values.items()
               if k not in {"_s01_entry_window_policy", "_s01_market_count_policy"}}
     if (optional_triggers(strategy)
@@ -280,7 +304,7 @@ def resolve_parameters(engine, strategy, values: dict, *, definitions: dict | No
 
 
 def exit_clock_aliases(values):
-    """Saved S01 source still validates the old names in its entry-only function."""
+    """将原生出场窗口映射为候选适配所需分钟时钟, 保留窗口末根边界。"""
     from app.strategy.builtin._overnight import exit_schedule, exit_window_last
 
     schedule = exit_schedule(values)
@@ -292,7 +316,7 @@ def exit_clock_aliases(values):
 
 
 def daily_signal_frame(context, definitions):
-    """Daily triggers use only the previous completed session, never today's final bar."""
+    """仅在选择日线信号时计算精确前交易日真值, 禁止借用当日最终日线。"""
     import polars as pl
 
     from app.indicators.pipeline import compute_signals
@@ -322,7 +346,7 @@ def daily_signal_frame(context, definitions):
 
 
 def next_entry_evaluation_time(engine, strategy, overrides, context):
-    """Worker wakeup visits both saved S01 stages, without enabling a monitor."""
+    """原生信号按保存启动/确认时刻唤醒; 此查询不启用监控或修改配置。"""
     from app.market_time import CN_TZ
 
     observed = context.observed_at or context.completed_through
@@ -338,7 +362,11 @@ def next_entry_evaluation_time(engine, strategy, overrides, context):
 
 
 def timed_entry(signal, history, context, params, *, candidates_only=False):
-    """Retain the saved S01 start-bar evidence and delayed confirmation."""
+    """原生冻结信号的启动分钟确认; 仅消费已完成前缀并保留保存延迟。
+
+    candidates_only 服务多信号交集的投影, 不能单独授权最终买入。
+    当前通用信号的独立阶段另走 late_session_strength。
+    """
     import polars as pl
 
     from app.market_time import CN_TZ, cn_now, cn_today
@@ -391,7 +419,12 @@ def timed_entry(signal, history, context, params, *, candidates_only=False):
 
 
 def entry_frame(engine, strategy, candidates, history, context, params, definitions):
-    """Intersect independent entry points for one stock at one evaluation time."""
+    """所选入场信号按同股、同评估时点取交集; 空选择保留基础候选。
+
+    不能把不同分钟或不同股票上的真值拼接成一次入场。模板计算错误由
+    调用方转入阶段回执, 不能当作正常零结果。行情所属分钟保存在
+    last_datetime, 信号可用时钟保存在 entry_evaluated_at; 两者不可互换。
+    """
     from datetime import datetime, time
 
     import polars as pl
@@ -453,7 +486,7 @@ def entry_frame(engine, strategy, candidates, history, context, params, definiti
                 confirmed_through = confirmed_through or datetime.combine(context.as_of, time(14, 45))
                 if confirmed_through.tzinfo:
                     confirmed_through = confirmed_through.astimezone(CN_TZ).replace(tzinfo=None)
-                # Confirmation may follow the completed 14:45 input bar.
+                # 确认可晚于信号所属的启动分钟; 按真实可用时钟过滤, 不推迟行情右端点。
                 source = source.filter(pl.col("entry_evaluated_at").is_null()
                                        | (pl.col("entry_evaluated_at") <= confirmed_through))
             hits = source.filter(pl.col(column).fill_null(False))["symbol"].unique().to_list()
@@ -479,7 +512,7 @@ def entry_frame(engine, strategy, candidates, history, context, params, definiti
         common = common.sort("entry_evaluated_at").unique(
             "symbol", keep="first", maintain_order=True)
         output = output.join(common.select("symbol"), on="symbol", how="inner")
-        # A native timed snapshot must correspond to the common confirmation.
+        # 原生定时快照也须匹配多信号共有的确认时点, 不能拼接不同时间的真值。
         timed_frames = [frame.join(common, on=keys, how="inner") for frame in timed_frames]
     if timed_frames:
         names = [s["column"] for s in definitions]
@@ -492,7 +525,7 @@ def entry_frame(engine, strategy, candidates, history, context, params, definiti
 
 
 def risk_exit_hits(context, policy, positions, frame, now):
-    """Emit causal exit signals; execution still uses the next minute's capacity."""
+    """公共风控仅按当时可见价格产生信号, 成交仍受下一分钟真实容量约束。"""
     from datetime import date, datetime, timedelta
 
     import polars as pl
@@ -576,7 +609,11 @@ def risk_exit_hits(context, policy, positions, frame, now):
 
 
 def optional_exit_hits(engine, strategy, context, params, definitions, *, overrides=None):
-    """First selected exit wins; empty selection never invents a time guard."""
+    """所选出场按首次触发归并, 空选择不补清仓时钟。
+
+    信号名单与实仓通过 roster_mode 区分; 实仓校验可卖数量,
+    公共风控只作用于实仓。模板首次触发、截止和诊断仍交执行层处理。
+    """
     from dataclasses import replace
     from datetime import datetime
 

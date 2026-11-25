@@ -550,14 +550,6 @@ class ResearchWorker:
                            VALUES(%s,%s,%s,%s)""", (context.tenant_id, row["id"], name, data),
                     )
                 result = json_value(result)
-                if current["kind"] == "backtest" and result.get("daily_results"):
-                    from app.multitenancy.documents import DocumentSession
-                    from app.services.strategy_results import archive_daily_backtest
-
-                    archive_daily_backtest(
-                        DocumentSession(self.db, context, conn, True), result,
-                        started_at=int(current["created_at"].timestamp() * 1_000_000_000),
-                        generation=int(current["input"].get("strategy_generation", 0)))
             elif (
                 status == "failed" and isinstance(result, dict) and result.get("error")
                 and current["kind"] == "backtest"

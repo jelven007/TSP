@@ -134,11 +134,58 @@ def publish(store, conn, strategy_id, day, asset_type="stock", timeframe="1m", *
         v["summary"].get("computed_at") or 0, v["record_id"],
     ))
     result = copy.deepcopy(chosen["result"])
-    frozen_id = ResultIdentity(strategy_id, "", "", "{}", "{}", "null",
-                               asset_type, timeframe, daily_record=True).record_id(str(day))
-    frozen = next((v for v in values if v["record_id"] == frozen_id), {})
-    selected = frozen.get("result", {}).get("selection_snapshot")
-    if not result.get("selection_snapshot") and selected is not None:
+    if (strategy_id == "custom_mvxxcp88"
+            and (result.get("repair_provenance") or {}).get("kind") in (
+                "post_close_signal_review_v1", "s02_manual_signal_review_v1")):
+        from app.services.s02_run_evidence import review_provenance
+        originals = [v for v in values if not v["summary"].get("selection_only")
+                     and v["summary"].get("runtime_identity") == chosen["summary"].get("runtime_identity")
+                     and not v["result"].get("repair_provenance")]
+        original = max(originals, key=lambda v: v["summary"].get("started_at") or 0) if originals else None
+        result.update(review_provenance(
+            {**original["result"], "record_id": original["record_id"]} if original else {},
+            {**result, "record_id": chosen["record_id"]}))
+    if (result.get("section_statuses") or {}).get("buy") in ("expired", "waiting"):
+        expected = chosen["summary"].get("runtime_identity")
+        reviews = [v for v in values if expected
+                   and not v["summary"].get("selection_only")
+                   and v["summary"].get("runtime_identity") == expected
+                   and v["result"].get("runtime_identity") == expected
+                   and (v["result"].get("repair_provenance") or {}).get("kind")
+                   == "post_close_signal_review_v1"
+                   and (v["result"].get("repair_provenance") or {}).get("as_of") == str(day)
+                   and (v["result"].get("section_statuses") or {}).get("buy") == "success"
+                   and (v["result"].get("execution_status") or {}).get("state") == "success"
+                   and not (v["result"].get("section_errors") or {}).get("buy")
+                   and not v["result"].get("entry_filter_error")]
+        if reviews:
+            reviewed = max(reviews, key=lambda v: (
+                v["summary"].get("started_at") or 0, v["summary"].get("computed_at") or 0,
+                v["record_id"],
+            ))
+            # Project only the reviewed entry; later sell/selection and raw attempts stay intact.
+            entry = reviewed["result"]
+            if strategy_id == "custom_mvxxcp88":
+                from app.services.s02_run_evidence import review_provenance
+                result.update(review_provenance(
+                    {**result, "record_id": chosen["record_id"]},
+                    {**entry, "record_id": reviewed["record_id"]}))
+            result["sections"]["buy"] = copy.deepcopy(entry["sections"]["buy"])
+            result["rows"] = copy.deepcopy(entry["sections"]["buy"])
+            result["total"] = len(result["rows"])
+            for field in ("entry_signal_hits", "entry_filter_error", "entry_data_quality",
+                          "execution_status", "repair_provenance"):
+                result[field] = copy.deepcopy(entry.get(field))
+            result["section_statuses"] = {**(result.get("section_statuses") or {}), "buy": "success"}
+            result["section_errors"] = {k: v for k, v in (result.get("section_errors") or {}).items()
+                                        if k != "buy"}
+            result["buy_review_record_id"] = reviewed["record_id"]
+    from app.services.daily_selections import selection_record
+    by_id = {v["record_id"]: v for v in values}
+    frozen = selection_record(strategy_id, day, by_id.get)
+    selected = (frozen or {}).get("result", {}).get("selection_snapshot")
+    from app.services.selection_clock import S03_ID
+    if selected is not None and (strategy_id == S03_ID or not result.get("selection_snapshot")):
         result["selection_snapshot"] = selected
         result["sections"]["select"] = selected["rows"]
         result["section_errors"] = {k: v for k, v in (result.get("section_errors") or {}).items()
@@ -152,6 +199,14 @@ def publish(store, conn, strategy_id, day, asset_type="stock", timeframe="1m", *
         )
     identity = ResultIdentity(strategy_id, "", "", "{}", "{}", "null", asset_type, timeframe)
     result = store._with_previous_buy(conn, identity, result, str(day))
+    from app.services.custom_status_refresh import result as status_result
+    result = status_result(store, strategy_id, result, conn=conn)
+    if strategy_id == "custom_mvxxcp88":
+        from app.services.s02_run_evidence import annotate_diagnostic
+        annotate_diagnostic(result)
+        result["operational_state"] = _get(store, conn, "strategy_operational_state",
+                                           f"{strategy_id}:{day}")
+        result["run_commit"] = _get(store, conn, "strategy_run_commits", f"{strategy_id}:{day}")
     payload = {
         "result": {**result, "strategy": strategy_id, "source": "saved",
                    "record_id": chosen["record_id"],

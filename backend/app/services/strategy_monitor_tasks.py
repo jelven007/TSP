@@ -1,10 +1,10 @@
-"""Strategy-level monitoring lifecycle over the existing rules and scheduler."""
+"""策略监控编排: 装配本侧输入、请求修复、汇合回执并守卫最终发布。"""
 from __future__ import annotations
 
 import json
 import threading
 from copy import deepcopy
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from uuid import uuid4
@@ -13,13 +13,21 @@ import polars as pl
 
 from app.multitenancy.documents import TenantDocuments, json_value
 from app.services.fs_utils import atomic_write_text
-from app.services.strategy_monitor_state import CONTRACT, finished, plan, receipt
+from app.services.strategy_monitor_state import (
+    CONTRACT,
+    finished,
+    independent_buy,
+    join_buy,
+    plan,
+    receipt,
+)
 from app.strategy import monitor_rules
 
 NAMESPACE = "strategy_monitoring"
 _local_lock = threading.RLock()
 
 def assert_generation(storage, sid, generation):
+    """提交前验证仍启用且世代相同, 防取消/重启后的在途结果迟到发布。"""
     current = monitoring_state(storage, sid)
     if not current.get("enabled") or current.get("generation") != generation:
         raise ValueError("策略监控已取消或重新开启, 旧任务结果已丢弃")
@@ -57,6 +65,7 @@ def _cancel_tasks(storage, sid):
 
 
 def monitoring_state(storage, sid):
+    """读取监控生命周期及世代; 缺记录返回{}, 不视为默认启用。"""
     if isinstance(storage, TenantDocuments):
         return storage.get(NAMESPACE, sid, {})
     path = Path(storage) / "user_data" / NAMESPACE / f"{sid}.json"
@@ -64,6 +73,7 @@ def monitoring_state(storage, sid):
 
 
 def task_receipt(storage, sid, day, value=None):
+    """按策略和目标日读写回执, 不把前日失败并入今日尚未开始任务。"""
     key = f"{sid}:{day}"
     if isinstance(storage, TenantDocuments):
         return (storage.get("strategy_monitor_task_runs", key, {}) if value is None
@@ -78,7 +88,7 @@ def task_receipt(storage, sid, day, value=None):
 
 def request_input_repair(market, *, owner, sid, generation, day, phase, attempt,
                          symbols, deadline, minute_end=None, daily_dates=()):
-    """Request only task dependencies from the platform; the tenant never fetches."""
+    """向Platform请求本阶段成员和日期依赖; 接口失败返回修复错误, 租户不自行取数。"""
     request = {"owner": owner, "strategy_id": sid, "generation": generation,
                "day": str(day), "phase": phase, "attempt": attempt,
                "symbols": sorted(set(symbols)), "daily_dates": [str(value) for value in daily_dates],
@@ -93,9 +103,19 @@ def request_input_repair(market, *, owner, sid, generation, day, phase, attempt,
 
 
 def request_phase_repairs(payload, results, market, now):
+    """为未完成且有错误的阶段提交补数, 原地把修复回执附到results。
+
+    广度用完整池, 个股用已有冻结预选, 卖用前日买名单; 缺/空预选不造
+    个股补数请求。修复目标仍是启动分钟及必要前日, 不沿当前行情滚动重选。
+    """
+    from app.services.strategy_input_binding import requires_authority
     from app.strategy.basic_filter import previous_session
     for sid, daily in results.items():
+        if payload.get("s02_inputs_required") and sid == "custom_mvxxcp88":
+            continue
         for kind, task in (daily.get("monitor_tasks") or {}).items():
+            if kind == "buy" and requires_authority(payload, sid):
+                continue
             for signal_id, saved in (task.get("signals") or {}).items():
                 phases = {key: saved[key] for key in ("breadth", "stocks") if key in saved}
                 for phase, step in (phases or {"observe": saved}).items():
@@ -107,6 +127,12 @@ def request_phase_repairs(payload, results, market, now):
                                if kind == "sell" else None)
                     symbols = ([row["symbol"] for row in symbols] if symbols is not None else
                                (payload.get("daily_pool_snapshots", {}).get(sid) or {}).get("symbols", []))
+                    if kind == "buy" and phase == "stocks":
+                        selected = payload.get("selection_snapshots", {}).get(sid)
+                        if selected is None or not selected.get("rows"):
+                            # 无归档不能靠分钟修复造出预选; 成功空预选无需修复行情。
+                            continue
+                        symbols = sorted({row["symbol"] for row in selected["rows"]})
                     if not window:
                         continue
                     step["repair"] = request_input_repair(
@@ -117,12 +143,17 @@ def request_phase_repairs(payload, results, market, now):
                         minute_end=(window["start"] if kind == "buy" else
                                     now.replace(second=0, microsecond=0).strftime("%H:%M:%S")),
                         daily_dates=[previous_session(now.date())])
+                    step["repair"]["input_release_id"] = payload.get("public_release_id")
                     if step.get("history"):
                         step["history"][-1]["repair"] = deepcopy(step["repair"])
 
 
-def wait_for_repairs(planning, saved, market):
-    """Finish prerequisite repair before returning to the same calculation phase."""
+def wait_for_repairs(planning, saved, market, *, current_release=None):
+    """原地更新修复回执并移除暂缓动作, 过期动作保持可执行。
+
+    同发布版本修复在途时暂缓计算; 新发布版本允许未完成阶段立即重新校验
+    输入。修复成功只解除等待, 不能代替策略计算通过。
+    """
     waiting = []
     for action in planning["actions"]:
         if action["phase"] == "expire":
@@ -130,10 +161,13 @@ def wait_for_repairs(planning, saved, market):
         signal = saved.get("tasks", {}).get(action["kind"], {}).get("signals", {}).get(action["signal_id"], {})
         step = signal.get(action["phase"], {}) if action["phase"] in ("breadth", "stocks") else signal
         repair = step.get("repair") or {}
+        if (current_release and repair.get("input_release_id")
+                and current_release != repair["input_release_id"]):
+            continue
         if repair.get("state") not in ("queued", "running") or not repair.get("request"):
             continue
         try:
-            step["repair"] = market.monitor_repair(repair["request"])
+            step["repair"] = {**repair, **market.monitor_repair(repair["request"])}
         except Exception as exc:
             step["repair"] = {**repair, "state": "failed", "error": str(exc)}
         if step["repair"].get("state") in ("queued", "running"):
@@ -142,7 +176,10 @@ def wait_for_repairs(planning, saved, market):
 
 
 def trusted_scope(engine, repo, storage, sid, day, overrides=None):
-    """Use securities and status evidence; missing price rows cannot shrink scope."""
+    """用证券目录和时点状态证据建立自身完整范围; 缺行情不缩池。
+
+    覆盖合并后解析板块/分组; 目录不可用直接失败, 不能退回有行情子集。
+    """
     from app.instrument_suspension import pool_evidence
     from app.strategy.daily_pool import build_pool
     from app.strategy.engine import StrategyDataContext
@@ -160,7 +197,7 @@ def trusted_scope(engine, repo, storage, sid, day, overrides=None):
 
 
 def pending_selection_repairs(market, repairs):
-    """Poll the platform prerequisite without running selection alongside it."""
+    """查询在途预选补数并更新repairs, 返回仍需等待的策略ID集合。"""
     pending = set()
     for sid, repair in repairs.items():
         if repair.get("state") not in ("queued", "running") or not repair.get("request"):
@@ -176,7 +213,11 @@ def pending_selection_repairs(market, repairs):
 
 def selection_repairs(market, repo, owner, generations, job, errors, *, engine=None,
                       storage=None, overrides=None):
-    """The platform repairs the source date, then the selection job tries again."""
+    """按源日完整策略范围和声明的历史窗口补日线, 返回每策略修复回执。
+
+    缺范围定义直接记录失败; 不用已有命中替代范围。后续预选仍需重新验证
+    收盘证据、覆盖和资格, 此处不创建目标日快照或冻结ATR。
+    """
     from app.strategy.basic_filter import previous_session
     repairs = {}
     source = date.fromisoformat(job["source_date"])
@@ -207,7 +248,11 @@ def selection_repairs(market, repo, owner, generations, job, errors, *, engine=N
 
 
 def selection_receipts(storage, job, now):
-    """Persist independent nightly state and deduplicated warnings."""
+    """将源日盘后作业转为各策略select回执, 保存覆盖与去重通知。
+
+    目标日资格归档与源日任务回执日期不同; 作业错误按策略保留, 重复回执
+    用作业签名识别。本函数写任务/通知, 不计算或补建资格。
+    """
     from app.market_time import as_cn_datetime
     from app.multitenancy.monitor_compute import failure_events
     from app.services.alert_store import append_many
@@ -243,6 +288,7 @@ def selection_receipts(storage, job, now):
         task = receipt(previous, action, now, passed=sid not in errors,
             errors=[errors[sid]] if sid in errors else [], details={
                 "windows": [{"start": start_text, "end": end_text}],
+                "source_date": source,
                 "target_date": job["as_of"], "count": len(selected.get("rows", [])),
                 "pool_total": coverage.get("scope_total"), "pool_usable": coverage.get("available_daily"),
                 "missing_count": len(coverage.get("missing_symbols", [])),
@@ -272,6 +318,7 @@ def monitoring_summary(engine, storage, *, now=None):
     from app.services.daily_selections import DailySelections, due_window
     from app.strategy.config import list_overrides
     now = as_cn_datetime(now or cn_now())
+    calendar = published_trading_day(now.date())
     active, overrides = monitored_ids(storage), list_overrides(storage)
     rows = []
     for sid, strategy in engine._strategies.items():
@@ -308,8 +355,9 @@ def monitoring_summary(engine, storage, *, now=None):
                 window = due_window(now.replace(hour=start.hour, minute=0, second=0, microsecond=0),
                                     monitored_only=True, strategy_id=sid)
                 select["target_date"] = str(window[1])
-                if DailySelections(storage).read(sid, window[1]) is not None:
+                if (selected := DailySelections(storage).read(sid, window[1])) is not None:
                     select["state"] = "success"
+                    select["count"] = len(selected["rows"])
                     from app.services.selection_clock import S03_ID
                     if sid == S03_ID:
                         sync = DailySelections(storage).job(str(window[1]) + ":s03").get("watchlist_sync", {})
@@ -324,8 +372,34 @@ def monitoring_summary(engine, storage, *, now=None):
             except ValueError as exc:
                 select.update(state="failed", errors=[str(exc)])
         tasks["select"] = {**select, "state": select["state"] if enabled else "disabled"}
+        if enabled and calendar is not True:
+            for task in tasks.values():
+                if task["state"] in {"waiting", "running"}:
+                    task["state"] = "non_trading_day" if calendar is False else "calendar_unknown"
+        from app.services.selection_clock import S03_ID
+        grouped_entry = any((w["signal"].get("params") or {}).get("entry_groups") is not None
+                            for w in windows["buy"])
+        if sid == S03_ID and enabled and grouped_entry and not finished(saved.get("buy", {})):
+            from app.strategy.overnight_runtime import next_market_day
+            target = (now.date() if published_trading_day(now.date()) is True
+                      and now.strftime("%H:%M:%S") <= max(w["end"] for w in windows["buy"])
+                      else next_market_day(now.date()))
+            if DailySelections(storage).read(sid, target) is None:
+                source = (now.date() if published_trading_day(now.date()) is True
+                          and now.time().replace(tzinfo=None) <= end else next_market_day(now.date()))
+                effective = next_market_day(source)
+                tasks["buy"].update(
+                    state="blocked", target_date=str(effective),
+                    dependency={"state": "missing_or_incompatible", "date": str(target),
+                                "source_date": str(source), "kind": "s03_five_dimension_selection"},
+                    errors=[f"{target}缺少当前S03五维预选归档, 买入暂不可执行; "
+                            f"最早需{source}{start.strftime('%H:%M')}~{end.strftime('%H:%M')}"
+                            f"完成评分, 供{effective}入场使用"])
         rows.append({"strategy_id": sid, "enabled": enabled, "as_of": str(now.date()),
-                     "tasks": tasks, "errors": errors})
+                     "is_trading_day": calendar, "tasks": tasks, "errors": errors,
+                     **({"operational_state": storage.get(
+                         "strategy_operational_state", f"{sid}:{now.date()}")}
+                        if sid == "custom_mvxxcp88" and isinstance(storage, TenantDocuments) else {})})
     return {"strategies": rows}
 
 
@@ -338,7 +412,11 @@ def monitored_ids(storage):
 
 
 def sell_roster(storage, sid, day):
-    """A confirmed signal list, distinct from positions and from a missing receipt."""
+    """读取当日卖关注名单, 优先次日转存槽, 再回读精确前日成功买归档。
+
+    返回含rows的快照; 正常空归档rows=[]与缺证据None分别处理。
+    这里的成员是买信号关注名单, 不据账户持仓或当前选股过滤改写。
+    """
     from app.services.strategy_day_views import _get, _key
     from app.services.strategy_results import StrategyResults
 
@@ -350,7 +428,7 @@ def sell_roster(storage, sid, day):
         saved = _get(store, conn, "strategy_sell_rosters", _key(sid, day, "stock", "1m"))
         if saved is not None:
             return saved
-        # Existing successful historical buy archives remain valid roster evidence.
+        # 已有成功历史买档仍是卖名单证据, 不为恢复名单重算历史入场。
         from app.services.strategy_results import ResultIdentity
         identity = ResultIdentity(sid, "", "", "{}", "{}", "null", "stock", "1m")
         result = store._with_previous_buy(conn, identity, {
@@ -365,6 +443,7 @@ def sell_roster(storage, sid, day):
 
 
 def task_windows(engine, strategy, overrides, *, apply_entry_cutoff=True):
+    """从有效信号形成保存窗口; 独立阶段和广度观测来自源码能力声明。"""
     from app.strategy import custom_signals
     from app.strategy.s01_signals import optional_triggers, stored_definitions, trigger_definitions
 
@@ -405,18 +484,26 @@ def task_windows(engine, strategy, overrides, *, apply_entry_cutoff=True):
             if start and end:
                 if task == "buy" and apply_entry_cutoff:
                     end = min(time.fromisoformat(end), time(14, 55)).isoformat()
+                # 观测声明与下限分开: 空下限仍安排真实广度, 不因此增加买入条件。
                 windows[task].append({"start": time.fromisoformat(start).isoformat(),
-                                      "end": time.fromisoformat(end).isoformat(), "signal": sig})
+                                      "end": time.fromisoformat(end).isoformat(), "signal": sig,
+                                      **({"phase_policy": "independent_v1"} if task == "buy"
+                                         and sig.get("template") == "late_session_strength"
+                                         and strategy.meta.get("entry_phase_policy") == "independent_v1" else {}),
+                                      **({"observe_breadth": True} if task == "buy"
+                                         and sig.get("template") == "late_session_strength"
+                                         and strategy.meta.get("entry_breadth_observation") is True else {})})
     return windows
 
 
 def strategy_windows(engine, strategy, storage, overrides):
+    """读取已启用自定义策略的有效窗口; 沙箱以冻结loader为唯一来源。"""
     if getattr(strategy, "source", None) not in ("custom", "ai"):
         return None
     loader = getattr(engine, "_monitor_task_loader", None)
     if callable(loader):
-        # The worker owns lifecycle/generation checks; its sandbox has no
-        # tenant monitoring documents. Missing frozen windows stay disabled.
+        # Worker 持有监控生命周期及世代; 沙箱只读冻结窗口, 不能读取或启用
+        # 租户监控文档。缺窗口保持未配置, 不能从默认信号重新启动任务。
         return loader(strategy.meta["id"]) or {"buy": [], "sell": []}
     if monitoring_state(storage, strategy.meta["id"]).get("enabled") is not True:
         return {"buy": [], "sell": []}
@@ -424,6 +511,7 @@ def strategy_windows(engine, strategy, storage, overrides):
 
 
 def window_state(windows, kind, now):
+    """按北京交易日和保存窗口描述时段, 不读取任务终态或证明计算成功。"""
     from app.market_time import as_cn_datetime, published_trading_day
     now = as_cn_datetime(now)
     spans = windows.get(kind) or []
@@ -455,7 +543,7 @@ def next_task_check(windows, now, *, interval=30):
 
 
 def fence_tasks(daily, windows, now):
-    """Discard newly computed signal edges after their saved task window."""
+    """提交前重查买/卖截止, 返回被拒绝事件方向并保留该次计算诊断。"""
     rejected = set()
     for kind, task in (daily.get("monitor_tasks") or {}).items():
         if daily.get("monitor_contract") == CONTRACT and kind == "buy":
@@ -465,6 +553,15 @@ def fence_tasks(daily, windows, now):
             executed = (daily.get("monitor_executed_signals") or {}).get(
                 kind, task.get("executed_signals", []))
             late = set(executed) & closed
+            if independent_buy(windows.get("buy") or []):
+                for signal_id in late:
+                    signal = task.get("signals", {}).get(signal_id, {})
+                    if signal.get("state") in ("success", "rejected") and signal.get("joined_at"):
+                        signal.update(state="expired", status="failed", terminal=True,
+                                      errors=["入场任务时段已结束, 迟到汇合结果已丢弃"])
+                        rejected.add(kind)
+                apply_independent_buy(daily, windows, now)
+                continue
             if not late:
                 continue
             reason = "入场任务时段已结束, 迟到结果已丢弃"
@@ -530,9 +627,14 @@ def fence_tasks(daily, windows, now):
 
 
 def evaluate_sell_task(engine, strategy, context, overrides, windows, roster):
+    """卖页只消费前日成功买归档; 明确空归档成功为零, 缺归档保留等待原因。
+
+    按所选出场逐股查首次信号, 异常合入 errors; 只在启用条件需要时读昨收。
+    此入口不代表实际持仓已经卖出。
+    """
     from app.market_time import as_cn_datetime
     from app.strategy.late_session_strength import previous_closes
-    from app.strategy.morning_liquidation import evaluate
+    from app.strategy.morning_liquidation import evaluate, requires_previous_close
 
     now = as_cn_datetime(context.observed_at)
     state = window_state(windows, "sell", now)
@@ -544,7 +646,9 @@ def evaluate_sell_task(engine, strategy, context, overrides, windows, roster):
         return {"state": "success", "hits": [], "errors": []}
     hits, errors = [], list(context.exit_errors)
     try:
-        references = previous_closes(context, isolate_symbols=True)
+        needs_previous = any(window["signal"].get("template") != "morning_liquidation"
+                             or requires_previous_close(window["signal"]) for window in windows["sell"])
+        references = previous_closes(context, isolate_symbols=True) if needs_previous else {}
     except ValueError as exc:
         references = {}
         errors.append(str(exc))
@@ -576,7 +680,10 @@ def evaluate_sell_task(engine, strategy, context, overrides, windows, roster):
 
 
 def sell_context(service, day, current, roster, now):
-    """Load the complete saved sell list independently of current selection filters."""
+    """为保存卖名单独立加载分钟、日线及停牌证据, 不沿买入过滤缩小成员。
+
+    指定的读取异常写exit_errors并保留其余输入; 更外层负责失败回执与重试。
+    """
     from app.strategy.engine import StrategyDataContext
     symbols = [row["symbol"] for row in (roster or {}).get("rows", [])]
     context = StrategyDataContext("stock", "1m", day, current=current, observed_at=now,
@@ -598,8 +705,68 @@ def sell_context(service, day, current, roster, now):
     return context
 
 
+def apply_independent_buy(daily, windows, now):
+    """原地汇合daily的独立买阶段, 返回同一daily; 本函数不写业务库。
+
+    广度、个股和失败共用join_buy; 展示广度与最终买状态分别合并。
+    保留原joined_at及已冻结名单, 空下限观测失败不改成买任务错误。
+    """
+    if not independent_buy(windows.get("buy") or []):
+        return daily
+    tasks = daily.setdefault("monitor_tasks", {})
+    # stocks内部候选不能直接写最终买; 正常零与失败/未知也由同一join_buy判定。
+    task, rows, hits = join_buy(tasks.get("buy") or {}, windows["buy"], now)
+    tasks["buy"] = task
+    daily.update(rows=rows, total=len(rows), entry_signal_hits=hits)
+    daily.setdefault("sections", {})["buy"] = rows
+    daily.setdefault("section_statuses", {})["buy"] = task["state"]
+    errors = daily.setdefault("section_errors", {})
+    # 仅展示广度的错误不写成买任务错误; 最终名单是否发布以join_buy为准。
+    required = any(s.get("breadth_required") for s in task["signals"].values())
+    reason = "; ".join(task["errors"]) or (
+        None if task["published"] else "等待广度与冻结预选股独立计算完成" if required
+        else "等待冻结预选股个股计算完成")
+    daily["entry_filter_error"] = reason
+    if reason:
+        errors["buy"] = reason
+    else:
+        errors.pop("buy", None)
+    quality = daily["entry_data_quality"] = daily.get("entry_data_quality") or {}
+    for window in windows["buy"]:
+        if window.get("phase_policy") != "independent_v1":
+            continue
+        value = task["signals"].get(window["signal"]["id"], {})
+        breadth, stocks = value.get("breadth") or {}, value.get("stocks") or {}
+        merged = {**quality.get(window["signal"].get("column") or "csgi_" + window["signal"]["id"], {}),
+                  **{k: v for k, v in stocks.items() if k not in (
+                      "rows", "hits", "history", "first_receipt", "errors", "progress")}}
+        for key in ("pool_total", "pool_usable", "missing_pct", "missing_symbols", "missing_count",
+                    "pool_up_pct", "pool_up_pct_lower", "pool_up_pct_upper", "known_positive",
+                    "breadth_policy", "reference_errors"):
+            if key in breadth:
+                merged[key] = deepcopy(breadth[key])
+        progress = deepcopy(stocks.get("progress") or breadth.get("progress") or {})
+        progress.setdefault("steps", {})
+        if (breadth.get("progress") or {}).get("steps", {}).get("breadth"):
+            progress["steps"]["breadth"] = deepcopy(breadth["progress"]["steps"]["breadth"])
+        progress["phase_policy"] = "independent_v1"
+        progress["breadth_required"] = value.get("breadth_required")
+        if value.get("joined_at"):
+            progress["confirmed_at"] = value["joined_at"]
+        merged.update(progress=progress, stage=value["state"])
+        quality[window["signal"].get("column") or "csgi_" + window["signal"]["id"]] = merged
+    daily["execution_status"] = {
+        "state": "success" if task["state"] in ("success", "rejected") else task["state"],
+        "reason": reason}
+    return daily
+
+
 def run_tasks(engine, strategy, context, overrides, windows, roster, *, exit_context=None):
-    """Execute only due phases; dated terminal receipts are the execution fence."""
+    """执行本轮到期动作, 保存各方向/阶段回执, 再汇合最终买名单。
+
+    完成侧不重算; 失败侧保留输入原因供 Platform 修复。卖使用独立退出
+    上下文, 不能因买候选缺数据而抹掉可计算的卖信号或冻结选名单。
+    """
     from app.market_time import published_trading_day
     from app.strategy.engine import StrategyResult
     from app.strategy.execution_status import status
@@ -608,6 +775,26 @@ def run_tasks(engine, strategy, context, overrides, windows, roster, *, exit_con
     saved_loader = getattr(engine, "_monitor_receipt_loader", None)
     saved = saved_loader(sid) if callable(saved_loader) else {}
     tasks = deepcopy((saved or {}).get("tasks", {}))
+    from app.services.strategy_monitor_state import resume_confirmation_timeout
+    tasks = resume_confirmation_timeout(windows, tasks, context.observed_at)
+    if (windows["sell"] and published_trading_day(context.as_of) and roster is not None
+            and roster.get("source_record_id") and roster.get("source_date")
+            and roster.get("rows") == [] and not tasks.get("sell", {}).get("triggered")):
+        old_sell = tasks.get("sell", {})
+        if old_sell.get("completion_reason") != "empty_archived_sell_roster":
+            completed = context.observed_at.isoformat()
+            tasks["sell"] = {
+                "state": "rejected", "status": "succeeded", "terminal": True,
+                "errors": [], "count": 0, "completed_at": completed,
+                "completion_reason": "empty_archived_sell_roster",
+                "source_record_id": roster["source_record_id"], "source_date": roster["source_date"],
+                "executed": False, "executed_signals": [],
+                "signals": {w["signal"]["id"]: {
+                    "state": "rejected", "status": "succeeded", "terminal": True,
+                    "passed": False, "errors": [], "count": 0, "completed_at": completed,
+                } for w in windows["sell"]},
+                **({"prior_outcome": deepcopy(old_sell)} if old_sell else {}),
+            }
     prior_loader = getattr(engine, "_monitor_result_loader", None)
     previous = prior_loader(sid) if callable(prior_loader) else {}
     result = StrategyResult(context.as_of, sid, [], 0)
@@ -627,12 +814,15 @@ def run_tasks(engine, strategy, context, overrides, windows, roster, *, exit_con
         context = replace(context, signal_task_scope=f"{sid}:{runtime_identity(strategy, overrides)}")
         buy = tasks.setdefault("buy", {"signals": {}})
         for action in stocks:
+            window = next(w for w in windows["buy"] if w["signal"]["id"] == action["signal_id"])
+            independent_phase = "stocks" if window.get("phase_policy") == "independent_v1" else None
+            stock_context = replace(context, independent_entry_phase=independent_phase)
             effective = {**overrides, "entry_signals": [columns[action["signal_id"]]],
                          "exit_signals": []}
             try:
                 if context.input_errors:
                     raise ValueError("; ".join(context.input_errors))
-                calculated = engine.run(sid, context, overrides=effective,
+                calculated = engine.run(sid, stock_context, overrides=effective,
                                         params=dict(overrides.get("params") or {}))
             except (ValueError, OSError, pl.exceptions.PolarsError) as exc:
                 calculated = StrategyResult(context.as_of, sid, [], 0, entry_filter_error=str(exc))
@@ -645,10 +835,11 @@ def run_tasks(engine, strategy, context, overrides, windows, roster, *, exit_con
                                "hits": calculated.entry_signal_hits if not errors else [],
                                "count": len(calculated.rows) if not errors else 0})
             buy["signals"][action["signal_id"]] = {**old, "stocks": step,
-                **{key: step[key] for key in ("state", "terminal", "passed", "status", "errors")}}
+                **({} if independent_phase else {key: step[key] for key in
+                                                ("state", "terminal", "passed", "status", "errors")})}
             result.entry_data_quality = {**(result.entry_data_quality or {}),
                                          **(calculated.entry_data_quality or {})}
-        # Each signal owns its immutable snapshot, including successful zero hits.
+        # 每信号保留固定启动快照, 包括成功零命中; 后续行情不能重开。
         rows, hits = {}, {}
         for value in buy["signals"].values():
             completed = value.get("stocks") or {}
@@ -675,11 +866,11 @@ def run_tasks(engine, strategy, context, overrides, windows, roster, *, exit_con
         phase = action["expired_phase"]
         prior_phase = old.get(phase, {}) if action["kind"] == "buy" else old
         step = receipt(prior_phase, action, context.observed_at, errors=[
-            "上涨占比在确认时点前未计算成功" if action["expired_phase"] == "breadth"
+            "上涨占比在买入有效时段内未计算成功" if action["expired_phase"] == "breadth"
             else "任务有效时段已结束, 未完成计算"])
         task["signals"][action["signal_id"]] = (
-            {**old, phase: step, **{k: step[k] for k in
-             ("state", "terminal", "passed", "status", "errors")}}
+            {**old, phase: step, **({} if independent_buy(windows["buy"]) else {k: step[k] for k in
+             ("state", "terminal", "passed", "status", "errors")})}
             if action["kind"] == "buy" else step)
 
     if result.sections is None:
@@ -724,6 +915,10 @@ def run_tasks(engine, strategy, context, overrides, windows, roster, *, exit_con
 
     for kind in ("buy", "sell"):
         task = tasks.setdefault(kind, {})
+        if kind == "buy" and independent_buy(windows["buy"]):
+            tasks["buy"], result.rows, result.entry_signal_hits = join_buy(task, windows["buy"], context.observed_at)
+            result.total = len(result.rows)
+            continue
         if finished(task):
             continue
         task["executed"] = any(a["kind"] == kind for a in actions)
@@ -751,7 +946,8 @@ def run_tasks(engine, strategy, context, overrides, windows, roster, *, exit_con
     result.section_statuses["sell"] = tasks["sell"]["state"]
     completed_buy = any((s.get("stocks") or {}).get("state") in ("success", "rejected")
                         for s in tasks["buy"].get("signals", {}).values())
-    tasks["buy"]["published"] = completed_buy or buy_state in ("success", "rejected")
+    if not independent_buy(windows["buy"]):
+        tasks["buy"]["published"] = completed_buy or buy_state in ("success", "rejected")
     if tasks["buy"]["published"]:
         result.entry_filter_error = None
         result.section_errors.pop("buy", None)
@@ -776,10 +972,19 @@ def run_tasks(engine, strategy, context, overrides, windows, roster, *, exit_con
                                     "failed" if buy_state == "failed" else
                                     "expired" if buy_state == "expired" else "waiting",
                                     result.entry_filter_error)
+    if independent_buy(windows["buy"]):
+        daily = apply_independent_buy(asdict(result), windows, context.observed_at)
+        for key in ("rows", "total", "entry_signal_hits", "entry_data_quality", "sections",
+                    "section_statuses", "section_errors", "entry_filter_error", "monitor_tasks", "execution_status"):
+            setattr(result, key, daily[key])
     return result
 
 
 def run_monitored(engine, strategy, loader, storage, day, current, overrides, windows, task_states):
+    """按未完成动作装配输入; 个股读取失败转回执, 不拖累独立卖或完整池广度。
+
+    非分组尾盘只读取有效冻结预选的成员分钟; 正常空预选无需市场上下文。
+    """
     from app.market_time import cn_now
     from app.strategy.engine import StrategyDataContext
     from app.strategy.overnight_runtime import monitor_context
@@ -798,7 +1003,28 @@ def run_monitored(engine, strategy, loader, storage, day, current, overrides, wi
     context = independent
     if any(a["kind"] == "buy" and a["phase"] == "stocks" for a in actions):
         try:
-            context = monitor_context(loader, engine, strategy.meta["id"], day, current, storage)
+            from app.strategy.late_session_strength import optional_definition
+            due_ids = {a["signal_id"] for a in actions if a["kind"] == "buy" and a["phase"] == "stocks"}
+            selected_only = all(w["signal"].get("template") == "late_session_strength"
+                                and optional_definition(w["signal"])
+                                and (w["signal"].get("params") or {}).get("entry_groups") is None
+                                for w in windows["buy"] if w["signal"]["id"] in due_ids)
+            frozen_loader = getattr(engine, "_frozen_input_loader", None)
+            frozen = frozen_loader(strategy.meta["id"]) if callable(frozen_loader) else None
+            if frozen is not None:
+                context = frozen
+            elif selected_only:
+                selection_loader = getattr(engine, "_selection_loader", None)
+                if callable(selection_loader):
+                    selected = selection_loader(strategy.meta["id"], day)
+                else:
+                    from app.services.daily_selections import DailySelections
+                    selected = DailySelections(storage).read(strategy.meta["id"], day)
+                context = loader.__self__.build_selected_stock_context(
+                    engine, day, strategy.meta["id"], selected, current=current,
+                    overrides=overrides, observed_at=now)
+            else:
+                context = monitor_context(loader, engine, strategy.meta["id"], day, current, storage)
         except Exception as exc:
             context = StrategyDataContext(
                 "stock", "1m", day, current=current, observed_at=now, realtime=True,
@@ -808,6 +1034,11 @@ def run_monitored(engine, strategy, loader, storage, day, current, overrides, wi
 
 
 def forward_buy(store, conn, identity, saved):
+    """在归档所属写事务内把正常买名单转存下一交易日卖关注槽。
+
+    正常零名单也转存以证明次日为空; 等待、失败、仅预选归档均不转存。
+    保存源记录ID与买入日期供回读, 不写持仓或交易账本。
+    """
     from app.services.strategy_day_views import _get, _key, _put, publish
     from app.strategy.overnight_runtime import next_market_day
     result = saved["result"]

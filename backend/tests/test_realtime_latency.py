@@ -44,43 +44,36 @@ def test_empty_minute_round_never_notifies_publisher(tmp_path, monkeypatch):
     assert calls == []
 
 
-def test_minute_publication_wakes_loop_and_preserves_immutable_release(tmp_path):
+def test_minute_publication_wakes_loop_and_preserves_immutable_release(tmp_path, monkeypatch):
+    import threading
+
+    from app.enriched_generation import get_enriched_generation
+    from app.market_time import CN_TZ
+
     source, public = tmp_path / "source", tmp_path / "public"
     part = source / "kline_minute" / "date=2026-11-04" / "part.parquet"
     part.parent.mkdir(parents=True)
     pl.DataFrame({"symbol": ["600000.SH"], "close": [10.]}).write_parquet(part)
-    from app.enriched_generation import get_enriched_generation
 
     for asset in ("stock", "index"):
         get_enriched_generation(source, asset)
     publisher = PublicPublisher(source, public)
-    first = publisher.publish()
-    publisher.thread.start()
+    at = datetime(2026, 11, 4, 14, 31, 28, tzinfo=CN_TZ)
+    monkeypatch.setattr("app.market_time.cn_now", lambda: at)
+    publisher.start()
+    first = release_path(public).name
     try:
         pl.DataFrame({"symbol": ["600000.SH", "000001.SZ"], "close": [11., 12.]}).write_parquet(part)
-        # The test waits for the actual publish boundary, not a guessed sleep.
-        import threading
-
         ready = threading.Event()
         original = publisher._swap_current
-        # Check already-published state too: the background thread may win.
         publisher._swap_current = lambda link: (original(link), ready.set())
-        publisher.request_minute_publish(datetime(2026, 11, 4, 14, 31, 28))
-        if release_path(public).name == first["id"]:
-            assert ready.wait(3), "complete minutes still wait for the 300-second poll"
-        assert release_path(public).name != first["id"]
+        publisher.request_minute_publish(at)
+        assert ready.wait(3), "complete minutes still wait for the full publication timer"
+        assert release_path(public).name != first
         assert pl.read_parquet(release_path(public) / part.relative_to(source)).height == 2
-        assert pl.read_parquet(release_path(public, first["id"]) / part.relative_to(source)).height == 1
+        assert pl.read_parquet(release_path(public, first) / part.relative_to(source)).height == 1
     finally:
         publisher.close()
-
-
-def test_outside_tail_window_does_not_request_frequent_file_releases(tmp_path):
-    publisher = PublicPublisher(tmp_path / "source", tmp_path / "public")
-    publisher.request_minute_publish(datetime(2026, 11, 4, 10))
-    assert not publisher.changed.is_set()
-    publisher.request_minute_publish(datetime(2026, 11, 4, 14, 31))
-    assert publisher.changed.is_set()
 
 
 def test_monitor_keeps_reserved_capacity_when_research_is_running():
@@ -108,7 +101,7 @@ def test_timed_out_priority_waiter_does_not_block_later_research():
     assert permits.usage()["active"] == 0
 
 
-def test_broker_reserves_one_slot_only_in_tail_window(tmp_path, monkeypatch):
+def test_broker_preserves_a_separate_stocks_slot_only_in_tail_window(tmp_path, monkeypatch):
     import tempfile
     from pathlib import Path
 
@@ -118,11 +111,14 @@ def test_broker_reserves_one_slot_only_in_tail_window(tmp_path, monkeypatch):
           ComputeBroker(Path(directory) / "compute.sock", "pinned", tmp_path, 4,
                         host_memory_mb=32768, host_cpus=16) as broker):
         monkeypatch.setattr("app.multitenancy.compute_broker.cn_now",
-                            lambda: datetime(2026, 11, 4, 14, 31), raising=False)
-        assert broker.resource_status()["realtime_reserved_slots"] == 1
+                            lambda: datetime(2026, 11, 4, 14, 31))
+        status = broker.resource_status()
+        assert status["realtime_reserved_slots"] == 2
+        assert status["stocks_reserved_slots"] == 1
         monkeypatch.setattr("app.multitenancy.compute_broker.cn_now",
                             lambda: datetime(2026, 11, 4, 10))
-        assert broker.resource_status()["realtime_reserved_slots"] == 0
+        status = broker.resource_status()
+        assert status["realtime_reserved_slots"] == status["stocks_reserved_slots"] == 0
 
 
 def test_api_binding_polls_new_release_within_one_second():
@@ -262,6 +258,7 @@ def test_release_metadata_uses_completed_round_before_copy(tmp_path, monkeypatch
     publisher = PublicPublisher(tmp_path / "source", tmp_path / "public")
     at = datetime(2026, 11, 4, 14, 31, 28, tzinfo=CN_TZ)
     publisher.request_minute_publish(at)
+    publisher.minute_changed.clear()
     monkeypatch.setattr(publisher, "validate_daily_coverage", lambda: None)
     monkeypatch.setattr(publisher, "generations", lambda: {})
     monkeypatch.setattr(publisher, "inventory", lambda: {})
@@ -275,7 +272,8 @@ def test_release_metadata_uses_completed_round_before_copy(tmp_path, monkeypatch
     monkeypatch.setattr(publisher, "_swap_current", swap)
     manifest = publisher.publish()
     assert manifest["minute_completed_at"] == at.timestamp()
-    assert publisher.changed.is_set()
+    assert publisher.minute_changed.is_set()
+    assert not publisher.changed.is_set()
 
 
 def test_priority_waiter_overtakes_background_without_leaking_permits():

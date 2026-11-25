@@ -14,6 +14,7 @@ export const LATE_SESSION_DEFAULTS: LateSessionStrengthParams = {
 
 export const MORNING_LIQUIDATION_DEFAULTS: Required<Omit<MorningLiquidationParams, 'amplitude_pct'>> = {
   start_time: null, decline_3m_pct: null, volume_ratio_min: null,
+  take_profit_pct: null, stop_loss_pct: null,
   time: '10:30:00', fallback_time: '10:45:00', rise_pct: 6, fall_pct: 6,
 }
 
@@ -23,6 +24,7 @@ export function morningLiquidationDraft(signal: CustomSignal) {
   return { start_time: p.start_time ?? null, rise_pct: p.rise_pct === undefined ? 6 : p.rise_pct,
     fall_pct: p.fall_pct === undefined ? 6 : p.fall_pct,
     decline_3m_pct: p.decline_3m_pct ?? null, volume_ratio_min: p.volume_ratio_min ?? null,
+    take_profit_pct: p.take_profit_pct ?? null, stop_loss_pct: p.stop_loss_pct ?? null,
     time: p.time, fallback_time: p.fallback_time === undefined ? '10:45:00' : p.fallback_time }
 }
 
@@ -114,7 +116,7 @@ export function lateSessionSummary(signal: CustomSignal): string[] {
     ...(p.end_time == null ? [] : [`买入结束时间 ${p.end_time}（北京时间），超过停止买入并撤销余单`]),
     ...(p.entry_groups == null ? [] : [
       `A/B入场筛选：${[p.entry_groups.a.enabled ? 'A组' : '', p.entry_groups.b.enabled ? 'B组' : ''].filter(Boolean).join(' 或 ')}；组内全部满足，双命中按A组优先`,
-      'A组按五维排名升序，B组按资金分降序；具体阈值见编辑配置',
+      '逐股完成A/B判断后按策略保存的买入顺序执行；具体阈值见编辑配置',
     ]),
   ]
 }
@@ -136,10 +138,15 @@ export function morningLiquidationSummary(signal: CustomSignal): string[] {
     ...(p.decline_3m_pct == null ? [] : [`3分钟跌幅 ≥ ${p.decline_3m_pct}%`]),
     ...(p.volume_ratio_min == null ? [] : [`最近3根/之前10根量比 ≥ ${p.volume_ratio_min}`]),
   ]
+  const holdingReturns = [
+    ...(p.take_profit_pct == null ? [] : [`止盈 ≥ ${p.take_profit_pct}%`]),
+    ...(p.stop_loss_pct == null ? [] : [`止损 ≥ ${p.stop_loss_pct}%`]),
+  ]
   return [
     `买入后下一个交易日${p.start_time == null ? '，启动时间未设置' : `，启动时间 ${p.start_time}`}（北京时间）`,
     ...(returns.length ? [`现价相对原始昨收：${returns.join(' 或 ')} 提前清仓`] : []),
     ...(group.length ? [`${returns.length ? '或' : ''}${group.join(' 且 ')}，使用已完成连续分钟`] : []),
+    ...(holdingReturns.length ? [`相对买入成交均价：${holdingReturns.join(' 或 ')}；仅信号名单按冻结买入参考价`] : []),
     `止损时间${p.time == null ? '未启用' : ` ${p.time}`}触发清仓；兜底时间${p.fallback_time == null ? '未启用' : ` ${p.fallback_time}`}，到点立即停止所有股票卖出`,
   ]
 }

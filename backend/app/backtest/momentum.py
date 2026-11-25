@@ -6,7 +6,7 @@ from app.strategy.builtin._overnight import minute_frame, minute_number
 from app.strategy.momentum_rules import exit_quote, parameters
 
 
-def sell_position(frame, symbol, prior_close, position, values):
+def sell_position(frame, symbol, prior_close, position, values, *, minute_price_rule="legacy"):
     params = parameters(values)
     deadline = minute_number(params["sell_deadline"])
     source = minute_frame(frame)
@@ -37,7 +37,8 @@ def sell_position(frame, symbol, prior_close, position, values):
         sale = fill_order(
             pl.DataFrame([dict(row, execution_price=price)]), "sell", symbol, prior_close,
             row["bar"], row["bar"], params, quantity=state["remaining"],
-            price_field="execution_price", prior_notional=state["day_sell_notional"])
+            price_field="low" if minute_price_rule == "high_low_v1" else "execution_price",
+            prior_notional=state["day_sell_notional"])
         fills.extend(sale["fills"])
         state["sell_notional"] += sale["notional"]
         state["day_sell_notional"] += sale["notional"]

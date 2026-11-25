@@ -16,6 +16,22 @@ from app.multitenancy.runtime import fingerprint
 from app.strategy.monitor_rules import normalize
 
 
+def test_prepare_only_passes_current_day_results_to_phase_merge(owned):
+    from app.market_time import cn_today
+
+    day = str(cn_today())
+    saved = {"results": {
+        "yesterday": {"as_of": "2026-10-30", "monitor_tasks": {"buy": {"terminal": True}}},
+        "today": {"as_of": day, "monitor_tasks": {"sell": {"terminal": True}}},
+        "undated": {"monitor_tasks": {"buy": {"terminal": True}}},
+    }}
+    owned.documents.put("monitor_results", "default", saved)
+    _, _, payload, _ = owned.worker.prepare(
+        owned.documents.context.tenant_id, owned.snapshot())
+    assert payload["strategy_task_results"] == {"today": saved["results"]["today"]}
+    assert owned.documents.get("monitor_results", "default") == saved
+
+
 def test_cancel_custom_disables_all_rules_recovery_and_changes_commit_fingerprint(owned, monkeypatch):
     sid = configure(owned)
     reconcile(owned.worker, owned.documents)
@@ -197,7 +213,7 @@ def test_unrelated_monitor_failure_cannot_erase_completed_custom_phase(owned, tm
             "monitor_tasks": {"buy": {"state": "rejected", "terminal": True, "passed": False}},
             "section_statuses": {"buy": "rejected"}}
         return {"results": {"custom_test": daily}, "state": {}, "events": [], "execution_events": []}
-    monkeypatch.setattr(monitor_compute, "evaluate_strategy_phases", custom)
+    monkeypatch.setattr(monitor_compute, "evaluate_strategy_phases_serial", custom)
     def failed(*_args, **_kwargs):
         raise RuntimeError("ordinary sandbox unavailable")
     owned.worker.executor = SimpleNamespace(execute=failed)
@@ -209,7 +225,8 @@ def test_unrelated_monitor_failure_cannot_erase_completed_custom_phase(owned, tm
 
 
 @pytest.mark.parametrize("frozen_quote", [False, True])
-def test_real_worker_fifteen_seconds_confirmation_later_ticks_and_restart(owned, scan, monkeypatch, tmp_path, frozen_quote):
+@pytest.mark.parametrize("mode", ["sequential", "independent", "observation", "observation_expiry"])
+def test_real_worker_fifteen_seconds_confirmation_later_ticks_and_restart(owned, scan, monkeypatch, tmp_path, frozen_quote, mode):
     from copy import deepcopy
     from dataclasses import replace
     from datetime import datetime, time
@@ -228,6 +245,12 @@ def test_real_worker_fifteen_seconds_confirmation_later_ticks_and_restart(owned,
     from app.strategy.basic_filter import previous_session
 
     engine, ctx, _ = scan
+    independent = mode != "sequential"
+    observation = mode.startswith("observation")
+    if independent:
+        engine.get("custom_test").meta["entry_phase_policy"] = "independent_v1"
+    if observation:
+        engine.get("custom_test").meta["entry_breadth_observation"] = True
     day = cn_today()
     start = datetime.combine(day, time(14, 30), CN_TZ)
     context = replace(ctx, as_of=day,
@@ -237,18 +260,22 @@ def test_real_worker_fifteen_seconds_confirmation_later_ticks_and_restart(owned,
             year=day.year, month=day.month, day=day.day)),
         observed_at=start, completed_through=start, realtime=True)
     owned.documents.put("strategy_sources", "custom_test", {
-        "id": "custom_test", "source": "custom", "code": CODE,
+        "id": "custom_test", "source": "custom", "code": (
+            CODE.replace('"result_sections": "signals",', '"result_sections": "signals", "entry_phase_policy": "independent_v1",'
+                         + (' "entry_breadth_observation": True,' if observation else ''))
+            if independent else CODE),
         "definition": definition_payload(engine.get("custom_test"))})
     custom_signals.save_one(owned.documents, {
         "id": "trigger", "name": "尾盘", "kind": "entry", "timeframe": "intraday",
         "template": "late_session_strength", "enabled": True, "conditions": [],
         "params": {"time": "14:30:00", "end_time": "14:55:00",
-                   "evaluation_delay_minutes": .5, "pool_up_min_pct": 60}})
+                   "evaluation_delay_minutes": .5, "pool_up_min_pct": None if observation else 60}})
     set_monitoring(owned.documents, "custom_test", "Test", True)
     identity = capture_identity(engine, owned.documents, "custom_test", timeframe="1m")
     DailySelections(owned.documents).save(identity, {
         "as_of": str(day), "source_date": str(previous_session(day)),
-        "rows": context.current.filter(pl.col("symbol").str.starts_with("600")).to_dicts()}, started_at=1)
+        "rows": context.current.filter(pl.col("symbol").is_in(["600001.SH", "600002.SH"]))
+        .with_columns(pl.col("close").alias("reference_close")).to_dicts()}, started_at=1)
     if frozen_quote:
         from app.services.strategy_results import StrategyResults
         StrategyResults(owned.documents).save(identity, {
@@ -260,11 +287,21 @@ def test_real_worker_fifteen_seconds_confirmation_later_ticks_and_restart(owned,
                               for kind in ("buy", "sell")},
         }, started_at=int(start.timestamp() * 1_000_000_000))
     calls, reads = [], []
-    owned.repo.get_minute_batch = lambda *_a, **_k: reads.append(True) or context.history
+    breadth_broken = {"value": independent}
+    def full_minutes(*_a, **_k):
+        reads.append(True)
+        if breadth_broken["value"]:
+            raise OSError("breadth minutes unavailable")
+        return context.history
+    owned.repo.get_minute_batch = full_minutes
+    stock_reads = []
+    def selected_minutes(symbols, dates):
+        stock_reads.append((symbols, dates))
+        return context.history.filter(pl.col("symbol").is_in(symbols))
+    owned.repo.get_minute_by_dates = selected_minutes
     monkeypatch.setattr(ScreenerService, "_load_enriched_history", lambda *_: context.daily_history)
-    monkeypatch.setattr(overnight_runtime, "monitor_context", lambda *_a, **_k: replace(
-        context, observed_at=datetime.fromtimestamp(owned.clock["now"], CN_TZ),
-        completed_through=datetime.fromtimestamp(owned.clock["now"], CN_TZ)))
+    monkeypatch.setattr(overnight_runtime, "monitor_context", lambda *_a, **_k:
+                        pytest.fail("selected stock task loaded full market context"))
     monkeypatch.setattr(monitor_compute, "cn_now", lambda: datetime.fromtimestamp(owned.clock["now"], CN_TZ))
     monkeypatch.setattr(runtime, "cn_now", lambda: datetime.fromtimestamp(owned.clock["now"], CN_TZ))
     monkeypatch.setattr("app.market_time.cn_now", lambda: datetime.fromtimestamp(owned.clock["now"], CN_TZ))
@@ -290,24 +327,58 @@ def test_real_worker_fifteen_seconds_confirmation_later_ticks_and_restart(owned,
         owned.worker.evaluate(tenant, owned.snapshot(status={"is_trading_hours": False}))
     assert calls == []
     first = task_receipt(owned.documents, "custom_test", day)
-    assert first["tasks"]["buy"]["signals"]["trigger"]["breadth"]["state"] == "success"
+    assert first["tasks"]["buy"]["signals"]["trigger"]["breadth"]["state"] == (
+        "failed" if independent else "success")
     owned.clock["now"] = start.timestamp() + 30
     owned.worker.evaluate(tenant, owned.snapshot(status={"is_trading_hours": False}))
+    if independent:
+        pending = task_receipt(owned.documents, "custom_test", day)["tasks"]["buy"]
+        assert pending["signals"]["trigger"]["breadth"]["state"] == "failed"
+        assert pending["signals"]["trigger"]["stocks"]["state"] == "success"
+        assert pending["signals"]["trigger"]["stocks"]["rows"]
+        assert pending["terminal"] is observation and pending["published"] is observation
+        assert bool(pending["count"]) is observation
+        interim = owned.documents.get("monitor_results", "default")["results"]["custom_test"]
+        assert bool(interim["rows"]) is observation
+        assert interim["rows"] == interim["sections"]["buy"]
+        from app.multitenancy.alerts import Alerts
+        assert any(e["type"] == "buy_signal" for e in Alerts(owned.documents).list_recent()) is observation
+        if observation:
+            assert not any("买计算失败" in str(e) for e in Alerts(owned.documents).list_recent())
+            buy_rows = deepcopy(interim["rows"])
+            observation_alerts = len(Alerts(owned.documents).list_recent())
+        breadth_broken["value"] = mode == "observation_expiry"
+        owned.clock["now"] = start.timestamp() + (1501 if mode == "observation_expiry" else 33)
+        owned.worker.evaluate(tenant, owned.snapshot(status={"is_trading_hours": False}))
+        if observation:
+            observed = owned.documents.get("monitor_results", "default")["results"]["custom_test"]
+            assert observed["rows"] == buy_rows
+            assert len(Alerts(owned.documents).list_recent()) == observation_alerts
+            assert observed["monitor_tasks"]["buy"]["signals"]["trigger"]["breadth"]["state"] == (
+                "expired" if mode == "observation_expiry" else "success")
     done = deepcopy(task_receipt(owned.documents, "custom_test", day)["tasks"]["buy"])
     assert not done.get("errors"), done.get("errors")
     assert done["terminal"] is True, done
     assert done["state"] == "success"
-    assert len(calls) == 1
+    expected_calls = 2 if (independent and not observation) or mode == "observation_expiry" else 1
+    assert len(calls) == expected_calls
     saved = owned.documents.get("monitor_results", "default")["results"]["custom_test"]
     assert saved["sections"]["buy"]
-    for second in (31, 60, 120, 1501):
+    assert stock_reads == [(["600001.SH", "600002.SH"], [day])]
+    assert {row["symbol"] for row in saved["sections"]["buy"]} <= {"600001.SH", "600002.SH"}
+    if independent:
+        assert any(e["type"] == "buy_signal" for e in Alerts(owned.documents).list_recent())
+        alert_count = len(Alerts(owned.documents).list_recent())
+    for second in (34, 60, 120, 1501):
         owned.clock["now"] = start.timestamp() + second
         owned.worker.evaluate(tenant, owned.snapshot(status={"is_trading_hours": False}))
-    assert len(calls) == 1
+    assert len(calls) == expected_calls
     assert task_receipt(owned.documents, "custom_test", day)["tasks"]["buy"] == done
     restarted = runtime.FullWorker(owned.env["db"], owned.repo, None, SimpleNamespace(execute=execute))
     try:
         restarted.evaluate(tenant, owned.snapshot(status={"is_trading_hours": False}))
-        assert len(calls) == 1
+        assert len(calls) == expected_calls
+        if independent:
+            assert len(Alerts(owned.documents).list_recent()) == alert_count
     finally:
         restarted.close()

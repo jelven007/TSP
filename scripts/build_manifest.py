@@ -57,6 +57,7 @@ def _excluded(rel: str) -> bool:
         return True
     return (
         any(part in EXCLUDED_DIRS for part in parts)
+        or any(part == "__MACOSX" or part.startswith("._") or part == ".DS_Store" for part in parts)
         or ("data" in parts and not rel.startswith(("frontend/src/", "frontend/public/")))
         or any(part == ".env" or part.startswith(".env.") for part in parts)
         or parts[-1] in EXCLUDED_NAMES

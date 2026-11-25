@@ -453,7 +453,7 @@ def test_strategy_scan_freezes_only_owned_remaining_holding_lots(env, selection,
             ]):
                 paper._append_fill(ledger, {
                     "symbol": symbol if sid == "owned_minute" else "600036.SH", "side": "buy",
-                    "qty": 100, "price": 10., "fee": 0., "date": entry, "order_id": str(index),
+                    "qty": 100, "price": 10. + index, "fee": 0., "date": entry, "order_id": str(index),
                     "entry_policy": {"strategy_id": sid},
                 }, "one")
     engine = TenantStrategyEngine(own, builtins, None)
@@ -478,8 +478,9 @@ def test_strategy_scan_freezes_only_owned_remaining_holding_lots(env, selection,
     assert {row["symbol"] for row in lots} == {"600000.SH"}
     assert [row["entry_date"] for row in lots] == ["2026-09-03", "2026-09-04", "2026-09-07"]
     assert [row["available_qty"] for row in lots] == [100, 100, 0]
+    assert [row["entry_price"] for row in lots] == [10., 11., 12.]
     assert all(set(row) == {
-        "symbol", "entry_date", "account_id", "cycle_id", "qty", "available_qty",
+        "symbol", "entry_date", "account_id", "cycle_id", "qty", "available_qty", "entry_price",
     } for row in lots)
     # A later ledger change cannot alter the already-dispatched task.
     with own.transaction() as unit:
@@ -493,4 +494,6 @@ def test_strategy_scan_freezes_only_owned_remaining_holding_lots(env, selection,
     assert [row["entry_date"] for row in fresh["positions"]["owned_minute"]] == [
         "2026-09-04", "2026-09-07",
     ]
+    assert [row["entry_price"] for row in lots] == [10., 11., 12.]
+    assert [row["entry_price"] for row in fresh["positions"]["owned_minute"]] == [11., 12.]
     assert date.fromisoformat(fresh["as_of"]) == date(2026, 9, 7)

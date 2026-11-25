@@ -22,7 +22,7 @@ import polars as pl
 import pyarrow as pa
 
 from app.backtest.costs import buy_quantity_rules, historical_stamp_tax_pct
-from app.backtest.entry_execution import EntryExecution, execute_entry_window
+from app.backtest.entry_execution import EntryExecution, execute_entry_window, participation_rate
 from app.backtest.exit_execution import ExitExecution, execute_exit_window
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -41,7 +41,7 @@ from app.strategy.risk_policy import price_exit
 from app.tickflow.repository import KlineRepository
 
 logger = logging.getLogger(__name__)
-EXECUTION_MODEL_VERSION = "entry_exit_template_deadlines_v9"
+EXECUTION_MODEL_VERSION = "custom_minute_participation_high_low_v10"
 _A_SHARE_SYMBOL = re.compile(r"^\d{6}\.(?:SH|SZ)$")
 
 
@@ -115,7 +115,7 @@ def _uses_entry_capacity_window(
             configured_window
             or (
                 config.entry_capacity_window
-                and config.entry_fill == "open_t+1"
+                and (config.entry_fill == "open_t+1" or config.minute_price_rule == "high_low_v1")
                 and not minute_entry
             )
         )
@@ -131,7 +131,8 @@ def _entry_window_start(
     key = (matrix.symbols[asset_id], matrix.timestamp_labels[time_id][:10])
     if config.entry_window_starts is not None and key in config.entry_window_starts:
         return config.entry_window_starts[key]
-    return datetime.combine(date.fromisoformat(key[1]), datetime_time(9, 31))
+    at = datetime_time(15) if config.entry_fill == "close_t" else datetime_time(9, 31)
+    return datetime.combine(date.fromisoformat(key[1]), at)
 
 
 def _entry_signal_time(
@@ -231,7 +232,7 @@ def _record_entry_execution(
     })
 
 
-def _execute_matrix_exit(engine, matrix, config, frames, time_id, asset_id, pos):
+def _execute_matrix_exit(engine, matrix, config, frames, time_id, asset_id, pos, reason="signal"):
     symbol = matrix.symbols[asset_id]
     day = matrix.timestamp_labels[time_id][:10]
     scale = _price_scale(
@@ -239,20 +240,31 @@ def _execute_matrix_exit(engine, matrix, config, frames, time_id, asset_id, pos)
         float(matrix.raw_close[time_id, asset_id]) if matrix.raw_close is not None else None)
     if not np.isfinite(scale) or scale <= 0:
         return None, 1.
-    reference = float(matrix.reference_price[time_id, asset_id]) / scale
+    triggered = config.exit_fill == "signal_next_minute" and reason == "signal"
+    reference = float(matrix.reference_price[time_id, asset_id]) / scale if triggered else None
     down = None
     if matrix.execution_limit_down is not None and config.asset_type == "stock":
         boundary = float(matrix.execution_limit_down[time_id, asset_id]) / scale
         if np.isfinite(boundary) and boundary > 0:
             down = math.floor((boundary + .005) * 100 + .5) / 100
-    frame = frames.get((symbol, day), engine._empty_entry_window_frame())
+    key = (symbol, day)
+    frame = frames.get(key)
+    if frame is None:
+        loaded, _ = engine._load_entry_window_frames(engine.repo, {key}, config.asset_type)
+        frame = loaded.get(key, engine._empty_entry_window_frame())
     if not matrix.tradable[time_id, asset_id]:
         frame = engine._empty_entry_window_frame()
     return execute_exit_window(
         frame, symbol=symbol, reference_price=reference,
         quantity=round(pos["shares"] * scale),
         sell_value=lambda n: config.sell_value(n, day),
-        limit_down_price=down, asset_type=config.asset_type), scale
+        limit_down_price=down, asset_type=config.asset_type,
+        participation_pct=config.exit_participation_pct,
+        minute_price_rule=config.minute_price_rule,
+        start_at=(None if triggered else datetime.combine(
+            date.fromisoformat(day),
+            datetime_time(9, 31) if config.exit_fill == "open_t+1" and reason != "end"
+            else datetime_time(15)))), scale
 
 
 def _record_exit_execution(stats, fills, orders, symbol, execution: ExitExecution):
@@ -349,8 +361,13 @@ class MatcherConfig:
     entry_prior_closes: dict[tuple[str, str], float] | None = None
     entry_signal_times: dict[tuple[str, str], str] | None = None
     entry_capacity_window: bool = False
+    entry_participation_pct: float = 1.0
+    exit_participation_pct: float = 1.0
+    minute_price_rule: Literal["legacy", "high_low_v1"] = "legacy"
 
     def __post_init__(self) -> None:
+        participation_rate(self.entry_participation_pct)
+        participation_rate(self.exit_participation_pct)
         if not isinstance(self.entry_risk, EntryRiskPolicy):
             self.entry_risk = EntryRiskPolicy.from_mapping(self.entry_risk)
         if any(not np.isfinite(v) or v < 0 for v in (self.minimum_commission, self.transfer_fee_pct)):
@@ -1425,9 +1442,9 @@ class BacktestEngine:
                 if reason == "signal" else None
             )
             minute_trigger = config.exit_fill == "signal_next_minute" and reason == "signal"
-            if minute_trigger and override is None:
+            if (minute_trigger and override is None) or config.minute_price_rule == "high_low_v1":
                 execution, scale = _execute_matrix_exit(
-                    self, matrix, config, exit_window_cache, time_id, asset_id, pos)
+                    self, matrix, config, exit_window_cache, time_id, asset_id, pos, reason)
                 if execution is None:
                     _count("sell_invalid_price")
                     return False
@@ -1439,7 +1456,8 @@ class BacktestEngine:
                 if execution.cancelled_shares:
                     return False
                 override = execution.average_price * scale
-            ok, blocked = _can_sell(time_id, asset_id, override)
+            ok, blocked = ((True, "") if pos["shares"] == 0 and pos.get("cycle_shares")
+                           else _can_sell(time_id, asset_id, override))
             if not ok:
                 if not pos.get("pending_exit_reason"):
                     pos["pending_exit_reason"] = reason
@@ -1547,6 +1565,7 @@ class BacktestEngine:
                         matrix, config, time_id, asset_id, scale,
                     ),
                     asset_type=config.asset_type,
+                    participation_pct=config.entry_participation_pct,
                 )
                 if (
                     capacity_execution.filled_shares <= 0
@@ -2670,9 +2689,9 @@ class BacktestEngine:
                 if reason == "signal" else None
             )
             minute_trigger = config.exit_fill == "signal_next_minute" and reason == "signal"
-            if minute_trigger and override is None:
+            if (minute_trigger and override is None) or config.minute_price_rule == "high_low_v1":
                 execution, scale = _execute_matrix_exit(
-                    self, matrix, config, exit_window_cache, time_id, asset_id, pos)
+                    self, matrix, config, exit_window_cache, time_id, asset_id, pos, reason)
                 if execution is None:
                     _count("sell_invalid_price")
                     return False
@@ -2686,7 +2705,8 @@ class BacktestEngine:
                 if execution.cancelled_shares:
                     return False
                 override = execution.average_price * scale
-            ok, blocked = _can_sell(time_id, asset_id, override)
+            ok, blocked = ((True, "") if pos["shares"] == 0 and pos.get("cycle_shares")
+                           else _can_sell(time_id, asset_id, override))
             if not ok:
                 _mark_pending(
                     asset_id,
@@ -2756,8 +2776,7 @@ class BacktestEngine:
                     asset = int(asset_id)
                     minute_entry = matrix.entry_price is not None and np.isfinite(matrix.entry_price[time_id, asset])
                     entry_at_close = (
-                        not _uses_entry_capacity_window(matrix, config, time_id, asset)
-                        and config.entry_fill == "close_t"
+                        config.entry_fill == "close_t"
                         and not config.minute_fill
                         and not minute_entry
                     )
@@ -2865,6 +2884,7 @@ class BacktestEngine:
                                             matrix, config, time_id, current_asset, current_scale,
                                         ),
                                         asset_type=config.asset_type,
+                                        participation_pct=config.entry_participation_pct,
                                     )
 
                                 capacity_execution = _execute(allocation)

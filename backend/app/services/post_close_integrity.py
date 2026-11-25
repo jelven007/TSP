@@ -123,8 +123,25 @@ def summary(repo, *, scheduler=None):
         fields = ("day", "status", "job_id", "attempts", "updated_at", "error", "next_retry_at", "result",
                   "requested_at", "first_started_at", "last_started_at", "last_finished_at",
                   "last_stage", "diagnostics")
+        result = state.get("result") or {}
+        review = ((state.get("diagnostics") or {}).get("close_review")
+                  or result.get("close_review") or {}).get("after") or {}
+        gaps = result.get("gap_check") or (state.get("diagnostics") or {}).get("gap_check") or {}
+        complete = (state["status"] == "succeeded" and review.get("valid_count", 0) > 0
+                    and not review.get("error") and not review.get("invalid_count")
+                    and not any(gaps.get(key) for key in
+                                ("remaining", "error", "warning", "gap_check_warning")))
         return {**base, "available": calendar is not None, "is_trading_day": calendar,
-                **{key: state[key] for key in fields if key in state}}
+                **{key: state[key] for key in fields if key in state},
+                "completion": "complete" if complete else "partial" if
+                    review.get("valid_count", 0) > 0 and not review.get("error") else "unverified",
+                "coverage": {key: review.get(key) for key in
+                             ("checked_count", "valid_count", "invalid_count")} | {
+                                 "remaining": gaps.get("remaining"),
+                                 "suspended_skipped": gaps.get("suspended_skipped")},
+                "retry_eligible": bool(base["enabled"] and calendar is True
+                                       and state["day"] == str(now.date())
+                                       and state["status"] in {"failed", "interrupted"})}
     except (OSError, ValueError, KeyError, TypeError):
         logger.exception("读取盘后遗留复核状态失败")
         return {**base, "available": False, "status": "unavailable",

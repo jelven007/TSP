@@ -1,5 +1,40 @@
 # 完整产品单机多租户部署
 
+## 可复用的管理员业务初始化
+
+管理员的私有策略、覆盖、完整因子目录、自定义信号、策略池、监控绑定和
+回测首次默认通过受控业务清单预置。部署者保存经核验的目录包：
+`manifest.json`、`bundle.json` 和 `ext_data/<id>/config.json`；
+目录与受控运行配置、行情及业务归档一起保留，私有源码不提交到仓库。
+
+先在候选源码验证目录包并预览扩展配置：
+
+```bash
+PYTHONPATH=backend python -m app.multitenancy.business_defaults_bundle "$TSP_BUSINESS_DEFAULTS_DIR"
+PYTHONPATH=backend python -m app.multitenancy.business_defaults_bundle \
+  "$TSP_BUSINESS_DEFAULTS_DIR" --platform-data "$TSP_PLATFORM_DATA_DIR"
+```
+
+核对预览后追加 `--apply` 仅创建缺失的扩展配置，已有配置继续保留。
+扩展行情通过原 Platform 发布链生成公共只读版本，先确认完整因子目录和数据依赖，
+再启动消费者。真实行情、历史结果和完成回测沿原受控数据恢复流程保留；
+初始化包不生成历史成交、不恢复旧执行租约，也不自动发起回测。
+
+将 `TSP_BUSINESS_DEFAULTS_DIR` 指向已验证且容器用户可读取的持久目录，
+正常部署命令同时包含两个 Compose 文件：
+
+```bash
+docker compose --env-file "$TSP_DEPLOY_ENV_FILE" \
+  -f deploy/full/compose.yml -f deploy/full/compose.business-defaults.yml config
+docker compose --env-file "$TSP_DEPLOY_ENV_FILE" \
+  -f deploy/full/compose.yml -f deploy/full/compose.business-defaults.yml up -d
+```
+
+覆盖文件为 API 及全部业务 Worker 挂载只读清单；目录缺失时不创建空挂载。
+仅指定管理员的首次业务空间写入默认值，数据与初始化标记同事务提交。
+重复启动保留用户随后修改或删除的资源；当前已用空间更新安装清单不会重灌配置。
+回测已有浏览器设置优先，首次默认从管理员初始化接口读取，不自动运行。
+
 生产开发与六类文档追踪见[工程规范](../../docs/reference/engineering.md#engineering)、
 [本地变更映射](../../docs/reference/engineering.md#trace)。
 当前单机多角色与目标多节点分别验收，回退保护切流后增量，完整目标见

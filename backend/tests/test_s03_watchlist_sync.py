@@ -12,7 +12,7 @@ from app.services.quote_service import QuoteSubscriber
 from app.services.strategy_results import ResultIdentity
 
 SID = "custom_mvxxcs03"
-RUN = datetime(2026, 10, 30, 21, 5, tzinfo=CN_TZ)
+RUN = datetime(2026, 10, 30, 22, 5, tzinfo=CN_TZ)
 TARGET = "2026-11-02"
 
 
@@ -87,6 +87,12 @@ def test_invalid_archive_never_clears_group(tmp_path, groups, case):
         raw["rows"] *= 2
     if case == "too_many":
         raw["rows"] = [{"symbol": f"{i:06}.SH"} for i in range(31)]
+        before, revision = watchlist._path().read_bytes(), watchlist.revision()
+        with pytest.raises(ValueError, match="五维评分"):
+            save(tmp_path, raw)
+        assert watchlist._path().read_bytes() == before
+        assert watchlist.revision() == revision
+        return
     saved = save(tmp_path, raw)
     if case == "missing_group":
         watchlist._write_groups([])
@@ -95,7 +101,7 @@ def test_invalid_archive_never_clears_group(tmp_path, groups, case):
     before, revision = watchlist._path().read_bytes(), watchlist.revision()
     with pytest.raises(s03_watchlist.WatchlistSyncError):
         s03_watchlist.sync_archived_selection(tmp_path, raw if case == "unsaved" else saved,
-            RUN.replace(hour=22, second=1) if case == "deadline" else RUN)
+            RUN.replace(hour=23, second=1) if case == "deadline" else RUN)
     assert watchlist._path().read_bytes() == before
     assert watchlist.revision() == revision
 
@@ -117,8 +123,8 @@ def test_scheduled_local_retries_saved_scoring_only(tmp_path, groups, monkeypatc
     set_monitoring(tmp_path, SID, "s03", True)
     s02 = ResultIdentity("custom_mvxxcp88", "s02", "v1", "{}", "{}", "null", "stock", "1m")
     DailySelections(tmp_path).save(s02, {**snapshot(), "scoring_policy": None,
-        "scheduled_for": RUN.replace(hour=20, minute=0).isoformat(),
-        "generated_at": RUN.replace(hour=20).isoformat()}, started_at=1)
+        "scheduled_for": RUN.replace(hour=21, minute=0).isoformat(),
+        "generated_at": RUN.replace(hour=21).isoformat()}, started_at=1)
     (tmp_path / "settlement_ready.json").write_text('{"day":"2026-10-30"}')
     calls = []
     monkeypatch.setattr(daily_selections, "compute_selections", lambda *a, **kw:
@@ -136,7 +142,9 @@ def test_scheduled_local_retries_saved_scoring_only(tmp_path, groups, monkeypatc
     assert DailySelections(tmp_path).job(TARGET + ":s03")["state"] == "failed"
     monkeypatch.setattr(s03_watchlist, "_marker", original)
     recovered = daily_selections.generate_scheduled_local(engine, service, tmp_path, now=RUN)
-    assert recovered == {"saved": [], "errors": {}, "watchlist_changed": True}
+    assert recovered["saved"] == []
+    assert recovered["errors"] == {}
+    assert recovered["watchlist_changed"] is True
     assert len(calls) == 1
     assert DailySelections(tmp_path).job(TARGET + ":s03")["state"] == "succeeded"
 

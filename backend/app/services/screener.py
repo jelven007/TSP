@@ -509,7 +509,11 @@ class ScreenerService:
         return frame
 
     def build_daily_pool_context(self, as_of: date, *, current=None, premarket=False, observed_at=None):
-        """Load only scope/reference inputs, never minute formulas or positions."""
+        """装配目标日范围证据, 不加载分钟公式或账户持仓。
+
+        premarket使用证券目录和公告观察时点, 缺目录明确失败; 普通路径
+        可合并已有日线参考。目录提供成员, 不能用昨日停牌或价格冒充今日状态。
+        """
         from app.instrument_suspension import pool_evidence
         from app.market_time import cn_today
         from app.strategy.eligibility import attach_listing_age
@@ -518,8 +522,7 @@ class ScreenerService:
             instruments = self.repo.get_instruments_asset("stock")
             if instruments is None or instruments.is_empty():
                 raise ValueError("当日股票池证券目录不可用")
-            # Directory state is current; it supplies scope, never today's prices
-            # or a suspension assertion copied from the previous session.
+            # 目录只提供范围; 移除价格和旧停牌字段, 由目标日状态证据重新判定。
             current = instruments if instruments is not None else pl.DataFrame()
             if not current.is_empty():
                 current = current.select(c for c in current.columns
@@ -541,7 +544,14 @@ class ScreenerService:
 
     def build_selection_context(self, engine, source, target, strategy_ids, *, overrides_map=None,
                                 history_bars=0):
-        """Load completed source-session daily evidence without target minutes."""
+        """装配source完成日线, 返回以target为资格日期的分钟策略上下文。
+
+        source必须是target的精确前交易日; 历史上界固定source。可定位的
+        收盘证据异常写reference_errors并剔除该股本次数值输入; 整份证据
+        错误或剔除后全无有效数据抛ValueError, 不借用目标日数据补齐。
+        任一策略声明entry_prior_ex_date_exclusion时, 仅给history追加按代码/
+        参考日匹配的除权标记; 成员排除由select_rows按各策略声明执行。
+        """
         from app.instrument_suspension import pool_evidence
         from app.services.daily_close_validation import validate_daily_close
         from app.services.selection_clock import SELECTION_TIME
@@ -564,6 +574,7 @@ class ScreenerService:
         reference_errors = validate_daily_close(
             self.repo, source, rows=current, isolate_symbols=True,
         ) or {}
+        # 无效股票退出本次数值计算并记录原因, 完整策略股票池仍由独立范围路径生成。
         if reference_errors:
             usable = ~pl.col("symbol").is_in(list(reference_errors))
             current, history = current.filter(usable), history.filter(usable)
@@ -571,6 +582,12 @@ class ScreenerService:
             raise ValueError(f"盘后预选{source}隔离异常股票后无有效定版昨收")
         instruments = self.repo.get_instruments_asset(self.asset_type)
         history = attach_listing_age(history, instruments)
+        # 只读repo绑定目录的公司行为, 不请求Provider; 标记匹配每行date与事件ex_date。
+        # 批量上下文不据一策略声明裁掉所有策略成员; current仍保留源日有效股票。
+        if any(engine.get(sid).meta.get("entry_prior_ex_date_exclusion") for sid in strategy_ids):
+            from app.strategy.overnight_runtime import annotate_prior_ex_dates
+
+            history = annotate_prior_ex_dates(history, self.repo)
         current = attach_listing_age(current, instruments)
         current = annotate(current, as_of=source, evidence=pool_evidence(
             self.repo, source, observed_at=datetime.combine(source, SELECTION_TIME)))
@@ -578,6 +595,71 @@ class ScreenerService:
             current = current.with_columns(pl.lit(None, dtype=pl.Float64).alias("change_pct"))
         return StrategyDataContext(self.asset_type, "1m", target, current=current, daily_history=history,
                                    reference_errors=reference_errors)
+
+    def build_selected_stock_context(
+        self, engine, as_of, strategy_id, selection, *, current, overrides, observed_at,
+    ):
+        """先验证同策略/T/T-1预选, 再只读成员分钟; 成功空预选不请求行情。
+
+        缺归档抛ValueError; ValueError/OSError/PolarsError读取失败写input_errors,
+        其余异常交run_monitored外层转失败回执。两者都不能作为正常空名单。
+        这是共享本地/非权威输入适配, 不加载广度上下文。Full的权威S02
+        个股请求由strategy_input_binding注入验证后的冻结输入。
+        声明除权排除能力时, 旧归档只在标记键缺失时补运行输入; 已有值含null
+        原样保留, 补标记不改变成员或改写归档。事件读取异常沿上述边界处理。
+        engine须提供get读取当前策略META; 分钟/日线依赖仍由同一引擎声明解析。
+        """
+        from app.strategy.basic_filter import previous_session
+        from app.strategy.engine import StrategyDataContext
+
+        if (selection is None or selection.get("as_of") != str(as_of)
+                or selection.get("source_date") != str(previous_session(as_of))
+                or selection.get("strategy_id", strategy_id) != strategy_id
+                or not isinstance(selection.get("rows"), list)):
+            raise ValueError(f"缺少{as_of}有效冻结预选, 个股任务等待")
+        symbols = sorted({row["symbol"] for row in selection["rows"]})
+        scoped = (current.filter(pl.col("symbol").is_in(symbols))
+                  if current is not None and "symbol" in current.columns else pl.DataFrame())
+        context = StrategyDataContext(
+            self.asset_type, "1m", as_of, current=scoped,
+            history=pl.DataFrame(schema={"symbol": pl.String, "datetime": pl.Datetime, "close": pl.Float64}),
+            observed_at=observed_at, completed_through=observed_at, realtime=True,
+            selection_snapshots={strategy_id: selection},
+        )
+        if not symbols:
+            return context
+        try:
+            # 能力只由当前策略META声明, 不从其他策略或仓库中有事件推导启用。
+            if engine.get(strategy_id).meta.get("entry_prior_ex_date_exclusion"):
+                missing = sorted({row["symbol"] for row in selection["rows"]
+                                  if "reference_prior_ex_date" not in row})
+                if missing:
+                    from app.strategy.overnight_runtime import annotate_prior_ex_dates
+
+                    # 仅补缺键成员的精确T-1, 不读全池日线; 已保存True/False/null不重算。
+                    flags = annotate_prior_ex_dates(pl.DataFrame({
+                        "symbol": missing, "date": [previous_session(as_of)] * len(missing),
+                    }), self.repo)
+                    flags = dict(zip(flags["symbol"], flags["prior_ex_date"], strict=True))
+                    # 新快照只挂到本次context; 不修改传入selection、归档身份或预选顺位。
+                    context.selection_snapshots[strategy_id] = {
+                        **selection, "rows": [
+                            row if "reference_prior_ex_date" in row else
+                            {**row, "reference_prior_ex_date": flags[row["symbol"]]}
+                            for row in selection["rows"]],
+                    }
+            context.history = self.repo.get_minute_by_dates(symbols, [as_of])
+            if context.history.is_empty():
+                raise ValueError(f"{as_of}预选股无分钟行情")
+            # 只有启用条件需要额外日线才读取; 已封存字段不从当天行情重算。
+            bars = engine.minute_entry_daily_history_bars(
+                [strategy_id], overrides_map={strategy_id: overrides})
+            if bars:
+                context.daily_history = self._load_enriched_history(as_of, bars).filter(
+                    pl.col("symbol").is_in(symbols))
+        except (ValueError, OSError, pl.exceptions.PolarsError) as exc:
+            context.input_errors.append(str(exc))
+        return context
 
     def build_strategy_context(
         self,

@@ -5,9 +5,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { StrategyDailyResults } from './StrategyDailyResults'
 import type { ScreenerResult } from '@/lib/api'
+import { QK } from '@/lib/queryKeys'
 
-const { snapshot } = vi.hoisted(() => ({ snapshot: vi.fn() }))
-vi.mock('@/lib/api', () => ({ api: { marketSnapshot: snapshot } }))
+const { snapshot, strategyGet, customSignalsList } = vi.hoisted(() => ({
+  snapshot: vi.fn(), strategyGet: vi.fn(), customSignalsList: vi.fn(),
+}))
+vi.mock('@/lib/api', () => ({ api: { marketSnapshot: snapshot, strategyGet, customSignalsList } }))
 vi.mock('@/components/StockPreviewDialog', () => ({ StockPreviewDialog: () => null }))
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 let root: Root
@@ -28,6 +31,13 @@ const liveLabels = ['现价', '涨跌幅', '换手率', '量比', '信号']
 beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-11-06T10:00:00+08:00'))
+  strategyGet.mockReset().mockResolvedValue({ id: 'custom_mvxxcs03', exit_signals: ['csgi_s03_exit'] })
+  customSignalsList.mockReset().mockResolvedValue({ signals: [
+    { id: 'other_exit', kind: 'exit', enabled: true, template: 'morning_liquidation',
+      params: { take_profit_pct: 99 } },
+    { id: 's03_exit', kind: 'exit', enabled: true, template: 'morning_liquidation',
+      params: { take_profit_pct: 3 } },
+  ] })
   snapshot.mockReset().mockResolvedValue({ as_of: '2026-11-06', rows: [
     { symbol: '600001.SH', raw_close: 12.5, close: 6.25, change_pct: .02, turnover_rate: 3.45,
       vol_ratio_5d: 1.8, signal_ma_golden_5_20: true, volume: 999999, amount: 888888 },
@@ -129,4 +139,65 @@ it('rejects stale days and late responses from an inactive tab', async () => {
   snapshot.mockResolvedValue({ as_of: '2026-11-05', rows: [{ symbol: '600003.SH', raw_close: 999 }] })
   await tab(2)
   expect(cell('现价')?.textContent).toBe('—')
+})
+
+const s03Result: ScreenerResult = {
+  ...result, strategy: 'custom_mvxxcs03', sections: {
+    ...result.sections!,
+    sell: [{ symbol: '600001.SH', close: 34.22, entry_signal_price: 34.74, holding_exit: true,
+      atr14_previous_close: .05, atr_rank: 1, score: 100 }],
+    buy: [{ symbol: '600003.SH', close: 34.74, atr14_previous_close: .05, atr_rank: 1, score: 100 }],
+  },
+}
+it('uses the linked S03 exit take-profit and saved buy trigger price', async () => {
+  await render(s03Result)
+  expect(strategyGet).toHaveBeenCalledWith('custom_mvxxcs03')
+  expect(cell('建议卖出价')?.textContent).toBe('35.78')
+  expect(cell('触发价')?.textContent).toBe('34.22')
+  expect(cell('现价')?.textContent).toBe('12.50')
+  expect(headers()).not.toContain('ATR14÷昨收')
+  expect(headers()).not.toContain('ATR排名')
+  await act(async () => client.setQueryData(QK.customSignals, { signals: [
+    { id: 's03_exit', kind: 'exit', enabled: true, template: 'morning_liquidation',
+      params: { take_profit_pct: 5 } },
+  ] }))
+  await flush()
+  expect(cell('建议卖出价')?.textContent).toBe('36.48')
+  await tab(2)
+  expect(headers()).not.toContain('ATR14÷昨收')
+  expect(headers()).not.toContain('ATR排名')
+  expect(cell('触发价')?.textContent).toBe('34.74')
+})
+
+it.each([null, 0, -1, NaN, Infinity])('keeps S03 target unknown for an invalid trigger price (%s)', async entry_signal_price => {
+  await render({ ...s03Result, sections: { ...s03Result.sections!,
+    sell: [{ symbol: '600001.SH', close: 34.22, entry_signal_price, holding_exit: true,
+      suggested_sell_price: { lower: 9, upper: 10 } }] } })
+  expect(cell('建议卖出价')?.textContent).toBe('—')
+})
+
+it('uses a pending sell roster buy price before an exit replaces the close field', async () => {
+  await render({ ...s03Result, sections: { ...s03Result.sections!,
+    sell: [{ symbol: '600001.SH', close: 34.74, signal_roster: true }] } })
+  expect(cell('建议卖出价')?.textContent).toBe('35.78')
+})
+
+it('keeps the target unknown if an exited row has lost its entry reference', async () => {
+  await render({ ...s03Result, sections: { ...s03Result.sections!,
+    sell: [{ symbol: '600001.SH', close: 34.22, holding_exit: true }] } })
+  expect(cell('建议卖出价')?.textContent).toBe('—')
+})
+
+it.each([
+  { id: 'other_exit', kind: 'exit', enabled: true, template: 'morning_liquidation', params: { take_profit_pct: 3 } },
+  { id: 's03_exit', kind: 'exit', enabled: false, template: 'morning_liquidation', params: { take_profit_pct: 3 } },
+  { id: 's03_exit', kind: 'entry', enabled: true, template: 'morning_liquidation', params: { take_profit_pct: 3 } },
+  { id: 's03_exit', kind: 'exit', enabled: true, template: 's01_morning_exit', params: { take_profit_pct: 3 } },
+  ...[null, 0, -1, NaN, Infinity, '3'].map(take_profit_pct => ({
+    id: 's03_exit', kind: 'exit', enabled: true, template: 'morning_liquidation', params: { take_profit_pct },
+  })),
+])('keeps S03 target unknown without a valid linked enabled exit (%j)', async signal => {
+  customSignalsList.mockResolvedValue({ signals: [signal] })
+  await render(s03Result)
+  expect(cell('建议卖出价')?.textContent).toBe('—')
 })

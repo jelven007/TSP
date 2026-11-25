@@ -3,14 +3,20 @@ from datetime import datetime, timedelta
 
 from app.market_time import as_cn_datetime, cn_now, published_trading_day
 
-SLOTS = ("08:00", "09:00")
+SLOTS = ("08:30", "09:00")
 
 
 def due_slot(now=None):
     now = as_cn_datetime(now or cn_now())
-    if published_trading_day(now.date()) is not True or now.hour < 8:
+    if published_trading_day(now.date()) is not True or (now.hour, now.minute) < (8, 30):
         return None
     return SLOTS[0] if now.hour < 9 else SLOTS[1]
+
+
+def morning_scan_slot(now=None):
+    """Scan each morning batch once; retries remain inside the premarket window."""
+    now = as_cn_datetime(now or cn_now())
+    return due_slot(now) if (now.hour, now.minute) < (9, 30) else None
 
 
 def scheduled_for(day, slot):

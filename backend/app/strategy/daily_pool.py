@@ -1,4 +1,4 @@
-"""当日股票池: stock scope and status, before numeric strategy selection."""
+"""按每策略自身股票范围和状态建立完整池; 数值筛选在后续资格计算执行。"""
 import polars as pl
 
 from app.strategy.basic_filter import RANGES, previous_session
@@ -8,7 +8,7 @@ DEFINITION_VERSION = "strategy_scope_v4"
 
 
 def scope_context(context, symbols):
-    """Keep strategy signals inside their scope, with independent shared inputs."""
+    """返回范围内行情副本; 不修改调用级共享输入或其他策略的完整池。"""
     from dataclasses import replace
 
     frames = {}
@@ -33,11 +33,19 @@ def scope_context(context, symbols):
 
 
 def build_pool(engine, strategy_id, context, *, overrides=None, premarket=False) -> dict:
+    """合并源码范围与覆盖, 按板块/分组并集及 ST/停牌选择返回完整池。
+
+    移除全部数值条件和上市年龄仅作用于本地配置副本; 策略选股仍保留它们。
+    证券目录与时点证据提供成员, 行情缺失不缩小成员; 空池保留为空, 不回退全市场。
+    返回排序去重的symbols、范围定义和状态覆盖计数; 缺范围输入抛ValueError,
+    成功total=0则表示配置范围为空。这里只生成快照, 归档及身份守卫由调用方负责。
+    该池同时提供广度分母范围和覆盖身份, 不能换成预选、命中或展示截断后的成员。
+    """
     strategy = engine.get(strategy_id)
     bf = engine._resolve_filter_scope({**(strategy.basic_filter or {}),
                                       **((overrides or {}).get("basic_filter") or {})})
-    # Numeric conditions belong to strategy selection, not pool membership
-    # or pool data dependencies. Work on a copy so the strategy keeps all filters.
+    # 数值条件只决定策略资格, 不决定池成员或建池行情依赖;
+    # 在副本上移除, 不能修改策略本身的基础过滤。
     excluded = {f"{stem}_{side}" for stem in RANGES for side in ("min", "max")}
     bf = {key: value for key, value in bf.items() if key not in excluded | {"exclude_new_days"}}
     configured_reference = bf.get("data_reference", "signal_day")
@@ -51,14 +59,14 @@ def build_pool(engine, strategy_id, context, *, overrides=None, premarket=False)
     prior_day = previous_session(day) if bf.get("data_reference") == "previous_trade_day" else None
     parts = []
     pool_universe = context.pool_universe
-    # A status-only frame supplies evidence, never additional pool membership.
+    # 纯状态表只提供停复牌证据, 不能借它增加证券目录之外的成员。
     from app.instrument_suspension import DATE_COLUMN, STATUS_COLUMN
     has_universe = (pool_universe is not None and not pool_universe.is_empty()
                     and ("symbol" in pool_universe.columns)
                     and (set(pool_universe.columns) == {"symbol"}
                          or bool(set(pool_universe.columns) - {"symbol", DATE_COLUMN, STATUS_COLUMN})))
     if history is not None and not history.is_empty() and "date" in history.columns:
-        # Missing current quotes do not remove scope members.
+        # 缺当前报价仍保留范围成员, 不以有价格的子集替代完整池。
         parts.append(history.filter(pl.col("date") == previous_session(day)))
         if not premarket:
             parts.append(history.filter(pl.col("date") == day))

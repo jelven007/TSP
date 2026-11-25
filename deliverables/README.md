@@ -1,4 +1,4 @@
-# 当前离线交付
+# 离线交付与审计索引
 
 本目录只保存当前交付和必须保留的审计证据。历史研究、重复导出和已结束任务的过程附件
 按用户清理要求删除；当前业务结果仍由应用自己的持久化存储管理。
@@ -7,6 +7,14 @@
 | --- | --- |
 | 11月19日 S02 趋势排名及自选分组交付 | [当日研究](research/s02-trend-top10-20261119/) |
 | 当前工程核验 | [工程交付](engineering/) |
+| 2026-11-25 S01 两端输入一致性 | [修复与安装回执](strategies/s01-dual-input-20261125/修复回执.md) |
+| S03当前逻辑与唯一源码 | [当前规则](../docs/reference/s03.md)、[安装源](../examples/strategies/s03.py)、[本轮整理回执](../reports/engineering/s03-source-doc-cleanup-20261125/验收回执.md) |
+| 2026-11-24 S03文档整理审计 | [历史整理回执](engineering/s03-current-cleanup-20261124/整理回执.md) |
+| 2026-11-24 S03共享模块同步审计 | [历史同步回执](engineering/s03-shared-comments-images-20261124/同步回执.md) |
+| 2026-11-24 S03排序补丁审计 | [历史排序回执](engineering/s03-b-emotion-order-20261124/排序更新回执.md) |
+| 2026-11-24 S03两端计算审计 | [历史重算回执](operations/s03-recalculate-20261124/重算回执.md) |
+| 2026-11-24 S03研究恢复审计 | [历史恢复回执](strategies/s03-restore-f8-20261124/恢复回执.md) |
+| 2026-11-24 S03两端安装审计 | [历史更新回执](operations/s03-restored-dual-20261124/双端更新回执.md) |
 | 当前数据核验 | [运行交付](operations/) |
 | 不可变审计、数据修正和必要恢复证据 | [审计目录](audit/) |
 

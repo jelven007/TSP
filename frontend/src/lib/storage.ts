@@ -172,6 +172,8 @@ export const storage = {
     matching: 'close_t' | 'open_t+1'
     entryFill: 'close_t' | 'open_t+1'
     exitFill: 'close_t' | 'open_t+1' | 'signal_next_minute'
+    entryParticipation?: string
+    exitParticipation?: string
     fees: string
     stampTax?: string
     minimumCommission?: string

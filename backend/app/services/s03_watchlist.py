@@ -1,4 +1,7 @@
-"""Replace the fixed S03 group from its saved nightly selection only."""
+"""在S03的22~23点窗口, 以已保存五维归档幂等替换固定自选组。
+
+本模块只同步成员关系与回执, 不评分、不改变策略股票范围或发布业务事件。
+"""
 from __future__ import annotations
 
 import os
@@ -15,10 +18,12 @@ POLICY = "s03_five_dimensions_v1"
 
 
 class WatchlistSyncError(RuntimeError):
+    """外层可重试的同步失败, 不得清空原组或冒充评分成功。"""
     pass
 
 
 def _marker(storage, value=None):
+    """同步摘要沿租户文档或文件作业存储保存, None表示读取。"""
     if isinstance(storage, TenantDocuments):
         return (storage.get(NAMESPACE, S03_ID, {}) if value is None
                 else storage.put(NAMESPACE, S03_ID, value))
@@ -26,6 +31,7 @@ def _marker(storage, value=None):
 
 
 def _group(groups):
+    """固定组名称必须唯一, 沿用现有ID; 缺组不自动新建替代组。"""
     matches = [g for g in groups if g["name"].strip().casefold() == "s03"]
     if len(matches) != 1:
         raise ValueError("固定分组s03不存在或名称不唯一")
@@ -33,6 +39,11 @@ def _group(groups):
 
 
 def _sql(storage, snapshot, symbols, marker):
+    """租户事务和自选锁内替换关系, 摘要相同不写, 较旧日期拒绝。
+
+    独占旧成员删除, 共享成员保留其他组/备注/策略关系; 新名单顺序、
+    marker与revision同事务写入。异常交外层回滚, 不提前发刷新事件。
+    """
     from app.cell.watchlist import Watchlist as CellWatchlist
     from app.multitenancy.watchlist import Watchlist
     with storage.transaction() as unit:
@@ -51,7 +62,7 @@ def _sql(storage, snapshot, symbols, marker):
                      (exclusive,))
         conn.execute("DELETE FROM business.watchlist_items WHERE symbol=ANY(%s)", (exclusive,))
         conn.execute("DELETE FROM business.watchlist_group_items WHERE group_id=%s", (gid,))
-        # Preserve notes and other group/strategy relations for shared members.
+        # 共享成员保留备注及其他组/策略关系, 只摘本组旧关系。
         for symbol in reversed(symbols):
             conn.execute(
                 """INSERT INTO business.watchlist_items(tenant_id,symbol,note,added_at,position)
@@ -75,6 +86,10 @@ def _sql(storage, snapshot, symbols, marker):
 
 
 def _file(storage, snapshot, symbols, marker):
+    """自选锁内替换文件并保存marker, 失败恢复原文件与内存revision。
+
+    成功评分归档独立保留; 外层窗口内只重试本同步, 不重新计算五维。
+    """
     import polars as pl
 
     from app.services import watchlist
@@ -123,7 +138,11 @@ def _file(storage, snapshot, symbols, marker):
 
 
 def sync_archived_selection(storage, snapshot, now):
-    """Return a receipt only on replacement; callers publish after commit."""
+    """校验窗口、精确日期、已保存对象和证券列表后同步固定组。
+
+    真实空名单允许清组; 缺归档/身份、重复或超过30只、窗口外均不清组。
+    返回同步回执或幂等None; 异常包装成可重试错误, 调用方提交后发布事件。
+    """
     if not snapshot or snapshot.get("scoring_policy") != POLICY:
         return None
     try:
@@ -131,7 +150,7 @@ def sync_archived_selection(storage, snapshot, now):
         window = due_window(now, monitored_only=True, strategy_id=S03_ID)
         if (window is None or (str(window[0]), str(window[1])) !=
                 (snapshot.get("source_date"), snapshot.get("as_of"))):
-            raise ValueError("不在该归档的21:00至22:00交易日窗口")
+            raise ValueError("不在该归档的22:00至23:00交易日窗口")
         saved = DailySelections(storage).read(S03_ID, snapshot["as_of"])
         if saved != snapshot or not snapshot.get("identity"):
             raise ValueError("S03成功归档未保存或不匹配")

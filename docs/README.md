@@ -42,8 +42,8 @@ docs/
     engineering.md                目录、构建身份、协作与追踪
     market-data.md                行情、K线、目录与扩展数据
     research.md                   策略、固定输入、回测与挖掘
-    s01.md                        隔夜分钟策略参数、成交与使用边界
-    s02.md                        动量策略、每日组合与回测查询
+    s01.md                        自定义 S01 当前规则、源码与回归入口
+    s02.md                        S02当前逻辑、源码与验证
     s03.md                        五维前30、固定自选组与A/B入场筛选
     factor-system.md              因子实现及明确标记的后续设计
     trading-ai.md                 模拟账务、公司行为与AI协议

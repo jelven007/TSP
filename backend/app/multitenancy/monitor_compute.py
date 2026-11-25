@@ -1,9 +1,10 @@
-"""Adapter around the original monitor engine for explicit public/private inputs."""
+"""监控阶段入口: 按执行器选择隔离编排, 可信广度与沙箱失败各自形成回执。"""
 from __future__ import annotations
 
 import copy
 import hashlib
 import json
+import math
 import time
 from datetime import datetime
 
@@ -28,7 +29,11 @@ class SectorSnapshots:
 
 
 def failure_events(results, rules, previous, now):
-    """Warnings and deduplication state are committed by the storage owner."""
+    """从真实任务回执生成结果通知及按日去重状态, 返回值由存储所有者提交。
+
+    空下限广度观测不生成买任务失败通知; 未实际尝试的纯过期不伪造计算
+    失败。相同策略/日期/方向/终态只通知一次, 修复重试不按每次错误刷屏。
+    """
     if now.tzinfo is None:
         now = now.replace(tzinfo=CN_TZ)
     state = {key: copy.deepcopy(value) for key, value in previous.items()
@@ -42,12 +47,17 @@ def failure_events(results, rules, previous, now):
             phases = []
             if task.get("signals"):
                 for signal, saved in task["signals"].items():
-                    steps = {p: saved[p] for p in ("breadth", "stocks") if p in saved}
+                    steps = {p: saved[p] for p in ("breadth", "stocks") if p in saved
+                             and not (kind == "buy" and p == "breadth"
+                                      and (saved.get("breadth_required") is False
+                                           or saved[p].get("observation_only") is True))}
                     phases.extend((signal, phase, value) for phase, value in
                                   (steps or {saved.get("phase", "observe"): saved}).items())
             else:
                 phases.append(("", task.get("phase", kind), task))
-            # A phase, retry or refreshed definition is still the same daily task.
+            if not phases:
+                continue
+            # 子阶段、重试或定义刷新仍归同一策略当日方向, 不扩大通知去重粒度。
             errors = list(dict.fromkeys(error for _, _, step in phases
                                         for error in step.get("errors") or []))
             successful = task.get("state") in ("success", "rejected")
@@ -147,7 +157,7 @@ def failure_events(results, rules, previous, now):
 
 
 def failed_task_results(payload, reason, now):
-    """Retain the main task when context loading or the sandbox fails."""
+    """兼容监控路径把上下文/沙箱错误转为按策略诊断, 不宣称成功零名单。"""
     from app.strategy.late_session_strength import evaluate
 
     states = payload["state"].setdefault("engine", {}).setdefault("late_session_tasks", {})
@@ -186,8 +196,9 @@ def needs_sandbox(rules):
 
 
 def failed_phase_results(payload, reason, now):
-    """Canonical receipts survive failures before a user strategy can return."""
+    """沙箱未正常返回也生成本阶段失败回执; 保留先前正常阶段及最终汇合边界。"""
     from app.services.strategy_monitor_state import CONTRACT, finished, receipt
+    from app.services.strategy_monitor_tasks import apply_independent_buy
     results = {}
     for sid in payload.get("strategy_task_ids", []):
         previous = payload.get("strategy_task_results", {}).get(sid) or {}
@@ -200,8 +211,11 @@ def failed_phase_results(payload, reason, now):
             actual_phase = action.get("expired_phase", phase)
             nested = kind == "buy" and actual_phase in ("breadth", "stocks")
             step = receipt(saved.get(actual_phase, {}) if nested else saved, action, now, errors=[reason])
+            independent = any(w.get("phase_policy") == "independent_v1"
+                              and w["signal"]["id"] == signal_id
+                              for w in payload["strategy_task_windows"][sid].get("buy", []))
             task["signals"][signal_id] = ({**saved, actual_phase: step,
-                **{key: step[key] for key in ("state", "status", "terminal", "errors")}}
+                **({} if independent else {key: step[key] for key in ("state", "status", "terminal", "errors")})}
                 if nested else step)
             signals = list(task["signals"].values())
             configured = len(payload.get("strategy_task_windows", {}).get(sid, {}).get(kind, []))
@@ -217,14 +231,21 @@ def failed_phase_results(payload, reason, now):
                      section_mode="signals", **payload["daily_identities"][sid])
         daily.setdefault("rows", [])
         daily.setdefault("total", len(daily["rows"]))
-        daily.setdefault("sections", {"sell": (payload.get("sell_rosters", {}).get(sid) or {}).get("rows", []),
-                                     "select": (payload.get("selection_snapshots", {}).get(sid) or {}).get("rows", []),
-                                     "buy": daily["rows"]})
+        daily["sections"] = daily.get("sections") or {
+            "sell": (payload.get("sell_rosters", {}).get(sid) or {}).get("rows", []),
+            "select": (payload.get("selection_snapshots", {}).get(sid) or {}).get("rows", []),
+            "buy": daily["rows"]}
+        daily["section_statuses"] = daily.get("section_statuses") or {}
+        daily["section_errors"] = daily.get("section_errors") or {}
         for kind, task in tasks.items():
             daily.setdefault("section_statuses", {})[kind] = task["state"]
             daily.setdefault("section_errors", {})[kind] = "; ".join(task.get("errors", []))
         daily["execution_status"] = {"state": tasks.get("buy", {}).get("state", "waiting"), "reason": reason}
-        results[sid] = daily
+        daily["monitor_executed_signals"] = {kind: [a["signal_id"]
+            for a in payload["strategy_task_plans"][sid]["actions"]
+            if a["kind"] == kind and a.get("expired_phase", a["phase"]) == "stocks"
+            and not a.get("observation_only")] for kind in ("buy", "sell")}
+        results[sid] = apply_independent_buy(daily, payload["strategy_task_windows"][sid], now)
     return results
 
 
@@ -239,6 +260,11 @@ def fresh_frame(frame, now=None):
 
 
 def evaluate_snapshot(payload, repo, strategy_engine=None, private_root=None):
+    """沙箱计算冻结快照; 租户定义/预选/任务窗口只来自本次 payload。
+
+    不读租户业务库或取上游行情; 返回结果和内部状态, 由 Worker 守卫提交。
+    该入口服务个股/卖及普通监控, 可信广度另有不加载策略源码的入口。
+    """
     snapshot = payload["snapshot"]
     engine = MonitorRuleEngine(groups={key: frozenset(value) for key, value in payload.get("groups", {}).items()})
     previous = payload.get("state", {})
@@ -251,6 +277,7 @@ def evaluate_snapshot(payload, repo, strategy_engine=None, private_root=None):
     engine.set_name_map(snapshot.get("names", {}))
     if strategy_engine is not None:
         from app.services.screener import ScreenerService
+        from app.services.strategy_input_binding import frozen_context, requires_authority
         strategy_engine._daily_state_loader = lambda sid, day: payload.get("previous_states", {}).get(sid)
         strategy_engine._position_loader = lambda sid, day: payload.get("positions", {}).get(sid)
         strategy_engine._selection_loader = lambda sid, day: payload.get("selection_snapshots", {}).get(sid)
@@ -259,6 +286,15 @@ def evaluate_snapshot(payload, repo, strategy_engine=None, private_root=None):
         strategy_engine._monitor_receipt_loader = lambda sid: payload.get("strategy_task_receipts", {}).get(sid, {})
         strategy_engine._monitor_result_loader = lambda sid: payload.get("strategy_task_results", {}).get(sid, {})
         strategy_engine._sell_roster_loader = lambda sid, day: payload.get("sell_rosters", {}).get(sid)
+        def frozen_input(sid):
+            if not requires_authority(payload, sid):
+                return None
+            manifest = payload.get("strategy_input_manifests", {}).get(sid, {}).get("stocks")
+            if (manifest is None or manifest["input"]["strategy_id"] != sid
+                    or manifest["phase"] != "stocks"):
+                raise ValueError("权威输入未同步, 禁止使用独立行情")
+            return frozen_context(manifest)
+        strategy_engine._frozen_input_loader = frozen_input
 
         engine.set_strategy_engine(strategy_engine)
         engine.set_data_dir(private_root)
@@ -290,8 +326,8 @@ def evaluate_snapshot(payload, repo, strategy_engine=None, private_root=None):
         return results
 
     if payload.get("late_task_only") and strategy_engine is not None:
-        # Completed published minutes can be repaired without a new quote. This
-        # path records calculation receipts, leaving live signal edges untouched.
+        # 按日任务可以消费已发布分钟重试, 不要求新报价心跳;
+        # 回执和首次通知沿任务状态处理, 不改普通监控的报价上升沿。
         frame = decode_frame(snapshot["frames"].get("stock")) if snapshot["frames"].get("stock") else pl.DataFrame()
         for rule in payload["rules"]:
             sid = rule.get("strategy_id")
@@ -314,7 +350,7 @@ def evaluate_snapshot(payload, repo, strategy_engine=None, private_root=None):
         for asset in ("stock", "index"):
             if snapshot.get("days", {}).get(asset) != cn_today().isoformat():
                 continue
-            # Preserve the worker's quote-age decision across sandbox startup.
+            # 用Worker开始观察时钟判断报价年龄, 保留沙箱启动前的输入决策。
             frame = fresh_frame(decode_frame(snapshot["frames"][asset]),
                                 payload.get("evaluation_started_at"))
             if frame.is_empty():
@@ -327,8 +363,7 @@ def evaluate_snapshot(payload, repo, strategy_engine=None, private_root=None):
                 frame = custom_signals.inject(frame, expressions)
             symbols = engine.intraday_signal_symbols(asset)
             if symbols:
-                # Read the platform's published minute partitions only. No
-                # provider fallback is allowed in an API/tenant worker.
+                # 只读Platform已发布分钟, API/租户Worker缺数据时不回退Provider。
                 minutes = repo.get_minute_batch(sorted(symbols), cn_today(), asset_type=asset)
                 references = {}
                 for row in frame.filter(pl.col("symbol").is_in(sorted(symbols))).iter_rows(named=True):
@@ -367,19 +402,50 @@ def evaluate_snapshot(payload, repo, strategy_engine=None, private_root=None):
 
 
 def evaluate_strategy_phases(payload, repo, executor):
-    """Trusted breadth IO/kernel runs independently of tenant code startup."""
+    """按executor.isolated选择Broker容器编排或本进程顺序适配。
+
+    返回阶段结果、事件及引擎状态, 不在计算侧归档或写租户业务库。
+    """
+    if getattr(executor, "isolated", False):
+        from app.multitenancy.monitor_phase_processes import evaluate_processes
+        return evaluate_processes(payload, repo, executor)
+    return evaluate_strategy_phases_serial(payload, repo, executor)
+
+
+def evaluate_breadth_phase(payload, repo):
+    """复制payload并只保留广度动作, 在绑定的只读公共仓库计算真实比例。
+
+    不加载租户策略注册表或执行个股动作; 完整池/信号/世代仍来自本次请求。
+    """
+    task = copy.deepcopy(payload)
+    task["strategy_task_plans"] = {sid: {**plan, "actions": [
+        action for action in plan["actions"] if action["phase"] == "breadth"]}
+        for sid, plan in task["strategy_task_plans"].items()}
+    return evaluate_strategy_phases_serial(task, repo, None, breadth_only=True)
+
+
+def evaluate_strategy_phases_serial(payload, repo, executor, *, breadth_only=False):
+    """阶段顺序适配及可信广度内核; IO 消费绑定的不可变公共仓库。
+
+    隔离运行的广度在 Broker 启动的独立任务容器使用此入口, 不加载用户源码;
+    非隔离适配先广度后个股。不持久化业务结果, 不把内部候选当最终买名单。
+    """
     from dataclasses import asdict
 
     from app.services.screener import ScreenerService
+    from app.services.strategy_input_binding import frozen_context, requires_authority
     from app.services.strategy_monitor_state import finished, receipt
+    from app.services.strategy_monitor_tasks import apply_independent_buy
+    from app.strategy.basic_filter import previous_session
     from app.strategy.engine import StrategyDataContext
-    from app.strategy.late_session_strength import evaluate, previous_closes
+    from app.strategy.late_session_strength import Evaluation, evaluate, previous_closes
 
     output = {"events": [], "execution_events": [], "results": {}, "state": copy.deepcopy(payload["state"])}
     if not output["state"].get("engine"):
         output["state"]["engine"] = MonitorRuleEngine().export_state()
     states = output["state"].setdefault("engine", {}).setdefault("late_session_tasks", {})
     compute_ids = []
+    joined_ids = {}
     for sid in payload["strategy_task_ids"]:
         actions = payload["strategy_task_plans"][sid]["actions"]
         sandbox_actions = [a for a in actions if a["phase"] in ("stocks", "observe", "expire")]
@@ -394,34 +460,77 @@ def evaluate_strategy_phases(payload, repo, executor):
             state = states.setdefault(f"{payload['late_task_scopes'][sid]}:{column}", {})
             pool = payload["daily_pool_snapshots"].get(sid) or {}
             error, references, minutes = None, {}, None
+            reference_errors, waiting_publication, market_completed = {}, False, False
+            manifest = payload.get("strategy_input_manifests", {}).get(sid, {}).get("breadth")
             try:
                 symbols = pool.get("symbols")
                 if symbols is None:
                     raise ValueError(pool.get("error") or "缺少该策略完整当日股票池")
-                minutes = repo.get_minute_batch(symbols, now.date(), asset_type="stock")
-                daily = ScreenerService(repo)._load_enriched_history(now.date(), 2)
-                context = StrategyDataContext("stock", "1m", now.date(),
-                                              daily_history=daily, current=pl.DataFrame())
-                references = previous_closes(context, isolate_symbols=True)
+                if requires_authority(payload, sid):
+                    if (manifest is None or manifest["input"]["strategy_id"] != sid
+                            or manifest["phase"] != "breadth"):
+                        raise ValueError("权威输入未同步, 禁止使用独立行情")
+                    context = frozen_context(manifest)
+                    minutes, references = context.history, manifest["input"]["references"]
+                    reference_errors = manifest["invalid_symbols"]
+                    market_completed = True
+                else:
+                    release = (payload.get("snapshot") or {}).get("public_release") or {}
+                    clocks = [value for key in ("minute_completed_at", "minute_priority_completed_at")
+                              if isinstance(value := release.get(key), (int, float))
+                              and not isinstance(value, bool) and math.isfinite(value)]
+                    target = datetime.combine(now.date(), datetime.strptime(
+                        window["start"], "%H:%M:%S").time(), now.tzinfo)
+                    waiting_publication = bool(clocks and max(clocks) < target.timestamp())
+                    market_clock = release.get("minute_completed_at")
+                    market_completed = (isinstance(market_clock, (int, float))
+                                        and not isinstance(market_clock, bool)
+                                        and math.isfinite(market_clock)
+                                        and target.timestamp() <= market_clock <= now.timestamp())
+                    if not waiting_publication:
+                        minutes = repo.get_minute_batch(symbols, now.date(), asset_type="stock")
+                        raw_inputs = getattr(repo, "get_daily_close_inputs", None)
+                        if callable(raw_inputs):
+                            daily, _ = raw_inputs(previous_session(now.date()), include_closing_minute=False)
+                            if "symbol" in daily.columns:
+                                daily = daily.filter(pl.col("symbol").is_in(symbols))
+                        else:
+                            daily = ScreenerService(repo)._load_enriched_history(now.date(), 2)
+                        context = StrategyDataContext("stock", "1m", now.date(),
+                                                      daily_history=daily, current=pl.DataFrame())
+                        references = previous_closes(context, isolate_symbols=True)
+                        reference_errors = context.reference_errors
             except Exception as exc:
                 error = str(exc)
-            calculated = evaluate(minutes, sig, day=now.date(), pool_symbols=pool.get("symbols"),
+            calculated = (Evaluation(stage="waiting_data", pool_total=len(symbols))
+                          if waiting_publication else evaluate(
+                                  minutes, sig, day=now.date(), pool_symbols=pool.get("symbols"),
                                   prev_close=references, completed_through=now, task_state=state,
                                   input_error=error, breadth_only=True,
-                                  selection=payload.get("selection_snapshots", {}).get(sid))
+                                  startup_publication_complete=market_completed,
+                                  unavailable_symbols=manifest["invalid_symbols"] if manifest else None,
+                                  source_input_sha256=manifest["input_sha256"] if manifest else None,
+                                  selection=payload.get("selection_snapshots", {}).get(sid),
+                                  independent_phase="breadth" if window.get("phase_policy") == "independent_v1" else None))
             completed = cn_now()
             quality = asdict(calculated)
             quality["missing_count"] = len(calculated.missing_symbols)
-            quality["reference_errors"] = context.reference_errors if error is None else {}
+            quality["reference_errors"] = reference_errors
+            if manifest:
+                quality["input_sha256"] = manifest["input_sha256"]
+                quality["input_excluded_symbols"] = manifest["invalid_symbols"]
+            if waiting_publication:
+                quality["reason"] = "等待启动分钟公共发布"
             old = payload["strategy_task_receipts"].get(sid) or {}
             tasks = copy.deepcopy(old.get("tasks", {}))
             task = tasks.setdefault("buy", {"signals": {}})
             saved = task.setdefault("signals", {}).get(sig["id"], {})
             phase = receipt(saved.get("breadth", {}), action, completed,
-                            passed=calculated.stage != "breadth_rejected",
-                            errors=calculated.diagnostics, details=quality)
+                            passed=None if waiting_publication else calculated.stage != "breadth_rejected",
+                            errors=calculated.diagnostics, details=quality,
+                            complete=not waiting_publication)
             signal = {**saved, "breadth": phase}
-            if phase["state"] in ("rejected", "expired"):
+            if phase["state"] in ("rejected", "expired") and window.get("phase_policy") != "independent_v1":
                 signal.update({k: phase[k] for k in ("state", "status", "terminal", "passed", "errors")})
             task["signals"][sig["id"]] = signal
             all_signals = [task["signals"].get(w["signal"]["id"], {}) for w in
@@ -438,6 +547,8 @@ def evaluate_strategy_phases(payload, repo, executor):
                 task["completed_at"] = phase["completed_at"]
             previous = payload["strategy_task_results"].get(sid) or {}
             daily_result = copy.deepcopy(previous if previous.get("as_of") == str(now.date()) else {})
+            # 晚到广度只补展示; 保留名单不代表本次发生新买信号, 通知由首次汇合决定。
+            daily_result["monitor_executed_signals"] = {"buy": [], "sell": []}
             selected = payload["selection_snapshots"].get(sid)
             daily_result.update(as_of=str(now.date()), rows=daily_result.get("rows", []),
                                 total=daily_result.get("total", 0), section_mode="signals",
@@ -445,33 +556,57 @@ def evaluate_strategy_phases(payload, repo, executor):
                                 asset_type=payload["daily_identities"][sid]["asset_type"],
                                 timeframe=payload["daily_identities"][sid]["timeframe"],
                                 runtime_identity=payload["daily_identities"][sid]["runtime_identity"])
-            daily_result.setdefault("sections", {"sell": (payload["sell_rosters"].get(sid) or {}).get("rows", []),
-                                                 "select": (selected or {}).get("rows", []), "buy": []})
-            daily_result.setdefault("section_statuses", {})["buy"] = task["state"]
-            daily_result.setdefault("entry_data_quality", {})[column] = quality
+            daily_result["sections"] = daily_result.get("sections") or {
+                "sell": (payload["sell_rosters"].get(sid) or {}).get("rows", []),
+                "select": (selected or {}).get("rows", []), "buy": []}
+            daily_result["section_statuses"] = daily_result.get("section_statuses") or {}
+            daily_result["section_statuses"]["buy"] = task["state"]
+            daily_result["entry_data_quality"] = daily_result.get("entry_data_quality") or {}
+            daily_result["entry_data_quality"][column] = quality
             daily_result["execution_status"] = {
                 "state": "success" if terminal and not phase["errors"] else "failed" if phase["errors"] else "waiting",
                 "reason": "上涨占比未达到阈值, 当日信号任务结束" if terminal else
-                          "; ".join(phase["errors"]) if phase["errors"] else "上涨占比通过, 等待个股确认",
+                          "; ".join(phase["errors"]) if phase["errors"] else
+                          "等待启动分钟公共发布" if waiting_publication else "上涨占比通过, 等待个股确认",
                 "updated_at": int(completed.timestamp() * 1000)}
+            daily_result = apply_independent_buy(daily_result, payload["strategy_task_windows"][sid], completed)
+            tasks = daily_result["monitor_tasks"]
+            prior_signals = (previous.get("monitor_tasks") or {}).get("buy", {}).get("signals", {})
+            newly_joined = [key for key, value in tasks["buy"]["signals"].items()
+                            if value.get("joined_at") and not prior_signals.get(key, {}).get("joined_at")]
+            if not breadth_only and newly_joined and daily_result.get("entry_signal_hits"):
+                joined_ids[sid] = newly_joined
+                if sid not in compute_ids:
+                    # 已完成名单沿原通知入口发首次汇合事件;
+                    # 冻结阶段回执阻止重新取个股分钟或计算条件。
+                    compute_ids.append(sid)
             output["results"][sid] = daily_result
             payload["strategy_task_receipts"][sid] = {**old, "tasks": tasks}
             payload["strategy_task_results"][sid] = daily_result
     if compute_ids:
         task_payload = {**payload, "state": output["state"], "late_task_only": True,
                         "strategy_task_ids": compute_ids,
+                        "strategy_task_plans": {sid: {**payload["strategy_task_plans"][sid],
+                            "actions": [a for a in payload["strategy_task_plans"][sid]["actions"]
+                                        if a["phase"] != "breadth"]} for sid in compute_ids},
                         "rules": [r for r in payload["rules"] if r.get("strategy_id") in compute_ids]}
         try:
             computed = executor.execute(task_payload)
         except Exception as exc:
+            # 沙箱启动/执行失败不能丢掉已完成广度或伪装零买入。
             computed = {"events": [], "execution_events": [], "state": output["state"],
                         "results": failed_phase_results(task_payload, str(exc), cn_now())}
         missing = [sid for sid in compute_ids if sid not in computed.get("results", {})]
         if missing:
+            # 返回成功包但缺指定策略回执也算阶段失败, 不把缺项解释为零股票。
             computed["results"].update(failed_phase_results(
                 {**task_payload, "strategy_task_ids": missing}, "计算未返回策略阶段回执", cn_now()))
         output["events"].extend(computed["events"])
         output["execution_events"].extend(computed.get("execution_events", []))
         output["results"].update(computed["results"])
         output["state"] = computed["state"]
+    for sid, signals in joined_ids.items():
+        daily = output["results"][sid]
+        daily.setdefault("monitor_executed_signals", {})["buy"] = signals
+        daily["monitor_tasks"]["buy"]["executed_signals"] = signals
     return output

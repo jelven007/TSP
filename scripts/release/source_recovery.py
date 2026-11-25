@@ -14,6 +14,7 @@ from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from release.common import file_hash
+from release.package_transfer import reject_metadata
 
 versioning = importlib.import_module("versioning")
 
@@ -29,6 +30,7 @@ def archive_members(archive: Path, version: str) -> dict:
     prefix = f"TSP-v{version}"
     with tarfile.open(archive, "r|gz") as source:
         for member in source:
+            reject_metadata(member)
             path = PurePosixPath(member.name)
             if (path.is_absolute() or ".." in path.parts or not path.parts
                     or path.parts[0] != prefix or member.name in seen

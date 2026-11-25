@@ -387,6 +387,14 @@ def _parquet_rows(path: str, signature: tuple) -> int:
     return pq.ParquetFile(path).metadata.num_rows
 
 
+@lru_cache(maxsize=64)
+def _publication_fields(path: str, signature: tuple) -> tuple[str, ...]:
+    import pyarrow.parquet as pq
+
+    names = set(pq.ParquetFile(path).schema_arrow.names)
+    return tuple(sorted(names & {"pub_date", "announcement_date", "published_at", "publication_date"}))
+
+
 def historical_input_quality(data_dir: Path) -> dict[str, Any]:
     """Counts describe retained input rows, not an unknowable missing universe."""
     from app.services.financial_sync import FINANCIAL_TABLES
@@ -394,17 +402,21 @@ def historical_input_quality(data_dir: Path) -> dict[str, Any]:
     tables, rows, errors = {}, 0, []
     for table in FINANCIAL_TABLES:
         count = 0
+        fields = set()
         try:
             for path in (data_dir / "financials" / table).glob("*.parquet"):
                 stat = path.stat()
-                count += _parquet_rows(str(path), (stat.st_ino, stat.st_mtime_ns, stat.st_size))
+                signature = (stat.st_ino, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
+                count += _parquet_rows(str(path), signature)
+                fields.update(_publication_fields(str(path), signature))
         except (OSError, ValueError) as exc:
             errors.append(f"{table}: {type(exc).__name__}")
             tables[table] = {"rows": None, "unknown_publication_ratio": None}
             continue
         rows += count
         # Current providers retain observations, not certified original disclosures.
-        tables[table] = {"rows": count, "unknown_publication_ratio": 1.0 if count else None}
+        tables[table] = {"rows": count, "unknown_publication_ratio": 1.0 if count else None,
+                         "publication_fields": sorted(fields)}
     return {
         "universe": {
             "survivorship_verified": False,
@@ -413,9 +425,11 @@ def historical_input_quality(data_dir: Path) -> dict[str, Any]:
         },
         "financial_publication": {
             "basis": "retained_input_rows", "rows": None if errors else rows,
+            "assessment": "conservative_uncertified", "field_missing_ratio": None,
             "unknown_rows": None if errors else rows,
             "unknown_ratio": 1.0 if rows and not errors else None, "tables": tables, "errors": errors,
             "publication_time_verified": False,
+            "observations": _financial_revision_provenance(data_dir),
         },
     }
 

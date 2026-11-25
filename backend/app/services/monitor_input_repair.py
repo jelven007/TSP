@@ -12,6 +12,22 @@ from app.market_time import as_cn_datetime, cn_now
 from app.services.fs_utils import atomic_write_text
 
 
+def merge_proof(previous, incoming):
+    """Retain two distinct successful requests per symbol, dependency and source day."""
+    from copy import deepcopy
+    proof = deepcopy(previous)
+    for symbol, dependencies in incoming.items():
+        for dependency, receipts in dependencies.items():
+            combined = proof.setdefault(symbol, {}).setdefault(dependency, []) + receipts
+            days = {}
+            for receipt in combined:
+                days.setdefault(receipt.get("day"), {})[receipt["request_seq"]] = receipt
+            proof[symbol][dependency] = [
+                receipts[seq] for _, receipts in sorted(days.items(), key=lambda item: str(item[0]))
+                for seq in sorted(receipts)[-2:]]
+    return proof
+
+
 class MonitorInputRepair:
     def __init__(self, state, *, now=cn_now):
         self.state, self.now = state, now
@@ -58,12 +74,34 @@ class MonitorInputRepair:
     def request(self, request):
         with self.lock:
             self.check(request)
-            key = hashlib.sha256(json.dumps(request, sort_keys=True).encode()).hexdigest()
+            for active in sorted(self.active):
+                saved = self._read(active)
+                prior = saved["request"]
+                if (any(prior.get(field) != request.get(field) for field in (
+                        "owner", "strategy_id", "generation", "day", "phase",
+                        "retry_until", "certify_coverage"))
+                        or not set(request["symbols"]) <= set(prior["symbols"])
+                        or not set(request["daily_dates"]) <= set(prior["daily_dates"])):
+                    continue
+                if request.get("minute_end") and (
+                        not prior.get("minute_end")
+                        or prior["minute_end"] < request["minute_end"]
+                        or (prior.get("minute_start") or "09:30:00") >
+                           (request.get("minute_start") or "09:30:00")):
+                    continue
+                return saved
+            identity = {key: value for key, value in request.items() if key != "attempt"}
+            identity["symbols"] = sorted(set(request["symbols"]))
+            identity["daily_dates"] = sorted(set(request["daily_dates"]))
+            key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
             previous = self._read(key)
-            if key in self.active or previous.get("state") == "succeeded":
+            successful = previous.get("successes", 0)
+            if key in self.active or (previous.get("state") == "succeeded" and (
+                    not request.get("certify_coverage") or successful >= 2)):
                 return previous
             value = {"id": key, "state": "queued", "request": request,
                      "attempts": previous.get("attempts", 0) + 1,
+                     "successes": successful, "result": previous.get("result", {}),
                      "started_at": self.now().isoformat(), "retry_until": request["retry_until"]}
             self._save(key, value)
             self.active.add(key)
@@ -82,6 +120,9 @@ class MonitorInputRepair:
             self._save(key, {**value, "state": "running"})
             result = self.repair(value["request"])
             self.check(value["request"])
+            result["proof"] = merge_proof(
+                value.get("result", {}).get("proof", {}), result.get("proof", {}))
+            value["successes"] += 1
             value.update(state="succeeded", result=result)
         except Exception as exc:
             value.update(state="failed", error=str(exc))
@@ -94,8 +135,11 @@ class MonitorInputRepair:
 
     def repair(self, request):
         """Provider IO and writes remain exclusively in this platform service."""
+        import polars as pl
+
         from app.indicators.pipeline import run_pipeline
         from app.services import kline_periods
+        from app.services.daily_close_validation import require_final_daily_rows
         from app.services.minute_write_order import begin_minute_request
         from app.services.realtime_guard import paused_quotes
 
@@ -104,10 +148,27 @@ class MonitorInputRepair:
         quotes = getattr(self.state, "quote_service", None)
         symbols = request["symbols"]
         day = date.fromisoformat(request["day"])
-        written = {}
+        written, proof = {}, {}
         periods = [("1d", date.fromisoformat(value), time.max) for value in request["daily_dates"]]
+        if request["phase"] == "breadth":
+            missing = []
+            for period, source, end in periods:
+                self.check(request)
+                try:
+                    raw, _ = repo.get_daily_close_inputs(source, include_closing_minute=False)
+                    raw = raw.filter(pl.col("symbol").is_in(symbols))
+                    require_final_daily_rows(raw, source)
+                    if set(raw["symbol"].to_list()) != set(symbols):
+                        missing.append((period, source, end))
+                except (ValueError, OSError, AttributeError, pl.exceptions.PolarsError):
+                    missing.append((period, source, end))
+            periods = missing
         if request.get("minute_end"):
-            periods.append(("1m", day, time.fromisoformat(request["minute_end"])))
+            minute = ("1m", day, time.fromisoformat(request["minute_end"]))
+            if request["phase"] == "breadth":
+                periods.insert(0, minute)
+            else:
+                periods.append(minute)
         for period, source, end in periods:
             self.check(request)
             provider, _ = kline_periods.require_period_provider(period, capset)
@@ -115,9 +176,11 @@ class MonitorInputRepair:
             for offset in range(0, len(symbols), 100):
                 self.check(request)
                 sequence = begin_minute_request(repo.store.data_dir / "kline_minute") if period == "1m" else None
+                batch = symbols[offset:offset + 100]
+                start = (time.fromisoformat(request["minute_start"]) if period == "1m"
+                         and request.get("minute_start") else time(9, 30) if period == "1m" else time.min)
                 frame = kline_periods.fetch_period(
-                    provider, period, symbols[offset:offset + 100],
-                    datetime.combine(source, time(9, 30) if period == "1m" else time.min),
+                    provider, period, batch, datetime.combine(source, start),
                     datetime.combine(source, end), minute_adjust="none")
                 # A blocking provider returning after cancellation/deadline cannot write.
                 with self.lock, paused_quotes(quotes):
@@ -126,17 +189,34 @@ class MonitorInputRepair:
                         kwargs = {"request_seq": sequence} if sequence is not None else {}
                         kline_periods.persist_period(repo, period, frame, **kwargs)
                         count += frame.height
-            if not count:
+                    if request.get("certify_coverage"):
+                        for symbol in batch:
+                            proof.setdefault(symbol, {}).setdefault(
+                                "minute" if period == "1m" else "daily", []).append({
+                                    "symbol": symbol, "day": str(source), "state": "succeeded",
+                                    "request_seq": sequence or time_module_ns(),
+                                    "required_from": datetime.combine(source, start).isoformat(),
+                                    "completed_through": datetime.combine(source, end).isoformat(),
+                                    "collected_at": self.now().isoformat(),
+                                    "returned_rows": (frame.filter(pl.col("symbol") == symbol).height
+                                                      if "symbol" in frame.columns else 0),
+                                })
+            if not count and not request.get("certify_coverage"):
                 raise ValueError(f"{source} {period}修复未返回所需股票数据")
             self.check(request)
             kline_periods.refresh_period(repo, period)
-            if period == "1d":
+            if period == "1d" and request["phase"] != "breadth":
                 with paused_quotes(quotes):
                     self.check(request)
                     run_pipeline(data_dir=repo.store.data_dir, symbols=symbols,
                                  on_batch_done=lambda *_: self.check(request))
                     self.check(request)
                 repo.refresh_cache()
+            if period == "1m" and len(periods) > 1 and request["phase"] == "breadth":
+                publisher = getattr(self.state, "public_publisher", None)
+                if publisher:
+                    self.check(request)
+                    publisher.publish()
             written[f"{period}:{source}"] = count
         self.check(request)
         if request["phase"] == "select":
@@ -145,4 +225,9 @@ class MonitorInputRepair:
         else:
             publisher = getattr(self.state, "public_publisher", None)
             release = publisher.publish() if publisher else None
-        return {"written_rows": written, "release": release}
+        return {"written_rows": written, "release": release, "proof": proof}
+
+
+def time_module_ns():
+    import time
+    return time.time_ns()

@@ -176,8 +176,8 @@ def test_fresh_start_retry_never_registers_or_fetches_a_day(env):
     assert not (env.repo.store.data_dir / "post_close_sync").exists()
 
 
-def test_morning_startup_and_afternoon_close_have_independent_receipts(env):
-    env.clock[0] = env.clock[0].replace(hour=10, minute=0)
+def test_after_trading_startup_and_afternoon_close_have_independent_receipts(env):
+    env.clock[0] = env.clock[0].replace(hour=15, minute=1)
     startup = correction.request_startup(env.repo, "caps")
     assert startup["status"] == "succeeded" and startup["trigger"] == "startup"
     assert len(env.calls) == 5
@@ -194,7 +194,7 @@ def test_morning_startup_and_afternoon_close_have_independent_receipts(env):
 
 
 def test_busy_startup_retries_before_close_time(env):
-    env.clock[0] = env.clock[0].replace(hour=10, minute=0)
+    env.clock[0] = env.clock[0].replace(hour=15, minute=1)
     assert pipeline_jobs.try_acquire_run_slot("other")
     assert correction.request_startup(env.repo, "caps")["status"] == "pending"
     pipeline_jobs.release_run_slot("other")

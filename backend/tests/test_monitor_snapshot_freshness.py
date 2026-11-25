@@ -1,5 +1,6 @@
 """Sandbox loading time must not erase a fresh dispatched market snapshot."""
 from datetime import date, datetime
+from types import SimpleNamespace
 
 import polars as pl
 import pytest
@@ -60,7 +61,6 @@ def test_legacy_payload_does_not_accept_stale_quotes(monkeypatch):
 def test_minute_context_blocker_becomes_a_retry_receipt(monkeypatch, tmp_path, stale):
     from test_late_session_optional_params import signal
 
-    from app.strategy import overnight_runtime
     from app.strategy.engine import StrategyEngine
 
     day = date(2026, 11, 18)
@@ -77,8 +77,10 @@ def test_minute_context_blocker_becomes_a_retry_receipt(monkeypatch, tmp_path, s
                         'def filter_minute_history(df, params):\n    return df\n')
     engine = StrategyEngine([tmp_path])
     assert engine.get("sample").execution_backend == "minute_filter"
-    monkeypatch.setattr(overnight_runtime, "monitor_context",
-                        lambda *args: (_ for _ in ()).throw(ValueError("分钟分区尚未发布")))
+    def missing_minutes(*args, **kwargs):
+        raise ValueError("分钟分区尚未发布")
+
+    repo = SimpleNamespace(get_minute_by_dates=missing_minutes)
     sig = signal(time="14:30:00", evaluation_delay_minutes=.5, pool_up_min_pct=60.)
     sig["id"] = "late"
     from app.strategy import custom_signals
@@ -99,13 +101,16 @@ def test_minute_context_blocker_becomes_a_retry_receipt(monkeypatch, tmp_path, s
                "strategy_task_receipts": {"sample": {"tasks": {"buy": {"signals": {
                    "late": {"breadth": {"state": "success", "terminal": True}}}}}}},
                "strategy_task_results": {"sample": {}},
+               "selection_snapshots": {"sample": {
+                   "as_of": str(day), "source_date": "2026-11-17",
+                   "rows": [{"symbol": "a", "reference_close": 10.}]}},
                "daily_identities": {"sample": {}},
                "late_task_scopes": {"sample": "sample:probe"}, "state": {},
                "snapshot": {"status": {"is_trading_hours": True}, "days": {"stock": str(day)},
                             "frames": {"stock": encode_frame(frame)}, "indices": encode_frame(pl.DataFrame())},
                "rules": [normalize({"id": "late", "name": "尾盘任务", "type": "strategy",
                                     "scope": "all", "strategy_id": "sample"})]}
-    result = monitor_compute.evaluate_snapshot(payload, None, engine, tmp_path)
+    result = monitor_compute.evaluate_snapshot(payload, repo, engine, tmp_path)
     assert result["events"] == result["execution_events"] == []
     daily = result["results"]["sample"]
     assert "分钟分区尚未发布" in daily["section_errors"]["buy"]

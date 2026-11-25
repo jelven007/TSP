@@ -1,4 +1,4 @@
-"""Durable post-close eligibility, separate from next-session minute entries."""
+"""盘后冻结目标日资格; 正常空预选持久化, 缺依赖/失败不伪装为空预选。"""
 from __future__ import annotations
 
 import json
@@ -18,6 +18,7 @@ _scheduled_lock = threading.Lock()
 
 
 def signal_strategy(strategy):
+    """识别可生成盘后资格的策略能力, 不检查监控启用状态或已有归档。"""
     from app.strategy.signal_sections import supports_signal_sections
 
     return (getattr(strategy, "source", None) in ("custom", "ai")
@@ -25,7 +26,7 @@ def signal_strategy(strategy):
 
 
 def due_window(now=None, *, monitored_only=False, strategy_id=None):
-    """Recover only the latest post-close window, before its target session opens."""
+    """监控按策略自己窗口恢复, S03为22~23点; 非监控恢复不跨目标日开盘。"""
     now = as_cn_datetime(now or cn_now())
     if monitored_only:
         from app.market_time import published_trading_day
@@ -50,44 +51,92 @@ def due_window(now=None, *, monitored_only=False, strategy_id=None):
     return source, target
 
 
-def selection_identity(strategy_id):
-    return ResultIdentity(strategy_id, "", "", "{}", "{}", "null", "stock", "1m", daily_record=True)
+def selection_identity(strategy_id, *, policy=""):
+    """建立目标日资格专用归档槽; 与分钟买结果的运行身份槽分开。"""
+    return ResultIdentity(strategy_id, "", "", "{}", "{}", "null", "stock", "1m",
+                          daily_record=True, selection_policy=policy)
 
 
-def valid_selection(snapshot, day):
-    """A normal empty result is complete; missing or failed evidence is not."""
+def valid_selection(snapshot, day, *, strategy_id=None):
+    """校验精确前/目标日、列表与整体错误; S03还要求五维口径及最多30只。
+
+    正常空归档有效, 范围非空且available_daily=0无效。这里不认证调度
+    时点或依赖SHA-256, S03的源名单冻结入口另行检查。
+    """
     from app.strategy.basic_filter import previous_session
     if (not isinstance(snapshot, dict) or snapshot.get("as_of") != str(day)
             or not isinstance(snapshot.get("rows"), list) or snapshot.get("errors")):
         return False
     if snapshot.get("source_date") != str(previous_session(date.fromisoformat(str(day)))):
         return False
+    if strategy_id == S03_ID:
+        from app.services.s03_selection import POLICY
+        if snapshot.get("scoring_policy") != POLICY or len(snapshot["rows"]) > 30:
+            return False
     coverage = snapshot.get("coverage") or {}
     if not isinstance(coverage, dict):
         return False
     return not (coverage.get("scope_total") and coverage.get("available_daily") == 0)
 
 
+def selection_record(strategy_id, day, load):
+    """S03先读五维口径槽, 再读原槽中的兼容归档; 不接受仅ID匹配的旧口径。
+
+    专用槽只区分预选记录, 不改变策略逻辑身份; 读取不迁移或覆盖历史记录。
+    """
+    if strategy_id != S03_ID:
+        return load(selection_identity(strategy_id).record_id(str(day)))
+    policies = [""]
+    if strategy_id == S03_ID:
+        from app.services.s03_selection import POLICY
+        policies.insert(0, POLICY)
+    for policy in policies:
+        saved = load(selection_identity(strategy_id, policy=policy).record_id(str(day)))
+        snapshot = (saved or {}).get("result", {}).get("selection_snapshot")
+        if valid_selection(snapshot, day, strategy_id=strategy_id):
+            return saved
+    return None
+
+
 class DailySelections:
+    """通过结果存储读写冻结资格; 作业回执与资格快照分别保存。"""
+
     def __init__(self, storage):
         self.results = StrategyResults(storage)
 
     def read(self, strategy_id, day):
-        saved = self.results.detail(strategy_id, selection_identity(strategy_id).record_id(str(day)))
+        """读取目标日有效冻结预选, 并沿既有状态证据刷新展示, 缺归档返回 None。"""
+        saved = selection_record(strategy_id, day, lambda key: self.results.detail(strategy_id, key))
         snapshot = (saved or {}).get("result", {}).get("selection_snapshot")
-        return snapshot if valid_selection(snapshot, day) else None
+        from app.services.custom_status_refresh import selection
+        return selection(self.results, strategy_id, snapshot) if valid_selection(
+            snapshot, day, strategy_id=strategy_id) else None
 
     def save(self, identity, snapshot, *, started_at, input_generation=None):
+        """校验后保存完整冻结资格和卖/选/买视图; 买页仍明确尚未计算。
+
+        不按展示上限截断snapshot.rows; 已有兼容S03归档直接复用, 不重写。
+        身份和输入世代交结果存储守卫校验; 自选同步由外层任务负责。
+        """
         from app.strategy.basic_filter import previous_session
         target = date.fromisoformat(str(snapshot["as_of"]))
         if str(previous_session(target)) != str(snapshot["source_date"]):
             raise ValueError("预选源日期必须是目标日的精确前交易日")
         if not valid_selection(snapshot, target):
             raise ValueError("盘后预选证据异常, 需要修复重试")
+        policy = ""
+        if identity.strategy_id == S03_ID and snapshot.get("scoring_policy"):
+            from app.services.s03_selection import POLICY
+            if not valid_selection(snapshot, target, strategy_id=S03_ID):
+                raise ValueError("S03归档不符合当前五维评分口径")
+            existing = selection_record(S03_ID, target, lambda key: self.results.detail(S03_ID, key))
+            if existing is not None:
+                return existing
+            policy = POLICY
         frozen = {**snapshot, "identity": identity.fingerprint,
                   "definition_version": DEFINITION_VERSION}
         reference = frozen.pop("price_suggestion_reference", None)
-        return self.results.save(replace(identity, daily_record=True), {
+        return self.results.save(replace(identity, daily_record=True, selection_policy=policy), {
             "as_of": str(target), "strategy_id": identity.strategy_id,
             "rows": [], "total": 0, "elapsed_ms": 0, "section_mode": "signals",
             "selection_only": True, "selection_snapshot": frozen,
@@ -97,6 +146,7 @@ class DailySelections:
         }, started_at=started_at, input_generation=input_generation)
 
     def job(self, key, value=None):
+        """按调用方作业键读写调度回执; 无回执返回{}, 不作为预选成功证据。"""
         if self.results.tenant:
             storage = self.results.storage
             return (storage.get("daily_selection_jobs", key, {}) if value is None
@@ -117,6 +167,14 @@ class DailySelections:
 
 def compute_selections(engine, service, source, target, ids, overrides, *, now=None,
                        source_selection=None):
+    """从完成源日计算目标日资格; 各策略保存异常/覆盖, 有效成员继续预选。
+
+    共享预选内核应用范围与精确前日数值条件, 策略源码可补评分或ATR。
+    买任务复用归档。股票级参考错误只影响对应股票, 完整池身份保持;
+    有效输入经阈值筛为零与全无有效输入严格区分。
+    返回selections/errors两张按稳定ID索引的映射, 不在这里持久化;
+    共享上下文装配失败向上抛出, 每策略ValueError/OSError写入errors。
+    """
     from app.services.daily_pool_schedule import scheduled_for
     from app.strategy.engine import _sanitize
     from app.strategy.signal_price_suggestions import price_reference
@@ -178,6 +236,7 @@ def compute_selections(engine, service, source, target, ids, overrides, *, now=N
                             "available_daily": len(scope_symbols - unavailable),
                             "missing_symbols": sorted(missing), "complete": not (missing or invalid)}
                 if scope_symbols and not coverage["available_daily"]:
+                    # 范围非空却全无有效输入是失败; 有输入但数值过滤零命中才可成功为空。
                     raise ValueError(f"{source}该策略范围内无有效日线")
                 if invalid:
                     coverage["invalid_symbols"] = invalid
@@ -202,14 +261,34 @@ def compute_selections(engine, service, source, target, ids, overrides, *, now=N
 
 
 def generate_scheduled_local(engine, service, storage, *, now=None, repair=None):
+    """执行本地盘后状态刷新和各时窗预选组, 返回实际保存ID及错误回执。
+
+    自动任务只处理已启用监控且尚无有效归档的策略; 不主动补建历史资格。
+    """
+    from app.services.custom_status_refresh import generate_evening_local
+    try:
+        refreshed = generate_evening_local(engine, service, storage, as_cn_datetime(now or cn_now()))
+    except (ValueError, OSError) as exc:
+        refreshed = {"saved": [], "errors": {"stock_status": str(exc)}}
+        DailySelections(storage).job("stock_status_refresh", {
+            "state": "failed", "errors": refreshed["errors"],
+            "observed_at": as_cn_datetime(now or cn_now()).isoformat()})
     responses = [_generate_scheduled_group(engine, service, storage, now=now, repair=repair,
                                           strategy_id=sid) for sid in (None, S03_ID)]
     return {"saved": [sid for response in responses for sid in response["saved"]],
             "errors": {sid: error for response in responses for sid, error in response["errors"].items()},
+            "status_refresh": refreshed,
             **({"watchlist_changed": True} if any(r.get("watchlist_changed") for r in responses) else {})}
 
 
 def _generate_scheduled_group(engine, service, storage, *, now=None, repair=None, strategy_id=None):
+    """单机锁内执行一个时窗组, 依次检查定版、计算、身份和窗口后归档。
+
+    在途修复暂缓对应策略; 等待输入与计算异常分别记录waiting_data/failed。
+    已过窗口只记过期, 不继续计算; saved仅包含本次实际保存成功的策略ID。
+    S03先冻结S02依赖, 再核对settlement_ready; 已有评分但组同步失败仅重试
+    同步。耗时后的定义、监控世代及真实时钟再次校验, 不能沿用开始时刻提交。
+    """
     from app.services.strategy_results import capture_identities, execution_snapshot
     from app.strategy.config import list_overrides
     from app.strategy.version import digest
@@ -243,7 +322,7 @@ def _generate_scheduled_group(engine, service, storage, *, now=None, repair=None
                and not strategy.meta.get("research_only")
                and (sid == S03_ID) == (strategy_id == S03_ID)]
         job_key = str(target) + (":s03" if strategy_id == S03_ID else "")
-        # Only the saved result proves completion during the execution window.
+        # 有效目标日归档才证明资格完成; 单独作业成功状态不能替代归档。
         pending = [sid for sid in ids if store.read(sid, target) is None and
                    (not expired or not finished(
                        task_receipt(storage, sid, source).get("tasks", {}).get("select", {})))]
@@ -325,7 +404,9 @@ def _generate_scheduled_group(engine, service, storage, *, now=None, repair=None
         watchlist_sync = None
         for sid, selected in response["selections"].items():
             try:
-                # Do not archive results computed against a changed user configuration.
+                if not valid_selection(selected, target, strategy_id=sid):
+                    raise ValueError("盘后预选返回不兼容归档, 需要修复重试")
+                # 保存前重取当前定义、覆盖、监控世代和实际窗口, 丢弃变更前的旧计算。
                 latest = capture_identities(execution_snapshot(live_engine, storage), storage, [sid],
                     overrides_map=list_overrides(storage), timeframe="all")[sid]
                 if (latest.fingerprint != identities[sid].fingerprint

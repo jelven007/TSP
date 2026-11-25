@@ -136,7 +136,10 @@ def test_attachment_failure_does_not_starve_other_events_or_new_feed(env, monkey
     assert env.repo.get_suspension_history()["symbol"].to_list() == ["600001.SH"]
     assert len(second["pending"]) == 1 and second["pending"][0]["symbol"] == SYMBOL
     monkeypatch.setattr(env.lookup, "verify_notice", original)
-    env.clock[0] += timedelta(minutes=1)
+    env.clock[0] = max(
+        datetime.fromisoformat(second["next_retry_at"]),
+        datetime.fromisoformat(second["notice_retries"][suspension_sync._key(notice())]["next_retry_at"]),
+    )
     assert suspension_sync.request_sync(env.repo, lookup=env.lookup)["status"] == "succeeded"
 
 
@@ -363,6 +366,64 @@ def test_pipeline_jobs_api_exposes_full_coverage_and_retry_state(env, monkeypatc
         assert response["next_retry_at"] and not response["coverage_complete"]
 
 
+def test_risk_warning_events_join_existing_scan_and_durable_archive(env, monkeypatch):
+    from app.services.announced_stock_status import confirmed_status, load_risk_events
+
+    monkeypatch.setattr(env.lookup, "verify_notice", lambda *a, **kw: {
+        "events": [], "risk_warning_events": [{
+            "symbol": SYMBOL, "effective_date": DAY, "announced_on": date(2026, 11, 18),
+            "announced_at": datetime(2026, 11, 18, 22, 12), "is_risk_warning": True,
+            "source_url": URL, "evidence_text": "明确生效日及股票身份的公告正文",
+        }], "diagnostics": [],
+    })
+    first = suspension_sync.request_sync(env.repo, lookup=env.lookup)
+    assert first["status"] == "succeeded" and first["added"] == 1
+    assert env.repo.get_suspension_history().is_empty()
+    assert load_risk_events(env.repo.store.data_dir).height == 1
+    assert confirmed_status(env.repo, DAY, observed_at=env.clock[0])["risk_warning"] == [SYMBOL]
+    assert env.published == [0]
+    assert len(list((env.repo.store.data_dir / "instrument_status/announcement_evidence").glob("*.json"))) == 1
+    second = suspension_sync.request_sync(env.repo, lookup=env.lookup, refresh=True)
+    assert second["status"] == "succeeded" and load_risk_events(env.repo.store.data_dir).height == 1
+    assert env.calls.count("SH") == env.calls.count("SZ") == 2
+
+
+def test_risk_warning_new_release_reaches_readonly_consumer(env, monkeypatch):
+    from app.enriched_generation import get_enriched_generation
+    from app.multitenancy.public_reader import open_public_repository
+    from app.multitenancy.publication import PublicPublisher, release_path
+    from app.services import data_release
+    from app.services.announced_stock_status import confirmed_status
+
+    monkeypatch.setattr(suspension_sync, "_publish", REAL_PUBLISH)
+    monkeypatch.setattr(data_release, "audit_provider_routes", lambda: {"status": "ok", "routes": {}})
+    monkeypatch.setattr(settings, "service_role", "platform")
+    for asset in ("stock", "index"):
+        get_enriched_generation(env.repo.store.data_dir, asset)
+    enriched = env.repo.store.data_dir / "kline_daily_enriched/date=2026-11-18/part.parquet"
+    enriched.parent.mkdir(parents=True)
+    pl.read_parquet(env.source).write_parquet(enriched)
+    publisher = PublicPublisher(env.repo.store.data_dir, env.repo.store.data_dir.parent / "public",
+                                write_lock=env.repo._write_lock)
+    publisher.publish()
+    monkeypatch.setattr(env.lookup, "verify_notice", lambda *a, **kw: {
+        "events": [], "risk_warning_events": [{
+            "symbol": SYMBOL, "effective_date": DAY, "announced_on": date(2026, 11, 18),
+            "announced_at": datetime(2026, 11, 18, 22, 12), "is_risk_warning": False,
+            "source_url": URL, "evidence_text": "确认摘帽公告正文",
+        }], "diagnostics": [],
+    })
+    result = suspension_sync.request_sync(env.repo, publisher, lookup=env.lookup)
+    assert result["status"] == "succeeded" and result["public_release_id"]
+    reader = open_public_repository(release_path(publisher.root))
+    try:
+        assert reader.store.read_only
+        current = confirmed_status(reader, DAY, observed_at=env.clock[0])
+        assert current["risk_removed"] == [SYMBOL] and current["risk_warning"] == []
+    finally:
+        reader.db.close()
+
+
 def test_partial_market_pages_are_durable_and_not_reported_as_coverage(env, monkeypatch):
     saved = {"begin": str(env.clock[0].date() - timedelta(days=3)),
              "end": str(env.clock[0].date() + timedelta(days=1)),
@@ -386,3 +447,22 @@ def test_partial_market_pages_are_durable_and_not_reported_as_coverage(env, monk
     second = suspension_sync.request_sync(env.repo, lookup=env.lookup)
     assert second["status"] == "succeeded" and second["scans"] == {}
     assert attempts == [None, saved]
+
+
+def test_new_status_policy_refreshes_once_without_old_failure_backoff(env, monkeypatch):
+    original = env.lookup.market_notices
+    monkeypatch.setattr(env.lookup, "market_notices",
+                        lambda *a, **kw: (_ for _ in ()).throw(ValueError("old scan failed")))
+    first = suspension_sync.request_sync(env.repo, lookup=env.lookup)
+    assert first["status"] == "failed"
+    path = env.repo.store.data_dir / "suspension_sync/current.json"
+    previous = json.loads(path.read_text())
+    previous.pop("evidence_policy")
+    previous["next_retry_at"] = (env.clock[0] + timedelta(minutes=15)).isoformat()
+    path.write_text(json.dumps(previous))
+    monkeypatch.setattr(env.lookup, "market_notices", original)
+    current = suspension_sync.request_sync(env.repo, lookup=env.lookup)
+    assert current["status"] == "succeeded"
+    assert current["evidence_policy"] == "stock_status_v2"
+    assert env.calls == ["SH", "SZ", SYMBOL]
+    assert suspension_sync.summary(env.repo)["coverage_complete"]

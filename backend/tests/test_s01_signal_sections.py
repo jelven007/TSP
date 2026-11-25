@@ -201,17 +201,18 @@ def test_missing_minutes_service_recovers_s01_selection_and_cause(scan, monkeypa
     assert "S01 minute partition unreadable" in result.section_errors["buy"]
 
 
-def test_candidate_uses_saved_source_with_only_explicit_section_opt_in():
-    import ast
+def test_current_source_has_signal_sections_without_a_market_count_gate():
+    from app.strategy.s01_signals import resolve_parameters
 
     root = Path(__file__).resolve().parents[2]
-    saved = ast.parse((root / "backend/tests/fixtures/s01_available_minutes.py").read_text())
-    candidate = ast.parse((root / "examples/strategies/s01_signal_sections.py").read_text())
-    assignment = candidate.body.pop()
-    assert ast.unparse(assignment) == "META['result_sections'] = 'signals'"
-    assert ast.dump(saved) == ast.dump(candidate)
     engine = StrategyEngine([root / "examples/strategies"])
-    assert signal_strategy(engine.get("custom_mvxxcs01"))
+    strategy = engine.get("custom_mvxxcs01")
+    assert signal_strategy(strategy)
+    values = resolve_parameters(engine, strategy, {}, definitions={})
+    assert "market_min_valid" not in values
+    # The source-only candidate path also accepts a single valid member.
+    result = strategy.filter_minute_history_fn(bars(price=10.25), values, daily=daily())
+    assert result["symbol"].to_list() == ["600001.SH"]
 
 
 def test_saved_candidate_freezes_previous_session_and_confirms_available_minutes(monkeypatch):
@@ -234,10 +235,10 @@ def test_saved_candidate_freezes_previous_session_and_confirms_available_minutes
         get_daily_close_inputs=lambda *_: (ctx.current, ctx.current.select("symbol", "close"))))
     monkeypatch.setattr(service, "_load_enriched_history", lambda *_: ctx.daily_history)
     frozen = compute_selections(engine, service, ctx.current["date"][0], ctx.as_of, [sid], {},
-                                now=datetime(2026, 8, 24, 20))
+                                now=datetime(2026, 8, 24, 21))
     assert frozen["errors"] == {}
     assert [row["symbol"] for row in frozen["selections"][sid]["rows"]] == ["600001.SH"]
-    assert frozen["selections"][sid]["scheduled_for"].endswith("20:00:00+08:00")
+    assert frozen["selections"][sid]["scheduled_for"].endswith("21:00:00+08:00")
     engine._selection_loader = lambda *_: frozen["selections"][sid]
     # A missing minute and a repeated timestamp cannot alter cumulative evidence.
     ctx.history = bars(price=20.5).filter(pl.col("datetime") != datetime(2026, 8, 25, 10))

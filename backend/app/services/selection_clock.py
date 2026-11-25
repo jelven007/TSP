@@ -1,17 +1,22 @@
-"""One clock for next-session eligibility and its source-day evidence."""
+"""盘后资格的唯一时钟入口, 供调度、修复期限和归档计划共同引用。
+
+窗口属于完成日线的源日, 资格归属由调用方解析为下一交易日。
+window_for/window_text仅提供时钟, 不证明数据已定版或任务已完成。
+"""
 from datetime import time
 
-SELECTION_HOUR = 20
+SELECTION_HOUR = 21
 SELECTION_TIME = time(SELECTION_HOUR)
-SELECTION_TIME_TEXT = "20:00"
+SELECTION_TIME_TEXT = "21:00"
 S02_ID = "custom_mvxxcp88"
 S03_ID = "custom_mvxxcs03"
 
 
 def window_for(strategy_id=None):
-    """Inclusive submission bounds, in Beijing time."""
-    return (time(21), time(22)) if strategy_id == S03_ID else (SELECTION_TIME, time(21))
+    """北京时间窗口含结束整秒: 普通策略21~22点, S03评分及自选22~23点。"""
+    return (time(22), time(23)) if strategy_id == S03_ID else (SELECTION_TIME, time(22))
 
 
 def window_text(strategy_id=None):
+    """输出规范 HH:MM:SS, 供监控计划与归档使用同一窗口。"""
     return tuple(value.strftime("%H:%M:%S") for value in window_for(strategy_id))

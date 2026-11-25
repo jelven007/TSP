@@ -83,16 +83,21 @@ class ResultIdentity:
     runtime_identity: str = ""
     storage_generation: int = 0
     daily_record: bool = False
+    selection_policy: str = ""
 
     @property
     def fingerprint(self) -> str:
         fields = asdict(self)
         fields.pop("storage_generation")
         fields.pop("daily_record")
+        fields.pop("selection_policy")
         return digest(fields)
 
     def record_id(self, as_of: str) -> str:
-        fingerprint = digest({"strategy_daily_record": self.strategy_id}) if self.daily_record else self.fingerprint
+        daily = {"strategy_daily_record": self.strategy_id}
+        if self.selection_policy:
+            daily["selection_policy"] = self.selection_policy
+        fingerprint = digest(daily) if self.daily_record else self.fingerprint
         return f"{digest(self.strategy_id)[:16]}:{date.fromisoformat(str(as_of)).isoformat()}:{fingerprint}"
 
     def snapshot(self) -> dict:
@@ -166,37 +171,6 @@ def previous_daily_state(storage, strategy_id, as_of):
     params = (saved or {}).get("summary", {}).get("params", {})
     return {**state, **{k: params[k] for k in ("suspension_policy", "suspension_events")
                       if k in params and k not in state}}
-
-
-def archive_daily_backtest(storage, result, *, started_at, generation=0):
-    """Archive only the declared baseline; pressure/capital experiments retain their own jobs."""
-    params = result.get("config", {}).get("params", {})
-    sid = result.get("strategy_info", {}).get("id")
-    if (sid != "s02" or result.get("error")
-            or params.get("initial_cash") != 100000 or params.get("slippage") != .0005
-            or params.get("stop_loss_pct") != .06
-            or params.get("take_profit_pct") != .06):
-        return 0
-    identity = ResultIdentity(
-        sid, result["strategy_info"].get("name", sid),
-        result.get("provenance", {}).get("strategy_hash") or digest(result["strategy_info"]),
-        json.dumps(params, sort_keys=True, ensure_ascii=False),
-        json.dumps(result.get("config", {}).get("overrides") or {}, sort_keys=True, ensure_ascii=False),
-        json.dumps(result.get("config", {}).get("symbols")), "stock", "1m",
-        storage_generation=generation, daily_record=True)
-    store = StrategyResults(storage)
-    days = result.get("daily_results") or []
-    for index, item in enumerate(days):
-        payload = {**item, "strategy_id": sid, "execution_error": item.get("error")}
-        if index == 0:
-            from app.market_time import published_trading_days
-            day = date.fromisoformat(item["as_of"])
-            previous = max(d for year in (day.year - 1, day.year)
-                           for d in published_trading_days(year) if d < day)
-            payload["initial_state"] = {"as_of": str(previous), "cash": params["initial_cash"],
-                                       "nav": params["initial_cash"], "positions": [], "complete": True}
-        store.save(identity, payload, started_at=started_at)
-    return len(days)
 
 
 def _dependencies(storage):
@@ -550,6 +524,10 @@ class StrategyResults:
              input_generation=None) -> dict:
         as_of = date.fromisoformat(str(result["as_of"])).isoformat()
         record_id = identity.record_id(as_of)
+        diagnostic = (identity.strategy_id == "custom_mvxxcp88"
+                      and bool((result.get("repair_provenance") or {}).get("diagnostic_only")))
+        if diagnostic:
+            record_id = f"{record_id[:28]}{digest([record_id, result['repair_provenance'], started_at])}"
 
         def comparable(value):
             # Single and batch runners omit different empty optional fields.
@@ -585,7 +563,8 @@ class StrategyResults:
         def merged(old, conn):
             if old and result.get("selection_only"):
                 from app.services.daily_selections import valid_selection
-                if valid_selection(old["result"].get("selection_snapshot"), as_of):
+                if valid_selection(old["result"].get("selection_snapshot"), as_of,
+                                   strategy_id=identity.strategy_id if identity.selection_policy else None):
                     return old, "unchanged"
             if old and old["summary"]["started_at"] > started_at:
                 return old, "unchanged"
@@ -595,7 +574,7 @@ class StrategyResults:
             prior_result = (old["result"] if old and old["summary"].get("identity") == identity.fingerprint
                             else None)
 
-            independent_sell = (result.get("monitor_tasks") or {}).get("sell", {}).get("state") in (
+            independent_sell = ((result.get("monitor_tasks") or {}).get("sell") or {}).get("state") in (
                 "success", "failed")
             from app.services.strategy_monitor_state import CONTRACT
             canonical_monitor = result.get("monitor_contract") == CONTRACT
@@ -617,20 +596,23 @@ class StrategyResults:
             if (payload.get("monitor_tasks") and prior_result
                     and (payload["monitor_tasks"].get("sell") or {}).get("state") not in ("success", "failed")):
                 payload["exit_signal_hits"] = copy.deepcopy(prior_result.get("exit_signal_hits") or [])
-                if prior_result.get("monitor_tasks", {}).get("sell", {}).get("state") == "success":
-                    payload["section_statuses"]["sell"] = prior_result.get("section_statuses", {}).get("sell", "success")
+                if ((prior_result.get("monitor_tasks") or {}).get("sell") or {}).get("state") == "success":
+                    payload["section_statuses"]["sell"] = (prior_result.get("section_statuses") or {}).get("sell", "success")
             reference = payload.pop("price_suggestion_reference", None)
             if payload.get("section_mode") == "signals" and not payload.get("selection_only"):
-                frozen_id = replace(identity, daily_record=True).record_id(as_of)
-                if self.tenant:
-                    row = conn.execute(
-                        "SELECT value FROM business.documents WHERE namespace=%s AND id=%s",
-                        (NAMESPACE, frozen_id),
-                    ).fetchone()
-                    frozen = row["value"] if row else None
-                else:
-                    row = conn.execute("SELECT value FROM strategy_results WHERE id=?", (frozen_id,)).fetchone()
-                    frozen = json.loads(row["value"]) if row else None
+                from app.services.daily_selections import selection_record
+
+                def load(record_id):
+                    if self.tenant:
+                        row = conn.execute(
+                            "SELECT value FROM business.documents WHERE namespace=%s AND id=%s",
+                            (NAMESPACE, record_id),
+                        ).fetchone()
+                        return row["value"] if row else None
+                    row = conn.execute("SELECT value FROM strategy_results WHERE id=?", (record_id,)).fetchone()
+                    return json.loads(row["value"]) if row else None
+
+                frozen = selection_record(identity.strategy_id, as_of, load)
                 selected = (frozen or {}).get("result", {}).get("selection_snapshot")
                 if selected is not None:
                     payload["selection_snapshot"] = selected
@@ -661,6 +643,8 @@ class StrategyResults:
                 "selection_only": bool(current.get("selection_only")),
                 "selection_count": len((current.get("sections") or {}).get("select", [])),
             }
+            if diagnostic:
+                summary["diagnostic_only"] = True
             return json_value({"record_id": record_id, "summary": summary,
                                "result": current, "ever_rows": ever,
                                "_cache_token": uuid4().hex}), "result"
@@ -669,7 +653,7 @@ class StrategyResults:
             from psycopg.types.json import Jsonb
             with self.storage._transaction(write=True) as conn:
                 self._check_generation(conn, identity.strategy_id, identity.storage_generation)
-                if result.get("daily_stock_pool") is not None:
+                if result.get("daily_stock_pool") is not None and not diagnostic:
                     from app.services.daily_stock_pools import DailyStockPools
                     DailyStockPools(self.storage).save_in_transaction(
                         conn, identity, result["daily_stock_pool"], started_at=started_at,
@@ -696,12 +680,13 @@ class StrategyResults:
                         and value["result"].get("section_mode") == "signals"):
                     from app.services.strategy_day_views import publish
                     from app.services.strategy_monitor_tasks import forward_buy
-                    forward_buy(self, conn, identity, value)
+                    if not diagnostic:
+                        forward_buy(self, conn, identity, value)
                     publish(self, conn, identity.strategy_id, as_of, identity.asset_type, identity.timeframe)
         else:
             with self._local(write=True) as conn:
                 self._check_generation(conn, identity.strategy_id, identity.storage_generation)
-                if result.get("daily_stock_pool") is not None:
+                if result.get("daily_stock_pool") is not None and not diagnostic:
                     from app.services.daily_stock_pools import DailyStockPools
                     DailyStockPools(self.storage).save_in_transaction(
                         conn, identity, result["daily_stock_pool"], started_at=started_at,
@@ -726,7 +711,8 @@ class StrategyResults:
                         and value["result"].get("section_mode") == "signals"):
                     from app.services.strategy_day_views import publish
                     from app.services.strategy_monitor_tasks import forward_buy
-                    forward_buy(self, conn, identity, value)
+                    if not diagnostic:
+                        forward_buy(self, conn, identity, value)
                     publish(self, conn, identity.strategy_id, as_of, identity.asset_type, identity.timeframe)
         logger.info("strategy result %s: asset=%s timeframe=%s date=%s",
                     "saved" if update == "result" else "reused",
@@ -739,16 +725,24 @@ class StrategyResults:
 
     def read(self, identity: ResultIdentity, as_of: str, *, record_id=None) -> dict | None:
         saved = self.detail(identity.strategy_id, record_id or identity.record_id(as_of))
+        from app.services.daily_selections import selection_record
+        frozen = None
+        from app.services.selection_clock import S03_ID
+        if identity.timeframe in ("1d", "1m") and (
+                identity.strategy_id == S03_ID or saved is None
+                or not saved["result"].get("selection_snapshot")):
+            frozen = selection_record(identity.strategy_id, as_of,
+                                      lambda key: self.detail(identity.strategy_id, key))
         if saved is None and identity.timeframe in ("1d", "1m"):
-            fallback = self.detail(identity.strategy_id, replace(identity, daily_record=True).record_id(as_of))
+            fallback = frozen
             if ((fallback or {}).get("result", {}).get("selection_only")
                     and fallback["summary"].get("timeframe") == identity.timeframe
                     and fallback["summary"].get("asset_type") == identity.asset_type):
                 saved = fallback
         if (saved and identity.timeframe in ("1d", "1m")
                 and saved["result"].get("section_mode") == "signals"
-                and not saved["result"].get("selection_snapshot")):
-            frozen = self.detail(identity.strategy_id, replace(identity, daily_record=True).record_id(as_of))
+                and (not saved["result"].get("selection_snapshot") or identity.strategy_id == S03_ID)
+                and not saved["result"].get("selection_only")):
             selected = (frozen or {}).get("result", {}).get("selection_snapshot")
             if selected is not None:
                 # A historical backfill can arrive after a missing-selection scan.
@@ -758,6 +752,9 @@ class StrategyResults:
                 saved["result"]["section_errors"] = {
                     key: value for key, value in (saved["result"].get("section_errors") or {}).items()
                     if key != "select"}
+        if saved:
+            from app.services.custom_status_refresh import result
+            saved = {**saved, "result": result(self, identity.strategy_id, saved["result"])}
         return saved
 
     def detail(self, strategy_id: str, record_id: str) -> dict | None:
@@ -1030,6 +1027,8 @@ class StrategyResults:
 
 def persist_result(storage, identity, result, *, started_at, input_generation=None):
     """Storage failures must reach callers; a successful calculation is not a successful save."""
+    from app.services.s02_run_evidence import manual_review
+    result = manual_review(identity.strategy_id, result, started_at)
     try:
         return StrategyResults(storage).save(identity, result, started_at=started_at,
                                              input_generation=input_generation)

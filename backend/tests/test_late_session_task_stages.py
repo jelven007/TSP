@@ -43,7 +43,7 @@ def test_first_successful_breadth_is_frozen_and_valid_rejection_is_terminal():
     assert not run(sig, 30, rejected).symbols
 
 
-def test_breadth_failure_retries_before_confirmation_then_expires():
+def test_breadth_failure_retries_until_entry_window_ends():
     sig = signal(time="14:30:00", evaluation_delay_minutes=.5, pool_up_min_pct=60.)
     missing = bars().head(0)
     recovered = {}
@@ -51,7 +51,8 @@ def test_breadth_failure_retries_before_confirmation_then_expires():
     assert run(sig, 29, recovered).pool_up_pct == 100.
     expired = {}
     assert run(sig, 15, expired, missing).diagnostics
-    result = run(sig, 30, expired)
+    assert run(sig, 35, expired).symbols == ["a"]
+    result = run(sig, 25 * 60 + 1, {})
     assert result.stage == "expired" and result.diagnostics
     assert not result.symbols
 
@@ -182,9 +183,10 @@ def test_completed_task_keeps_its_receipt_after_signal_validity_interval():
     assert run(sig, 61, state) == first
 
 
-def test_live_task_missing_the_entire_breadth_window_cannot_confirm_late():
+def test_live_task_can_start_after_confirmation_inside_entry_window():
     sig = signal(time="14:30:00", evaluation_delay_minutes=.5, pool_up_min_pct=60.)
-    assert run(sig, 35, {}).stage == "expired"
+    assert run(sig, 35, {}).stage == "confirmed"
+    assert run(sig, 25 * 60 + 1, {}).stage == "expired"
 
 
 def test_context_failure_keeps_successful_breadth_without_a_loaded_pool():

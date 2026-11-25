@@ -105,7 +105,8 @@ EXPECTED_OPEN_ENDPOINTS: set[str] = {
 # 跟单新增可选买/卖订单类型及pool模式; 账户最低佣金/额外过户费/日期税率
 # 加法扩展, 旧请求默认与端点集合不变; 费用作用全账户, 历史成交不重算。
 # 账户生命周期补充修改/删除入口; 已有请求继续保持兼容。
-EXPECTED_TIER_A_SCHEMA_SHA256 = "4e79af4f84177420c5124c5cdacac53db06f78864b1564c4697e738555af4337"
+# 自定义策略回测新增可选的买/卖参与比例, 两者缺省为0.1。
+EXPECTED_TIER_A_SCHEMA_SHA256 = "ec1d8cbeb48cf0b969ff9c7215dea55b6687cf6474c09344a45a67096d030781"
 _HTTP_METHODS = {"get", "post", "put", "delete", "patch"}
 
 

@@ -38,6 +38,7 @@ import { ResearchInputSummary } from './components/ResearchInputSummary'
 import { SignalTriggerActions } from '@/components/signals/SignalTriggerActions'
 import { WatchlistGroupMenu } from '@/components/WatchlistAddMenu'
 import { ScoringEditor } from '@/components/ScoringEditor'
+import { strategyScoringDescription } from '@/lib/strategyScoring'
 import { StrategyParamGroups } from '@/components/StrategyParamGroups'
 import { applyParamValue } from '@/lib/strategyParams'
 import { OvernightExecutionSummary } from '@/components/OvernightExecutionSummary'
@@ -990,6 +991,8 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed, initialization
     saved.exitFill ?? saved.matching ?? REQUESTED_BACKTEST_DEFAULTS.exitFill,
   )
   const [fees, setFees] = useState(saved?.fees ?? '2')
+  const [entryParticipation, setEntryParticipation] = useState(saved?.entryParticipation ?? '10')
+  const [exitParticipation, setExitParticipation] = useState(saved?.exitParticipation ?? '10')
   const [stampTax, setStampTax] = useState<string>(saved?.stampTax ?? '')
   const [minimumCommission, setMinimumCommission] = useState<string>(saved?.minimumCommission ?? '0')
   const [transferFee, setTransferFee] = useState<string>(saved?.transferFee ?? '0')
@@ -1066,6 +1069,9 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed, initialization
     if (cfg.exit_fill === 'close_t' || cfg.exit_fill === 'open_t+1' || cfg.exit_fill === 'signal_next_minute') {
       setExitFill(cfg.exit_fill)
     }
+    // Missing rates belong to historical inputs; preserve their original capacity on retest.
+    setEntryParticipation(String(Number(cfg.entry_participation_pct ?? cfg.params?.participation ?? 1) * 100))
+    setExitParticipation(String(Number(cfg.exit_participation_pct ?? cfg.params?.participation ?? 1) * 100))
     if (cfg.commission_pct != null) setFees(String(Math.round(Number(cfg.commission_pct) * 10000)))
     setStampTax(cfg.stamp_tax_pct != null ? String(Number(cfg.stamp_tax_pct) * 1000) : '')
     setMinimumCommission(String(cfg.minimum_commission ?? 0))
@@ -1280,6 +1286,13 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed, initialization
     if (backtestTask && !backtestTask.isPending && backtestTask.result && appliedTaskRef.current !== backtestTask) {
       // 配置变化不能再次应用旧结果，避免切回「每日」并重置当前分页。
       appliedTaskRef.current = backtestTask
+      const cfg = backtestTask.result.config
+      const frozenEntryParticipation = cfg.entry_participation_pct == null
+        ? entryParticipation : String(Number(cfg.entry_participation_pct) * 100)
+      const frozenExitParticipation = cfg.exit_participation_pct == null
+        ? exitParticipation : String(Number(cfg.exit_participation_pct) * 100)
+      setEntryParticipation(frozenEntryParticipation)
+      setExitParticipation(frozenExitParticipation)
       setResult(backtestTask.result)
       setResultTab('daily')
       setDailyPage(0)
@@ -1294,6 +1307,8 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed, initialization
         matching,
         entryFill: effectiveEntryFill,
         exitFill: effectiveExitFill,
+        entryParticipation: frozenEntryParticipation,
+        exitParticipation: frozenExitParticipation,
         fees,
         stampTax,
         minimumCommission,
@@ -1319,12 +1334,18 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed, initialization
   }, [
     backtestTask, selectedStrategy, symbols, assetType, start, end, matching, effectiveEntryFill, effectiveExitFill,
     fees, stampTax, minimumCommission, transferFee, slippage, maxPositions, maxExposure,
+    entryParticipation, exitParticipation,
     initialCapital, positionSizing, simMode, holdingDays, isMinuteStrategy, highGranularity,
     regimeStates, regimeMinScore, strategyParams, overrides, strategyDetail.data,
   ])
 
   const handleRun = () => {
     if (!selectedStrategy || !selectedStrategyAvailable || !detail || backtestDataUnavailable) return
+    if (isCustomStrategy && [entryParticipation, exitParticipation].some(value =>
+      !Number.isFinite(Number(value)) || Number(value) <= 0 || Number(value) > 100)) {
+      toast('分钟参与率必须大于0且不超过100%', 'error')
+      return
+    }
     const requestOverrides = detail
       ? normalizeStrategyOverrides(detail, overrides)
       : overrides
@@ -1337,7 +1358,9 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed, initialization
       matching,
       entry_fill: commonExecution ? 'close_t' : effectiveEntryFill,
       exit_fill: effectiveExitFill,
-      minute_price_rule: fixedSignalMatching ? 'high_low_v1' : 'legacy',
+      minute_price_rule: isCustomStrategy || fixedSignalMatching ? 'high_low_v1' : 'legacy',
+      entry_participation_pct: isCustomStrategy ? Number(entryParticipation) / 100 : 1,
+      exit_participation_pct: isCustomStrategy ? Number(exitParticipation) / 100 : 1,
       commission_pct: Number(fees) / 10000,
       stamp_tax_pct: stampTax === '' ? undefined : Number(stampTax) / 1000,
       minimum_commission: Number(minimumCommission),
@@ -2047,6 +2070,12 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed, initialization
                 <option value="close_t">信号日收盘</option>
               </select>
             )}
+            {isCustomStrategy && <div className="mt-2">
+              <label htmlFor="backtest-entry-participation" className="mb-1 block text-[11px] text-secondary">分钟参与率 (%)</label>
+              <input id="backtest-entry-participation" aria-label="建仓分钟参与率 (%)"
+                type="number" min="0.01" max="100" step="any" className={INPUT_CLS}
+                value={entryParticipation} onChange={e => setEntryParticipation(e.target.value)} />
+            </div>}
           </div>
           <div>
             <div className="mb-1.5 flex items-center gap-1">
@@ -2072,8 +2101,15 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed, initialization
                   ? '早盘清仓信号触发时间 → 兜底时间' : '信号后下1分钟起，5分钟卖出'}</option>
               )}
             </select>}
+            {isCustomStrategy && <div className="mt-2">
+              <label htmlFor="backtest-exit-participation" className="mb-1 block text-[11px] text-secondary">分钟参与率 (%)</label>
+              <input id="backtest-exit-participation" aria-label="清仓分钟参与率 (%)"
+                type="number" min="0.01" max="100" step="any" className={INPUT_CLS}
+                value={exitParticipation} onChange={e => setExitParticipation(e.target.value)} />
+            </div>}
           </div>
           {isCustomStrategy && <div className="col-span-2 text-[10px] leading-4 text-muted">
+            <p>买入取每分钟K线最高价，卖出取最低价；每分钟成交股数分别不超过该分钟成交量×建仓／清仓参与率，按交易股数单位向下取整。买足或卖足提前结束，到期撤余单、余股保留。</p>
             <p>{executionDescription.entry}</p>
             <p>{executionDescription.exit}</p>
             <p>{executionDescription.missing}</p>
@@ -3066,7 +3102,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed, initialization
                   <div>信号参数在对应触发器中设置；前日条件在基础过滤中设置。</div>
                 </> : hasMorningExit ? <>
                   <div>分钟建仓从信号确认后的可成交分钟开始，尾盘走强持续到结束时间，其他信号沿其成交窗口；清仓从下一交易日信号确认后的可成交分钟开始，持续至兜底时间前。</div>
-                  <div>现价相对原始昨收达到涨幅或跌幅阈值触发清仓，否则到止损时间触发；持续卖出至兜底时间前，到点停止并保留余股。时间支持全天配置，旧振幅定义沿用冻结规则。需关闭其他出场触发器、固定/移动风控及最长持有。</div>
+                  <div>按已启用的昨收涨跌幅、放量下跌或买入成交均价止盈止损触发清仓；参数留空不生效。止损时间到触发清仓，持续卖出至兜底时间前，到点停止并保留余股。时间支持全天配置，旧振幅定义沿用冻结规则。支持固定/移动风控及最长持有，按最早触发执行；暂不混合其他出场触发器。</div>
                 </> : <>
                   <div>成交口径可分别设置建仓/清仓：默认建仓从次日首根分钟 K 起做 5 分钟容量撮合，清仓按所选日线口径执行。</div>
                   <div>退出优先级：止损/移动止损 &gt; 卖点信号 &gt; 到期平仓；到期只作兜底，不抢占卖点或风控。</div>
@@ -3166,7 +3202,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed, initialization
                     options={{ allowIntraday: supportsMorningExit || !!detail.parameter_signals || detail.optional_triggers, allowHoldingExit: supportsMorningExit || detail.optional_triggers, s01Template: detail.parameter_signals || detail.optional_triggers ? 's01_morning_exit' : undefined }}
                   />
                   {hasMorningExit && !detail.optional_triggers && <div className="mt-2 text-[11px] leading-5 text-muted">
-                    收益回测支持当前早盘清仓规则；使用A股仓位模拟，需关闭其他出场触发器、固定/移动风控及最长持有。
+                    早盘清仓收益回测支持环境过滤、固定/移动风控及最长持有；环境只过滤新入场，风控与清仓信号按最早触发执行。使用A股仓位模拟，暂不混合其他出场触发器。
                   </div>}
                 </ConfigSection>
               )}
@@ -3174,11 +3210,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed, initialization
               {settingsTab === 'scoring' && (
                 <ConfigSection title="评分方案" hint={detail.scoring_mode === 'strategy' ? '显示策略固定评分与排序' : '选择因子、方向与权重，保存时自动归一化'}>
                   {detail.scoring_mode === 'strategy' ? <p className="text-xs text-muted">
-                    {detail.id === 'custom_mvxxcs01'
-                      ? '使用因子「当日低振幅成交额评分」（权重100%）：评分 = −当日振幅 + 0.001 × ln（当日累计成交额）。振幅为小数比例，成交额单位为元；原始评分降序，同分按股票代码升序。'
-                      : ['custom_mvxxcp88', 'custom_mvxxcs03'].includes(detail.id)
-                      ? '排名由策略生成。当前策略按ATR14÷昨收降序，排名分数为0～100分，同值按触发涨幅、股票代码排序。'
-                      : '排名由策略生成，读取当前源码，按保存的排序方向及同分规则执行。'}
+                    {strategyScoringDescription(detail)}
                   </p> : <ScoringEditor
                     key={detail.id}
                     value={scoring}

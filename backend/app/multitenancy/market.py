@@ -101,6 +101,15 @@ class PublicMarket:
         except (httpx.HTTPError, ValueError) as exc:
             raise AccessError(503, "平台输入修复暂不可用") from exc
 
+    def s02_input(self, request, phase):
+        try:
+            response = self.client.post("/internal/cell-market/s02-input",
+                                        json={"request": request, "phase": phase})
+            response.raise_for_status()
+            return response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise AccessError(503, "S02输入未同步") from exc
+
     def cancel_monitor_repair(self, owner, sid, generation):
         try:
             response = self.client.post("/internal/cell-market/monitor-repair/cancel",

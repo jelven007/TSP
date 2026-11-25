@@ -1,4 +1,4 @@
-"""S03 consumes the frozen 20:00 S02 archive and its own bounded window."""
+"""S03 consumes the frozen 21:00 S02 archive and its own bounded window."""
 # ruff: noqa: RUF001 -- Exercise fullwidth announcement issuer punctuation.
 from datetime import date, datetime
 
@@ -39,13 +39,17 @@ def test_saved_optional_metrics_do_not_replace_five_factor_score_or_order():
 
 @pytest.mark.parametrize("hour,minute,second,sid,expected", [
     (19, 59, 59, S02, None),
-    (20, 0, 0, S02, (SOURCE, TARGET)),
+    (20, 59, 59, S02, None),
     (21, 0, 0, S02, (SOURCE, TARGET)),
-    (21, 0, 1, S02, None),
+    (22, 0, 0, S02, (SOURCE, TARGET)),
+    (22, 0, 1, S02, None),
     (20, 59, 59, S03, None),
-    (21, 0, 0, S03, (SOURCE, TARGET)),
+    (21, 0, 0, S03, None),
+    (21, 59, 59, S03, None),
     (22, 0, 0, S03, (SOURCE, TARGET)),
-    (22, 0, 1, S03, None),
+    (22, 0, 1, S03, (SOURCE, TARGET)),
+    (23, 0, 0, S03, (SOURCE, TARGET)),
+    (23, 0, 1, S03, None),
 ])
 def test_independent_windows(hour, minute, second, sid, expected):
     now = datetime(2026, 11, 20, hour, minute, second, tzinfo=CN_TZ)
@@ -54,8 +58,8 @@ def test_independent_windows(hour, minute, second, sid, expected):
 
 def source_snapshot():
     return {"as_of": str(TARGET), "source_date": str(SOURCE), "rows": [],
-            "identity": "saved-s02", "scheduled_for": "2026-11-20T20:00:00+08:00",
-            "generated_at": "2026-11-20T20:12:00+08:00"}
+            "identity": "saved-s02", "scheduled_for": "2026-11-20T21:00:00+08:00",
+            "generated_at": "2026-11-20T21:12:00+08:00"}
 
 
 def test_source_dependency_rejects_late_reconstruction_and_wrong_dates():
@@ -65,8 +69,8 @@ def test_source_dependency_rejects_late_reconstruction_and_wrong_dates():
     assert value["snapshot"]["rows"] == []
     for field, invalid in [
         ("source_date", "2026-11-19"), ("as_of", "2026-11-24"),
-        ("scheduled_for", "2026-11-20T21:00:00+08:00"),
-        ("generated_at", "2026-11-20T21:00:01+08:00"),
+        ("scheduled_for", "2026-11-20T20:00:00+08:00"),
+        ("generated_at", "2026-11-20T22:00:01+08:00"),
     ]:
         with pytest.raises(ValueError):
             freeze_source({**source_snapshot(), field: invalid}, SOURCE, TARGET)
@@ -179,11 +183,11 @@ def test_compute_route_consumes_empty_frozen_source_without_loading_market():
     from app.services.daily_selections import compute_selections
     from app.services.s03_selection import freeze_source
     result = compute_selections(None, None, SOURCE, TARGET, [S03], {},
-        now=datetime(2026, 11, 20, 21, tzinfo=CN_TZ),
+        now=datetime(2026, 11, 20, 22, tzinfo=CN_TZ),
         source_selection=freeze_source(source_snapshot(), SOURCE, TARGET))
     assert result["errors"] == {}
     assert result["selections"][S03]["rows"] == []
-    assert result["selections"][S03]["scheduled_for"] == "2026-11-20T21:00:00+08:00"
+    assert result["selections"][S03]["scheduled_for"] == "2026-11-20T22:00:00+08:00"
 
 
 def test_extension_explicit_dataset_avoids_mixing_sources_and_excludes_future_observation(tmp_path):

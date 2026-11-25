@@ -1,13 +1,19 @@
 # rustdx 三组任务连接
 
-2026-11-07新增应用层“分钟组-优先”：仍使用下表minute原有8业务连接，
-不新增物理端点或第四个原生连接池。Full Worker的认证计划覆盖S02完整
-`scope_only_v3`池，已保存预选置前；优先批次写入后，在14:25～14:40
-同步完成不可变公共文件发布，然后继续普通批次。公共manifest单独记录
-`minute_priority_completed_at`，不冒充完整市场轮次的完成时钟。
-计划120秒过期，跨日及旧序号不复活成员；失败保留普通采集，行情缺口阻止买入确认。
-rustdx分钟返回以每个证券响应时钟过滤已完成K线，避免跨分钟批次丢掉新完成14:30K。
-实际安装及测试以当次[验收交付](../deliverables/README.md)为准。
+应用层分钟优先采集仍使用下表 minute 原有 8 业务连接，
+不新增物理端点或第四个原生连接池。Full Worker 的认证计划覆盖被监控策略各自完整
+`strategy_scope_v4` 池；冻结预选子集另由 Platform 的 `SelectedMinuteProcess`
+监督采集，普通完整池采集继续。计划 120 秒过期，跨日及旧序号不复活成员；
+采集故障保留普通通道，逐股缺行情按策略输入规则处理。
+14:25～14:55 的已完成分钟通知触发独立公共发布；预选批次提交后可立即发布，
+公共 manifest 分别记录 `minute_completed_at` 与 `minute_priority_completed_at`，
+后者不证明全市场采集完成。源码入口为
+[minute_priority.py](../backend/app/services/minute_priority.py)、
+[selected_minute_process.py](../backend/app/services/selected_minute_process.py)、
+[publication.py](../backend/app/multitenancy/publication.py)；
+S01 的计算进程、截止与异常规则见 [S01 当前实现](reference/s01.md)。
+rustdx 返回仍按各证券响应时钟过滤完成 K 线；应用发布通道与原生三组连接职责独立。
+本段应用层源码核对日期为 2026-11-24；实际安装及运行验收见[版本基线](version-baseline.md)。
 
 核对日期：2026-10-30。当前沿用核心2.0.4、原生桥接0.3.0/API4；
 应用源码与最后已知运行身份统一见[版本基线](version-baseline.md)。
@@ -37,6 +43,10 @@ rustdx分钟返回以每个证券响应时钟过滤已完成K线，避免跨分�
 可显式指定主备；显式空备选不扩展。参考来源不随排名默改。
 候选自动排除已绑定其他组的普通主站；显式重复配置仍受同端点额度约束，
 可能排队/报额度不足，无法获得独立的8条。
+当有效节点不足以分出三组时，优先使用未绑定的有效节点；全部已绑定时，
+复用已通过资格的参考站或排名首个有效节点，仍由原生端点额度约束。
+参考站未通过资格不会被自动带入。没有任何有效节点时继续明确失败。
+稀疏节点的任务到达顺序不应导致“无候选”；端点额度耗尽仍可能排队或失败。
 
 盘中分钟回填最多6，并预留2条供增量；用户已有更小后台限额继续适用。
 未显式限制时盘后后台可使用8条；显式后台上限盘后仍适用。
@@ -65,7 +75,7 @@ rustdx分钟返回以每个证券响应时钟过滤已完成K线，避免跨分�
 改变目录也须进程重启，不能热换目录扩大额度。其他连接配置变化关闭并重建运行时。
 真实密钥不进入状态输出。没有新增Provider能力、数据库或远程扩展API。
 
-验证入口为`test_rustdx_task_routing.py`、`test_rustdx_task_quotas.py`、
+验证入口为`test_rustdx_task_routing.py`、`test_rustdx_sparse_binding.py`、`test_rustdx_task_quotas.py`、
 `test_rustdx_window_consistency.py`及原有rustdx测试。须同时保留本地真实TCP、
 两进程共享目录、操作系统探测连接数、取消、分页覆盖、金融单位与构建身份检查。
 三组连接的运行验收须绑定实际源码和节点范围；

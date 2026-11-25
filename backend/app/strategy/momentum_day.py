@@ -14,10 +14,17 @@ from app.strategy.momentum_selection import prioritized_selection, ranked_candid
 from app.strategy.overnight_runtime import next_market_day
 
 
-def run_day(context, values, selected, *, previous_state=None, allow_buy=True):
+def run_day(context, values, selected, *, previous_state=None, allow_buy=True,
+            entry_participation_pct=None, exit_participation_pct=None,
+            minute_price_rule="legacy"):
     evidence = {k: previous_state[k] for k in ("suspension_policy", "suspension_events")
                 if previous_state and k in previous_state}
     params = parameters({**evidence, **(values or {})})
+    from app.backtest.entry_execution import participation_rate
+    entry_params = (params if entry_participation_pct is None else
+                    {**params, "participation": participation_rate(entry_participation_pct)})
+    exit_params = (params if exit_participation_pct is None else
+                   {**params, "participation": participation_rate(exit_participation_pct)})
     state = copy.deepcopy(previous_state or {"cash": params["initial_cash"], "positions": []})
     cash = float(state["cash"])
     positions = {p["symbol"]: p for p in state["positions"]}
@@ -103,7 +110,8 @@ def run_day(context, values, selected, *, previous_state=None, allow_buy=True):
             row.update(status="数据不足", remaining=pos["remaining"])
             return
         source = source.filter(pl.col("bar").is_between(first_bar, last)) if not source.is_empty() else source
-        sale = sell_position(source, symbol, lookup.get(symbol), pos, params)
+        sale = sell_position(source, symbol, lookup.get(symbol), pos, exit_params,
+                             minute_price_rule=minute_price_rule)
         fills.extend(sale["fills"])
         signals.extend({"date": str(day), "symbol": symbol, **s} for s in sale["signals"])
         cash += sale["value"]
@@ -164,7 +172,7 @@ def run_day(context, values, selected, *, previous_state=None, allow_buy=True):
             budget = min(cash, nav * params["entry_nav_fraction"])
             if params["entry_budget"]:
                 budget = min(budget, params["entry_budget"])
-            buy = fill_order(frame, "buy", symbol, lookup.get(symbol), 872, 872, params,
+            buy = fill_order(frame, "buy", symbol, lookup.get(symbol), 872, 872, entry_params,
                              budget=budget, price_field="high")
             decision.update(entry_nav=nav, entry_budget=budget, filled_shares=buy["shares"])
             if not buy["shares"]:
@@ -173,7 +181,7 @@ def run_day(context, values, selected, *, previous_state=None, allow_buy=True):
             decision["reason"] = "已成交"
             sections["buy"].append({**row, **decision, "buy_price": buy["notional"] / buy["shares"],
                                      "buy_fee": buy["fee"], "buy_value": buy["value"],
-                                     "buy_time": "14:32", "participation": params["participation"]})
+                                     "buy_time": "14:32", "participation": entry_params["participation"]})
             cash -= buy["value"]
             fills.extend(buy["fills"])
             positions[symbol] = {

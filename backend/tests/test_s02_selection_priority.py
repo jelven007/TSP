@@ -102,8 +102,13 @@ def test_actual_s02_scheduled_selection_persists_atr_through_restart(tmp_path, m
     service._load_enriched_history = lambda *_: daily
     (tmp_path / "settlement_ready.json").write_text('{"day":"2026-10-30"}')
     now = datetime(2026, 10, 30, 20, tzinfo=ZoneInfo("Asia/Shanghai"))
+    # 20点仅验证窗口外不执行; 当前S02在21点为精确下一交易日冻结预选。
+    assert generate_scheduled_local(engine, service, tmp_path, now=now)["saved"] == []
+    now = now.replace(hour=21)
     result = generate_scheduled_local(engine, service, tmp_path, now=now)
-    assert result == {"saved": ["custom_mvxxcp88"], "errors": {}}
+    # 调度响应还包含独立状态刷新回执, 本用例断言预选资格与持久化契约。
+    assert result["saved"] == ["custom_mvxxcp88"]
+    assert result["errors"] == {}
     rows = DailySelections(tmp_path).read("custom_mvxxcp88", DAY)["rows"]
     assert len(rows) == 2
     assert sorted(row["atr14_previous_close"] for row in rows) == pytest.approx([.1, .2])

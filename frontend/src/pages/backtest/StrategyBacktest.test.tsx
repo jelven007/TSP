@@ -110,6 +110,64 @@ function strategyFixture(id = 'example', source: StrategyDetail['source'] = 'bui
   }
 }
 
+it.each(['polars_expr', 'minute_filter'] as const)(
+  'sends and saves separate participation for any custom strategy (%s)', async backend => {
+    const custom = {
+      ...strategyFixture('custom_unrelated', 'custom'), execution_backend: backend,
+      timeframes: backend === 'minute_filter' ? ['1m'] : ['1d'],
+    }
+    vi.spyOn(api, 'screenerStrategies').mockResolvedValue({ presets: [custom], load_errors: [] })
+    vi.spyOn(api, 'strategyGet').mockResolvedValue(custom)
+    await remountWithStrategy(custom.id)
+    const entry = host.querySelector<HTMLInputElement>('[aria-label="建仓分钟参与率 (%)"]')!
+    const exit = host.querySelector<HTMLInputElement>('[aria-label="清仓分钟参与率 (%)"]')!
+    expect(entry).not.toBeNull()
+    expect(exit).not.toBeNull()
+    expect(entry.value).toBe('10')
+    expect(exit.value).toBe('10')
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+    await act(async () => {
+      setValue.call(entry, '20')
+      entry.dispatchEvent(new Event('input', { bubbles: true }))
+      setValue.call(exit, '5')
+      exit.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await click('运行回测')
+    expect(startBacktest).toHaveBeenLastCalledWith(expect.objectContaining({
+      strategy_id: custom.id, entry_participation_pct: .2, exit_participation_pct: .05,
+      minute_price_rule: 'high_low_v1',
+    }))
+    state.task = completed(4)
+    await render()
+    expect(storage.strategyBacktestLast.get(null)).toMatchObject({
+      entryParticipation: '20', exitParticipation: '5',
+    })
+  },
+)
+
+it.each([false, true])('restores frozen participation from a history task in a fresh form (failed=%s)', async failed => {
+  const custom = strategyFixture('custom_unrelated', 'custom')
+  vi.spyOn(api, 'screenerStrategies').mockResolvedValue({ presets: [custom], load_errors: [] })
+  vi.spyOn(api, 'strategyGet').mockResolvedValue(custom)
+  await remountWithStrategy(custom.id)
+  expect(host.querySelector<HTMLInputElement>('[aria-label="建仓分钟参与率 (%)"]')!.value).toBe('10')
+  const task = completed(41)
+  task.result!.config.entry_participation_pct = .2
+  task.result!.config.exit_participation_pct = .05
+  task.result!.strategy_info.source = 'custom'
+  if (failed) {
+    task.error = '清仓截止后仍有余股'
+    task.result!.error = task.error
+  }
+  state.task = task
+  await render()
+  expect(host.querySelector<HTMLInputElement>('[aria-label="建仓分钟参与率 (%)"]')!.value).toBe('20')
+  expect(host.querySelector<HTMLInputElement>('[aria-label="清仓分钟参与率 (%)"]')!.value).toBe('5')
+  expect(storage.strategyBacktestLast.get(null)).toMatchObject({
+    entryParticipation: '20', exitParticipation: '5',
+  })
+})
+
 it.each([false, true])('uses server defaults only when browser parameters are absent (saved=%s)', async saved => {
   await act(async () => root.unmount())
   client.clear()
@@ -175,6 +233,30 @@ it.each(['custom_mvxxcs01', 'custom_mvxxcp88', 'custom_mvxxcs03', 'custom_any_na
 it('does not load result charts or replay dialogs on an empty backtest entry', () => {
   expect(state.loadedViews).toEqual([])
   expect(startBacktest).not.toHaveBeenCalled()
+})
+
+it('shows current S03 scoring and supported morning risk configuration', async () => {
+  const custom: StrategyDetail = {
+    ...strategyFixture('custom_mvxxcs03', 'custom'), name: 's03', scoring_mode: 'strategy',
+    execution_backend: 'minute_filter', timeframes: ['1m'], exit_signals: ['csgi_morning'],
+  }
+  vi.spyOn(api, 'screenerStrategies').mockResolvedValue({ presets: [custom], load_errors: [] })
+  vi.spyOn(api, 'strategyGet').mockResolvedValue(custom)
+  vi.spyOn(api, 'customSignalsList').mockResolvedValue({ signals: [{
+    id: 'morning', name: '早盘清仓', kind: 'exit', enabled: true, timeframe: 'intraday',
+    template: 'morning_liquidation', conditions: [], params: { time: '10:30:00', rise_pct: 6 },
+  }] })
+  await remountWithStrategy(custom.id)
+  await act(async () => [...host.querySelectorAll<HTMLButtonElement>('button')]
+    .find(button => button.textContent?.includes('策略设置') && button.textContent?.includes('编辑'))!.click())
+  await settle()
+  await act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+    .find(button => button.textContent === '评分权重')!.click())
+  expect(document.querySelector('[role="dialog"]')!.textContent)
+    .toContain('技术40%、资金20%、情绪20%、基本面10%、消息10%')
+  await act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+    .find(button => button.textContent === '出场触发器')!.click())
+  expect(document.querySelector('[role="dialog"]')!.textContent).toContain('支持环境过滤、固定/移动风控及最长持有')
 })
 
 it('keeps common custom minute controls while signal definitions are unavailable', async () => {

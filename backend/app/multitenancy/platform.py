@@ -201,19 +201,29 @@ async def lifespan(app):
         )
         app.state.financial_scheduler = financial_scheduler
         resources.callback(financial_scheduler.stop)
-        related_market_data_scheduler.start(store.data_dir)
-        resources.callback(related_market_data_scheduler.stop)
-
         from app.services.minute_refresh import MinuteRefreshService
         publisher = PublicPublisher(store.data_dir, os.environ["TSP_PUBLIC_MARKET_DIR"], repo._write_lock)
         app.state.public_publisher = publisher
         publisher.start()
         resources.callback(publisher.close)
+        related_market_data_scheduler.start(store.data_dir, repo=repo, publisher=publisher)
+        resources.callback(related_market_data_scheduler.stop)
         minutes = MinuteRefreshService(repo)
         minutes.set_app_state(app.state)
         app.state.minute_refresh = minutes
         minutes.start()
         resources.callback(minutes.stop)
+        from app.services.monitor_input_repair import MonitorInputRepair
+        repair = MonitorInputRepair(app.state)
+        app.state.monitor_input_repair = repair
+        resources.callback(repair.close)
+        authority = os.environ.get("TSP_S02_INPUT_AUTHORITY")
+        if authority in ("publisher", "receiver"):
+            from app.services.strategy_input_authority import S02InputService
+            from app.services.strategy_input_mirror import RemoteMirror
+            inputs = S02InputService(app.state, mirror=RemoteMirror() if authority == "receiver" else None)
+            app.state.s02_input_service = inputs
+            resources.callback(inputs.close)
         quotes.boot_check()
         depth.boot_check()
         depth.start_polling()
