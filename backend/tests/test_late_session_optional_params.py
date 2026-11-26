@@ -42,9 +42,31 @@ def test_all_empty_conditions_need_only_a_valid_completed_price():
     assert bar_time(signal(), DAY, completed_through=AT) == AT
 
 
+def test_common_template_missing_change_bounds_default_to_disabled():
+    sig = signal()
+    for key in ("change_min_pct", "change_max_pct"):
+        sig["params"].pop(key)
+    parsed = parameters(sig)
+    assert parsed["change_min_pct"] is None
+    assert parsed["change_max_pct"] is None
+    assert run(sig, bars().select("symbol", "datetime", "close")).symbols == ["a"]
+
+
+def test_saved_change_bounds_are_preserved_instead_of_using_empty_defaults():
+    parsed = parameters(signal(change_min_pct=.1, change_max_pct=7))
+    assert (parsed["change_min_pct"], parsed["change_max_pct"]) == (.1, 7)
+
+
+def test_frozen_legacy_input_keeps_its_original_missing_bound_defaults():
+    parsed = parameters({"params": {"time": "14:30:00", "pool_up_min_pct": 60,
+                                   "ma5_1m_count": 7, "ma5_5m_count": 4}})
+    assert (parsed["change_min_pct"], parsed["change_max_pct"]) == (.4, 4)
+    assert parsed["evaluation_delay_minutes"] == 0
+
+
 @pytest.mark.parametrize("key", [
     "pool_up_min_pct", "amount_min_100m", "turnover_min_pct",
-    "amplitude_max_pct", "change_min_pct", "change_max_pct", "volume_ratio_min",
+    "amplitude_max_pct", "change_max_pct", "volume_ratio_min",
 ])
 def test_new_numeric_contract_includes_bounds_and_rejects_invalid_values(key):
     for value in (.1, 100):
@@ -52,6 +74,23 @@ def test_new_numeric_contract_includes_bounds_and_rejects_invalid_values(key):
     for value in (0, .099, 100.01, True, float("nan")):
         with pytest.raises(ValueError):
             parameters(signal(**{key: value}))
+
+
+def test_daily_change_floor_accepts_minus_ten_through_one_hundred():
+    for value in (-10, -5.5, 0, 100, None):
+        assert parameters(signal(change_min_pct=value))["change_min_pct"] == value
+    for value in (-10.01, 100.01, True, float("nan")):
+        with pytest.raises(ValueError, match="change_min_pct"):
+            parameters(signal(change_min_pct=value))
+    with pytest.raises(ValueError, match="下限不得大于上限"):
+        parameters(signal(change_min_pct=6, change_max_pct=5))
+
+
+def test_negative_daily_change_floor_filters_completed_prices():
+    frame = bars().with_columns(pl.lit(9.5).alias("close"))
+    prev = {"a": 10}
+    assert run(signal(change_min_pct=-5), frame, prev_close=prev).symbols == ["a"]
+    assert run(signal(change_min_pct=-4.9), frame, prev_close=prev).symbols == []
 
 
 def test_inclusive_amount_uses_morning_and_deduplicates_without_future_amount():

@@ -326,6 +326,7 @@ class StrategyDetailResponse(ContractModel):
     research_only: bool = False
     execution_backend: str
     minute_execution: str | None = None
+    s05_exit_policy: Literal["carry_next_branch_v1", "carry_entry_branch_v2"] | None = None
     entry_allocation: Literal["equal_selected_v1"] | None = None
     asset_types: list[str]
     timeframes: list[str]
@@ -338,6 +339,8 @@ class StrategyDetailResponse(ContractModel):
     scoring: dict[str, float]
     scoring_directions: dict[str, str]
     entry_signals: list[str]
+    entry_signal_match: Literal["all", "any"] = "all"
+    entry_routing: str | None = None
     exit_signals: list[str]
     minute_exit_trigger_supported_signals: list[str]
     stop_loss: float | None = None

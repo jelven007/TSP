@@ -693,7 +693,11 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                       extra={<SignalTriggerActions selectExisting kind="entry" signals={entrySignals} onChange={setEntrySignals} s01Template={detail.parameter_signals || detail.optional_triggers ? 's01_late_entry' : undefined} allowIntraday={detail.execution_backend === 'minute_filter'} buttonClassName="rounded-md border border-border bg-base p-1 text-muted transition-colors cursor-pointer" iconClassName="h-3 w-3" />}
                     >
                       <SignalPicker signals={entrySignals} onChange={setEntrySignals} kind="entry" options={{ variant: 'dialog', allowIntraday: detail.execution_backend === 'minute_filter', s01Template: detail.parameter_signals || detail.optional_triggers ? 's01_late_entry' : undefined }} />
-                      <div className="text-[10px] leading-4 text-muted/70">所有已选入场点同时满足才进入候选。{detail.optional_triggers && '可多选；不选时按基础选股结果入场，所选S01信号独立读取其参数。'}</div>
+                      <div className="text-[10px] leading-4 text-muted/70">
+                        {detail.entry_signal_match === 'any' ? '任一入场点满足即触发入场。' : '所有已选入场点同时满足才进入候选。'}
+                        {detail.entry_routing === 's02_173004552_v1' && ' 每个交易日只计算盘后分流指定的入场点。'}
+                        {detail.optional_triggers && '可多选；不选时按基础选股结果入场，所选S01信号独立读取其参数。'}
+                      </div>
                     </Section>
 
                     <Section

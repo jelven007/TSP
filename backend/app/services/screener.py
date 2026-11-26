@@ -617,7 +617,10 @@ class ScreenerService:
                 or selection.get("strategy_id", strategy_id) != strategy_id
                 or not isinstance(selection.get("rows"), list)):
             raise ValueError(f"缺少{as_of}有效冻结预选, 个股任务等待")
-        symbols = sorted({row["symbol"] for row in selection["rows"]})
+        from app.strategy import s02_173004552 as s02
+
+        selected = s02.entry_rows(selection) if s02.enabled(engine.get(strategy_id)) else selection["rows"]
+        symbols = sorted({row["symbol"] for row in selected})
         scoped = (current.filter(pl.col("symbol").is_in(symbols))
                   if current is not None and "symbol" in current.columns else pl.DataFrame())
         context = StrategyDataContext(

@@ -364,8 +364,8 @@ class TenantSchedules:
         """按各自时窗执行已启用策略预选, 状态刷新及专用资格组沿独立入口处理。"""
         if repo is not None:
             self.evening_status(documents, snapshot, repo, now, claim)
-        from app.services.selection_clock import S03_ID
-        for sid in (None, S03_ID):
+        from app.services.selection_clock import S03_ID, S05_ID
+        for sid in (None, S05_ID, S03_ID):
             self._daily_selections_group(documents, snapshot, repo, now, claim, strategy_id=sid)
 
     def _daily_selections_group(self, documents, snapshot, repo, now, claim, *, strategy_id=None):
@@ -405,10 +405,17 @@ class TenantSchedules:
             DEFINITION_VERSION,
             DailySelections,
             due_window,
+            selection_policy,
             signal_strategy,
             valid_selection,
         )
-        from app.services.selection_clock import S03_ID, window_for
+        from app.services.selection_clock import (
+            S03_ID,
+            S05_ID,
+            job_key,
+            selection_group,
+            window_for,
+        )
         from app.services.strategy_monitor_tasks import (
             monitored_ids,
             pending_selection_repairs,
@@ -438,9 +445,10 @@ class TenantSchedules:
             active = monitored_ids(unit)
             ids = [sid for sid, strategy in engine._strategies.items()
                    if sid in active and signal_strategy(strategy) and not strategy.meta.get("research_only")
-                   and (sid == S03_ID) == (strategy_id == S03_ID)]
+                   and selection_group(sid) == strategy_id]
             from app.services.strategy_monitor_state import finished
-            pending = [sid for sid in ids if store.read(sid, target) is None
+            pending = [sid for sid in ids if store.read(sid, target,
+                       policy=selection_policy(engine.get(sid))) is None
                        and (not expired or not finished(
                            task_receipt(unit, sid, source).get("tasks", {}).get("select", {})))]
             if not pending:
@@ -459,7 +467,7 @@ class TenantSchedules:
                                      {"as_of": str(target), "section": "select", "strategy_ids": [S03_ID],
                                       "watchlist_changed": True})
                 return
-            key = str(target) + (":s03" if strategy_id == S03_ID else "")
+            key = job_key(target, strategy_id)
             previous = store.job(key)
             job = {**previous, "source_date": str(source), "as_of": str(target),
                    "attempts": previous.get("attempts", 0) + 1, "started_at": time.time_ns()}
@@ -488,14 +496,17 @@ class TenantSchedules:
             marker = signature({"input": observed, "source_date": str(source), "target": key,
                                 "release": release, "definition_version": DEFINITION_VERSION})
             job = {**job, "signature": marker, "state": "running"}
-            if strategy_id == S03_ID:
-                from app.services.s03_selection import freeze_source
+            if strategy_id in (S03_ID, S05_ID):
+                if strategy_id == S05_ID:
+                    from app.services.s05_selection import freeze_source
+                else:
+                    from app.services.s03_selection import freeze_source
                 from app.services.selection_clock import S02_ID
                 try:
                     job["source_selection"] = previous.get("source_selection") or freeze_source(
                         store.read(S02_ID, target), source, target)
                 except ValueError as exc:
-                    waiting = {**job, "state": "waiting_data", "errors": {S03_ID: str(exc)}}
+                    waiting = {**job, "state": "waiting_data", "errors": {strategy_id: str(exc)}}
                     store.job(key, waiting)
                     selection_receipts(unit, waiting, now)
                     return
@@ -503,6 +514,7 @@ class TenantSchedules:
             task = engine.task("daily_selections", strategy_ids=pending, source_date=str(source),
                                as_of=str(target), overrides_map=overrides,
                                source_selection=job.get("source_selection"),
+                               observed_at=now.isoformat(),
                                **({"public_release_id": release} if release else {}))
         if str(source) not in snapshot.get("settlement_days", []):
             errors = {sid: f"等待{source}盘后完整数据" for sid in pending}

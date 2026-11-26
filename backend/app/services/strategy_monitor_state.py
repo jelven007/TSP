@@ -113,7 +113,7 @@ def plan(windows, tasks, now, *, trading, include_select=False, retry_seconds=3,
             due("buy", signal, "stocks", confirm, end, saved.get("stocks") or {})
 
     sell = tasks.get("sell") or {}
-    if not finished(sell):
+    if not finished(sell) or (windows.get("sell") and sell.get("completion_reason") == "s05_no_daily_branch"):
         for window in windows.get("sell") or []:
             signal = window["signal"]["id"]
             due("sell", signal, "observe", _at(now, window["start"]), _at(now, window["end"]),

@@ -31,13 +31,14 @@ def _identity_date(value):
 
 
 # 出现这些键、entry_groups或显式null时使用可选条件契约; null关闭对应条件。
+ENTRY_METRIC_KEYS = {"return_5m_min_pct", "return_15m_min_pct", "position_min_pct", "gap_max_pct"}
 OPTIONAL_KEYS = {"amount_min_100m", "turnover_min_pct", "amplitude_max_pct",
-                 "volume_ratio_min", "end_time"}
+                 "volume_ratio_min", "end_time"} | ENTRY_METRIC_KEYS
 # 参数单位: change/pool_up/turnover/amplitude为百分数值, amount为亿元,
 # volume_ratio为倍数, MA数量为整数; evaluation_delay_minutes在存储中仍使用分钟。
 # 缺省继承模板, 显式null关闭条件; 已保存定义由parameters按其输入契约解析。
 DEFAULT_PARAMS = {
-    "time": "14:30:00", "change_min_pct": 0.4, "change_max_pct": 4.0,
+    "time": "14:30:00", "change_min_pct": None, "change_max_pct": None,
     "pool_up_min_pct": 60.0, "ma5_1m_count": 7, "ma5_5m_count": 4,
     "evaluation_delay_minutes": 0.5,
     **dict.fromkeys(OPTIONAL_KEYS),
@@ -56,8 +57,16 @@ def parameters(sig: dict) -> dict:
     """校验并解析保存值; 显式null不回填默认, 缺延迟键保留冻结定义的零延迟。"""
     # 先拒绝未知键和非法分组, 再合并默认; 保留显式null, 不能在重开时补回条件。
     raw = sig.get("params") or {}
-    if not isinstance(raw, dict) or set(raw) - (set(DEFAULT_PARAMS) | {"entry_groups"}):
+    if not isinstance(raw, dict) or set(raw) - (set(DEFAULT_PARAMS) | {"entry_groups", "s05_entry"}):
         raise ValueError("尾盘走强参数格式错误或包含未知参数")
+    if "s05_entry" in raw:
+        from app.strategy.s02_173004552 import ENTRY_IDS, entry_parameters
+
+        branch = next((branch for branch, sid in ENTRY_IDS.items()
+                       if sid == sig.get("id")), None)
+        if branch is None:
+            raise ValueError("仅S05分支信号支持专用入场参数")
+        entry_parameters(branch, raw["s05_entry"])
     from app.strategy.entry_groups import validate
 
     validate(raw.get("entry_groups"))
@@ -72,6 +81,9 @@ def parameters(sig: dict) -> dict:
     # 输入声明可空条件时使用该契约, 不根据策略名称选择解析分支。
     if optional_definition(sig):
         return _optional_parameters(params, raw)
+    # 冻结旧输入未声明可空契约时, 保留其原有缺省涨幅边界。
+    params["change_min_pct"] = raw.get("change_min_pct", .4)
+    params["change_max_pct"] = raw.get("change_max_pct", 4.0)
     latest = (datetime.combine(date.min, time(15)) - timedelta(minutes=delay)).time()
     try:
         at = time.fromisoformat(params["time"])
@@ -125,9 +137,16 @@ def _optional_parameters(params: dict, raw: dict) -> dict:
     for key in ("pool_up_min_pct", "amount_min_100m", "turnover_min_pct",
                 "amplitude_max_pct", "change_min_pct", "change_max_pct", "volume_ratio_min"):
         value = params[key]
+        minimum = -10.0 if key == "change_min_pct" else .1
         if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))
-                                  or not math.isfinite(value) or not .1 <= value <= 100):
-            raise ValueError(f"{key} 须为0.1~100.0或为空")
+                                  or not math.isfinite(value) or not minimum <= value <= 100):
+            raise ValueError(f"{key} 须为{minimum}~100.0或为空")
+    for key in ENTRY_METRIC_KEYS:
+        value = params[key]
+        minimum = -10 if key in ("return_5m_min_pct", "return_15m_min_pct") else .1
+        if value is not None and (type(value) not in (int, float) or not math.isfinite(value)
+                                  or not minimum <= value <= 100):
+            raise ValueError(f"{key} 须为{minimum}~100.0或为空")
     if (params["change_min_pct"] is not None and params["change_max_pct"] is not None
             and params["change_min_pct"] > params["change_max_pct"]):
         raise ValueError("当日涨幅下限不得大于上限")
@@ -524,7 +543,7 @@ def needs_previous_close(sig: dict) -> bool:
 
     params = parameters(sig)
     return needs_previous(params.get("entry_groups")) or any(params[key] is not None for key in (
-        "pool_up_min_pct", "change_min_pct", "change_max_pct", "amplitude_max_pct"))
+        "pool_up_min_pct", "change_min_pct", "change_max_pct", "amplitude_max_pct", "gap_max_pct"))
 
 
 def selection_closes(selection: dict) -> dict[str, float]:
@@ -638,7 +657,8 @@ def _evaluate_optional(
     for key, enabled in (("breadth", params["pool_up_min_pct"] is not None or observe_breadth),
                          ("change", any(params[name] is not None for name in (
                              "change_min_pct", "change_max_pct", "amount_min_100m",
-                             "turnover_min_pct", "amplitude_max_pct", "volume_ratio_min"))),
+                             "turnover_min_pct", "amplitude_max_pct", "volume_ratio_min",
+                             *ENTRY_METRIC_KEYS))),
                          ("ma1", params["ma5_1m_count"] is not None),
                          ("ma5", params["ma5_5m_count"] is not None)):
         if not enabled:
@@ -743,7 +763,7 @@ def _evaluate_optional(
         fields.add("amount")
     if params["turnover_min_pct"] is not None or params["volume_ratio_min"] is not None:
         fields.add("volume")
-    if params["amplitude_max_pct"] is not None:
+    if params["amplitude_max_pct"] is not None or params["position_min_pct"] is not None:
         fields.update(("high", "low"))
     aggregates = {}
     if fields <= set(frame.columns) and fields:
@@ -757,10 +777,37 @@ def _evaluate_optional(
         aggregates = {row["symbol"]: row for row in frame.group_by("symbol").agg(expressions).iter_rows(named=True)}
     from app.market_time import trading_minutes_elapsed_from_dt
 
+    bases = {}
+    for length in (5, 15):
+        key = f"return_{length}m_min_pct"
+        if params[key] is not None:
+            bases[key] = {row["symbol"]: row["close"] for row in
+                          frame.filter(pl.col("datetime") == at - timedelta(minutes=length)).iter_rows(named=True)}
+    openings = {}
+    if params["gap_max_pct"] is not None and "open" in frame.columns:
+        openings = {row["symbol"]: row["open"] for row in
+                    frame.filter(pl.col("datetime") == datetime.combine(day, time(9, 31))).iter_rows(named=True)}
     condition_candidates = set(candidates)
     for symbol in list(candidates):
         row = aggregates.get(symbol, {})
         values = {}
+        for key, reference in bases.items():
+            base = reference.get(symbol)
+            values[key] = ((prices[symbol] / base - 1) * 100
+                           if type(base) in (int, float) and math.isfinite(base) and base > 0 else None)
+        if params["position_min_pct"] is not None:
+            upper, lower = row.get("high"), row.get("low")
+            valid_range = (row.get("valid_high") and row.get("valid_low") and row.get("_ohlc")
+                           and lower <= prices[symbol] <= upper)
+            values["position_min_pct"] = (
+                ((prices[symbol] - lower) / (upper - lower) * 100 if upper > lower else 50)
+                if valid_range else None)
+        if params["gap_max_pct"] is not None:
+            opening, previous = openings.get(symbol), prev_close.get(symbol)
+            values["gap_max_pct"] = (
+                (opening / previous - 1) * 100
+                if all(type(value) in (int, float) and math.isfinite(value) and value > 0
+                       for value in (opening, previous)) else None)
         if params["amount_min_100m"] is not None:
             values["amount_min_100m"] = row.get("amount", 0) / 1e8 if row.get("valid_amount") else None
         if params["turnover_min_pct"] is not None:
@@ -785,7 +832,8 @@ def _evaluate_optional(
             if value is None or not math.isfinite(value):
                 missing.add(symbol)
                 candidates.discard(symbol)
-            elif (value > params[key] + 1e-10 if key == "amplitude_max_pct" else value + 1e-10 < params[key]):
+            elif (value > params[key] + 1e-10 if key in ("amplitude_max_pct", "gap_max_pct")
+                  else value + 1e-10 < params[key]):
                 candidates.discard(symbol)
     cohort = set(stock_pool) if diagnostic_symbols is None else set(diagnostic_symbols) & set(stock_pool)
     if steps["change"]["state"] != "skipped":
@@ -1025,7 +1073,8 @@ def evaluate(
     for key, enabled in (("breadth", params["pool_up_min_pct"] is not None),
                          ("change", any(params[name] is not None for name in (
                              "change_min_pct", "change_max_pct", "amount_min_100m",
-                             "turnover_min_pct", "amplitude_max_pct", "volume_ratio_min"))),
+                             "turnover_min_pct", "amplitude_max_pct", "volume_ratio_min",
+                             *ENTRY_METRIC_KEYS))),
                          ("ma1", params["ma5_1m_count"] is not None),
                          ("ma5", params["ma5_5m_count"] is not None)):
         if not enabled:

@@ -441,12 +441,23 @@ export interface ScreenerResult {
     pool_up_pct: number | null; pool_up_pct_lower: number | null; pool_up_pct_upper: number | null
     pool_up_min_pct: number | null; stage: string; warnings: string[]
     progress?: StrategyEntryProgress | null
+    entry_branch?: 'tail' | 'low_gap' | 'board'
+    sort_by?: S05EntrySort
+    fund_weight_pct?: number
   }> | null
   selection_only?: boolean
   selection_snapshot?: {
     as_of: string; source_date: string; generated_at: string; scheduled_for?: string
     rows: any[]; identity?: string; definition_version?: string
     scoring_policy?: string
+    entry_routing?: string
+    entry_branch?: 'tail' | 'low_gap' | 'board' | null
+    branch_code?: S05BranchCode
+    entry_route?: {
+      schema: 's05_market_route_v2' | 's05_daily_branch_v3'; matched: Array<'tail' | 'low_gap' | 'board'>
+      decided_at: string; thresholds: Record<string, Record<string, number>>
+    }
+    score_coverage?: { candidate_total: number; scorable_total: number; ranked_total: number }
     selection_ordering?: string
     scoring_weights?: Record<string, number>
     source_selection?: { strategy_id: string; sha256: string; snapshot: {
@@ -920,6 +931,7 @@ export interface StrategyDetail {
   research_only?: boolean
   execution_backend: 'polars_expr' | 'matrix_native' | 'python_history_legacy' | 'composite' | 'minute_filter'
   minute_execution?: 'overnight_capacity_v1' | 'momentum_capacity_v1' | null
+  s05_exit_policy?: 'carry_next_branch_v1' | 'carry_entry_branch_v2' | null
   entry_allocation?: 'equal_selected_v1' | null
   result_sections?: 'signals'
   asset_types: string[]
@@ -930,6 +942,8 @@ export interface StrategyDetail {
   params_defaults: Record<string, any>
   parameter_signals?: Partial<Record<'entry' | 'exit', CustomSignal>>
   optional_triggers?: boolean
+  entry_signal_match?: 'all' | 'any'
+  entry_routing?: string | null
   /** 策略定义的原始可编辑配置，与当前生效配置分开，用于本地草稿恢复。 */
   definition_defaults?: Partial<StrategyDetail> | null
   scoring: Record<string, number>
@@ -1041,6 +1055,26 @@ export interface EntryGroup {
 }
 export interface EntryGroups { a: EntryGroup; b: EntryGroup }
 
+export type S05EntrySort = 'return_5m' | 'fund_tech' | 'four_dimension'
+export type S05BranchCode = 1 | 2 | 3 | 4
+export interface S05EntryParams {
+  sort_by: S05EntrySort
+  return_5m_min_pct?: number
+  return_15m_min_pct?: number
+  change_min_pct?: number
+  change_max_pct?: number
+  gap_max_pct?: number
+  position_min_pct?: number
+  veto_change_min_pct?: number
+  prior_up_min_pct?: number
+  prior_above_ma20_min_pct?: number
+  prior_up_5d_min_pct?: number
+  prior_up_vs_5d_max_pp?: number
+  prior_up_vs_20d_min_pp?: number
+  prior_up_2d_min_pct?: number
+  fund_weight_pct?: number
+}
+
 export interface LateSessionStrengthParams {
   time: string | null
   evaluation_delay_minutes?: number | null // null停用；后台分钟，页面秒；0/缺字段兼容冻结旧定义
@@ -1054,7 +1088,12 @@ export interface LateSessionStrengthParams {
   ma5_1m_count: number | null
   ma5_5m_count: number | null
   end_time?: string | null
+  return_5m_min_pct?: number | null
+  return_15m_min_pct?: number | null
+  position_min_pct?: number | null
+  gap_max_pct?: number | null
   entry_groups?: EntryGroups | null
+  s05_entry?: S05EntryParams
 }
 
 export interface S01EntryParams {
@@ -1123,7 +1162,13 @@ export interface CustomSignalAIGenerateResult {
 // ===== Monitor (监控规则 + 触发记录) =====
 export interface StrategyMonitorTask {
   state: string
-  windows: { start: string; end: string }[]
+  windows: { start: string; end: string; signal_id?: string; signal_name?: string }[]
+  branch_code?: S05BranchCode
+  branch_date?: string
+  plan_issue?: string
+  receipt_source?: 'scheduler'
+  receipt_windows?: { start: string; end: string }[]
+  archived_result?: { source: 'archive' | 'replay'; state: string; completed_at?: string; count?: number; errors?: string[] }
   execution_deadline?: string
   target_date?: string
   source_date?: string
@@ -1155,6 +1200,9 @@ export interface StrategyMonitoring {
   strategy_id: string
   enabled: boolean
   as_of: string
+  historical?: boolean
+  branch_code?: S05BranchCode
+  branch_source_date?: string
   is_trading_day?: boolean | null
   tasks: Record<'select' | 'buy' | 'sell', StrategyMonitorTask>
   errors?: string[]
@@ -4657,6 +4705,9 @@ export const api = {
 
   strategyMonitoring: () =>
     request<{ strategies: StrategyMonitoring[] }>('/api/monitor-rules/strategies/monitoring'),
+
+  strategyMonitoringDay: (id: string, asOf: string) =>
+    request<StrategyMonitoring>(`/api/monitor-rules/strategies/${encodeURIComponent(id)}/monitoring?as_of=${encodeURIComponent(asOf)}`),
 
   strategyMonitoringSet: (id: string, enabled: boolean) =>
     request<{ strategy_id: string; enabled: boolean; generation: number }>(

@@ -64,8 +64,10 @@ def validate_rule(rule: dict) -> None:
     mode = rule.get("execution_mode", "orders")
     if mode not in ("orders", "s02_minute"):
         raise ValueError("execution_mode 应为 orders / s02_minute")
+    from app.strategy.s02_173004552 import SID as ROUTED_SID
+
     if mode == "s02_minute" and (
-        rule.get("match_kind") != "strategy" or rule.get("match_id") != "custom_mvxxcp88"
+        rule.get("match_kind") != "strategy" or rule.get("match_id") not in ("custom_mvxxcp88", ROUTED_SID)
         or rule.get("side") != "auto"
     ):
         raise ValueError("S02分钟执行仅支持跟策略s02的自动方向")
@@ -979,8 +981,11 @@ def on_rule_events(
         bought = set()
         for match in matches:
             rule, ev, side = match["rule"], match["event"], match["side"]
-            if (rule.get("execution_mode") != "s02_minute" and
-                    (ev.get("entry_policy") or {}).get("minute_execution") in {"overnight_capacity_v1", "momentum_capacity_v1"}):
+            from app.strategy.s02_173004552 import POLICY as S02_ROUTING
+            event_policy = ev.get("entry_policy") or {}
+            if (rule.get("execution_mode") != "s02_minute" and (
+                    event_policy.get("minute_execution") in {"overnight_capacity_v1", "momentum_capacity_v1"}
+                    or event_policy.get("execution_policy") == S02_ROUTING)):
                 _record_skip(data_dir, account_id, rule, ev, "minute_capacity_unsupported")
                 continue
             symbol = ev["symbol"].strip()

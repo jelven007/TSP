@@ -4,7 +4,16 @@
 通用数据源和扩展协议见[接入参考](reference/integrations.md)，
 策略结果含义见[S01](reference/s01.md)、[S02](reference/s02.md)。
 历史查询只读持久化结果，不通过GET启动策略、行情加载或Compute。
-自定义策略盘后“选”窗口为21:00～22:00；状态维护通过已有池、选名单及日视图读取接口呈现。
+普通自定义策略盘后“选”窗口为21:00～22:00，S03及S05为22:00～23:00；
+状态维护通过已有池、选名单及日视图读取接口呈现。
+S05采用[独立四维评分实现](reference/s05.md)，新归档来源字段
+`score_provenance.scoring_implementation=s05_independent_four_dimensions_v1`。
+评分/名次等既有字段保持，旧记录缺来源标识仍可读取，不新增接口或通过GET重算。
+S05当日监控摘要的`branch_code/branch_source_date`只描述买入分支及来源日。
+卖窗口按前一交易日买入归档匹配；买入分支4或缺当日分支不阻止已确认的卖窗口。
+S05现金回测的`strategy_info.exit_params`按出场ID返回各保存参数，
+`provenance.s05_selection_replay`记录每交易日分支、源日与评分来源；
+仍通过现有策略回测接口，不新增提交或重算接口。
 当前/下一交易日池可附带`status_refresh`，记录目标日、观察时钟、公告确认状态及剔除信息。
 选名单读取同步应用持久化剔除，日视图缓存令牌随结果改变，原始归档明细保留。
 实时状态更新不由GET触发；`strategy_results_updated`携带目标日和受影响策略ID刷新页面。
@@ -49,9 +58,13 @@ kind为exit、timeframe为intraday，conditions为空。
 旧振幅两字段、涨跌四字段冻结定义仍保留原解析，不读取即转换。
 
 尾盘走强模板为`late_session_strength`，kind为entry、timeframe为intraday，
-conditions为空。新十二字段依次为`time/evaluation_delay_minutes/pool_up_min_pct/`
+conditions为空。新十六字段依次为`time/evaluation_delay_minutes/pool_up_min_pct/`
 `amount_min_100m/turnover_min_pct/amplitude_max_pct/change_min_pct/change_max_pct/`
-`volume_ratio_min/ma5_1m_count/ma5_5m_count/end_time`，显式null停用且不补默认。
+`volume_ratio_min/ma5_1m_count/ma5_5m_count/end_time/return_5m_min_pct/`
+`return_15m_min_pct/position_min_pct/gap_max_pct`，显式null停用且不补默认。
+最近5/15分钟涨幅下限范围−10.0～100.0，日内位置下限和开盘缺口上限0.1～100.0；
+均按百分数数值保存。六个当前入场信号共用模板，S05当前定义取消专用配置与规则，
+旧冻结输入保持原解析，当前规则见[S05](reference/s05.md)。
 确认延迟页面30～900秒、30秒步长，内部除以60保存；百分数按百分数数值保存，
 成交额单位亿元，MA5数量为1～100整数。启动及结束用北京时间HH:mm:ss。
 尾盘任务的启动、确认、重试与告警按保存定义及阶段回执处理。

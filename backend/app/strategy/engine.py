@@ -1674,8 +1674,9 @@ class StrategyEngine:
             df = df.filter(~pl.any_horizontal(conflicts).fill_null(False))
 
         # Selected entry points must all be true on this exact candidate row.
+        require_all_entries = s.meta.get("entry_signal_match") != "any"
         if entry_signals:
-            df = df.filter(self._entry_signal_mask(df, entry_signals))
+            df = df.filter(self._entry_signal_mask(df, entry_signals, require_all=require_all_entries))
 
         # Stage 3: 评分
         if s.meta.get("scoring_mode") == "strategy" and (
@@ -1685,7 +1686,7 @@ class StrategyEngine:
         ):
             raise ValueError("策略排名缺少有效score")
         df = self._apply_scoring(df, scoring, scoring_directions)
-        entry_signal_hits = self._collect_signal_hits(df, entry_signals, require_all=True)
+        entry_signal_hits = self._collect_signal_hits(df, entry_signals, require_all=require_all_entries)
         if not entry_signals and (
             s.filter_history_fn or s.filter_fn or s.execution_backend == "minute_filter"
         ):
@@ -1733,6 +1734,16 @@ class StrategyEngine:
         if selectable and s.meta.get("result_sections") == "signals":
             df = df.drop("age_increment", strict=False)
         rows = _sanitize(df.to_dicts())
+        if strategy_id == "custom_mvxxcs05" and context.timeframe == "1m" and rows:
+            from app.services.s05_signal_scores import minute_key, minute_returns
+
+            selection = (context.selection_snapshots or {}).get(strategy_id) or {}
+            if selection.get("as_of") == str(as_of) and selection.get("branch_code") == 1:
+                values = minute_returns(rows, context.history, as_of)
+                for row in rows:
+                    key = minute_key(row, as_of)
+                    if key is not None:
+                        row["s05_return_5m_pct"] = values.get(f"{key[0]}:{key[1].isoformat()}")
         elapsed = (time.perf_counter() - t0) * 1000
 
         scores: dict[str, float] = {}
@@ -1761,12 +1772,12 @@ class StrategyEngine:
         return list(default or [])
 
     @staticmethod
-    def _entry_signal_mask(df: pl.DataFrame, signals: list[str]) -> pl.Expr:
+    def _entry_signal_mask(df: pl.DataFrame, signals: list[str], *, require_all: bool = True) -> pl.Expr:
         columns = [
             name if name.startswith(("signal_", "csg_", "csgi_")) else f"signal_{name}"
             for name in signals
         ]
-        return pl.all_horizontal(
+        return (pl.all_horizontal if require_all else pl.any_horizontal)(
             pl.col(name).fill_null(False) if name in df.columns else pl.lit(False)
             for name in columns
         )
@@ -2481,7 +2492,7 @@ class StrategyEngine:
                         optional and (
                             (breadth_due and p["pool_up_min_pct"] is not None and not (state or {}).get("breadth"))
                             or (stock_due and (needs_previous(p.get("entry_groups")) or any(p[key] is not None for key in (
-                                "change_min_pct", "change_max_pct", "amplitude_max_pct")))))))
+                                "change_min_pct", "change_max_pct", "amplitude_max_pct", "gap_max_pct")))))))
                     if reference_due:
                         from app.strategy.late_session_strength import selection_closes
                         full_reference_due = (p["pool_up_min_pct"] is not None and breadth_due

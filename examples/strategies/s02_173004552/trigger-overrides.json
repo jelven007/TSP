@@ -1,0 +1,12 @@
+{
+  "entry_signals": [
+    "csgi_tail_entry_s05",
+    "csgi_low_gap_entry_s05",
+    "csgi_board_entry_s05"
+  ],
+  "exit_signals": [
+    "csgi_tail_exit_s05",
+    "csgi_low_gap_exit_s05",
+    "csgi_board_exit_s05"
+  ]
+}

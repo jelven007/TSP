@@ -60,7 +60,15 @@ def run(engine, service, storage, *, repair=None):
         if not frozen.has(sid) or frozen.get(sid).source not in ("custom", "ai"):
             continue
         strategy = frozen.get(sid)
-        windows = task_windows(frozen, strategy, overrides.get(sid) or {})
+        selected = DailySelections(storage).read(sid, now.date())
+        roster = sell_roster(storage, sid, now.date())
+        from app.strategy.s02_173004552 import SID as S05_ID
+        if sid == S05_ID:
+            from app.services.routed_strategy_monitor import task_windows as routed_windows
+            windows = routed_windows(frozen, strategy, overrides.get(sid) or {}, day=now.date(),
+                                     selection=selected, roster=roster, require_market_route=True)
+        else:
+            windows = task_windows(frozen, strategy, overrides.get(sid) or {})
         identity = capture_identity(frozen, storage, sid, overrides=overrides.get(sid),
             timeframe=(strategy.meta.get("timeframes") or ["1d"])[0])
         saved = task_receipt(storage, sid, now.date())
@@ -96,8 +104,8 @@ def run(engine, service, storage, *, repair=None):
         payload["daily_identities"][sid] = asdict(identity)
         payload["late_task_scopes"][sid] = f"{sid}:{runtime_identity(strategy, overrides.get(sid) or {})}"
         payload["daily_pool_snapshots"][sid] = pool
-        payload["selection_snapshots"][sid] = DailySelections(storage).read(sid, now.date())
-        payload["sell_rosters"][sid] = sell_roster(storage, sid, now.date())
+        payload["selection_snapshots"][sid] = selected
+        payload["sell_rosters"][sid] = roster
     if not identities:
         return []
     executor = SimpleNamespace(execute=lambda task: evaluate_snapshot(task, service.repo, frozen, storage))

@@ -12,12 +12,14 @@
 
 from __future__ import annotations
 
+import json
 import math
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from datetime import time as clock_time
+from pathlib import Path
 
 import polars as pl
 
@@ -149,6 +151,7 @@ class MinuteReplayHit:
     signal_time: str | None = None
     raw_entry_price: float | None = None
     entry_window_end: datetime | None = None
+    entry_branch: str | None = None
 
 
 @dataclass
@@ -162,6 +165,33 @@ class MinuteReplayResult:
     elapsed_ms: float = 0.0
     errors: list[str] = field(default_factory=list)
     selection_provenance: list[dict] = field(default_factory=list)
+
+
+def _s05_research_observation(repo, source, strict):
+    """Bind ordinary research to retained inputs and strict research to S05's clock."""
+    from app.market_time import CN_TZ, as_cn_datetime
+    from app.services.selection_clock import S05_ID, window_for
+
+    root = Path(repo.store.data_dir)
+    public, research = root / ".public_release.json", root / ".research_snapshot.json"
+    try:
+        if public.is_file():
+            manifest = json.loads(public.read_text())
+            frozen_at = datetime.fromtimestamp(manifest["published_at"], UTC)
+        elif research.is_file():
+            manifest = json.loads(research.read_text())
+            frozen_at = datetime.fromisoformat(manifest["created_at"])
+        else:
+            raise ValueError("S05回测需要冻结的公共行情或研究输入快照")
+        identity = manifest["id"]
+        if not isinstance(identity, str) or not identity:
+            raise ValueError("S05冻结输入缺少身份")
+    except (KeyError, TypeError, OverflowError) as exc:
+        raise ValueError("S05冻结输入身份或观察时点无效") from exc
+    cutoff = (datetime.combine(source, window_for(S05_ID)[0], CN_TZ)
+              if strict else as_cn_datetime(frozen_at))
+    return cutoff, {"input_snapshot_id": identity, "observation_policy": (
+        "source_day_observed" if strict else "retained_research_snapshot")}
 
 
 def requires_s03_scoring(strategy_engine, strategy, overrides):
@@ -179,6 +209,9 @@ def requires_s03_scoring(strategy_engine, strategy, overrides):
 def requires_full_pool(strategy_engine, strategy, overrides) -> bool:
     from app.strategy import custom_signals
     from app.strategy.late_session_strength import TEMPLATE
+    from app.strategy.s02_173004552 import enabled as routed_s02
+    if routed_s02(strategy):
+        return True
 
     requested = set(overrides.get("entry_signals", strategy.entry_signals) or []) | set(strategy.required_features)
     if not any(name.startswith("csgi_") for name in requested):
@@ -216,10 +249,16 @@ class MinuteSignalReplayer:
     ) -> MinuteReplayResult:
         t0 = time.perf_counter()
         result = MinuteReplayResult()
+        from app.strategy import s02_173004552 as routed
         from app.strategy.late_session_strength import execution_end
         from app.strategy.s01_signals import stored_definitions
+        routed_s02 = routed.enabled(strategy)
+        s05_scoring = strategy.meta.get("id") == routed.SID
         requested_entries = set(overrides.get("entry_signals", strategy.entry_signals) or [])
-        deadline_signals = {"csgi_" + sig["id"]: sig for sig in stored_definitions(self.strategy_engine)
+        definitions = stored_definitions(self.strategy_engine)
+        market_thresholds = (routed.market_thresholds(definitions, configured_only=routed_s02)
+                             if s05_scoring else None)
+        deadline_signals = {"csgi_" + sig["id"]: sig for sig in definitions
                             if sig.get("template") == "late_session_strength"
                             and "csgi_" + sig["id"] in requested_entries}
         repo = self.engine.repo
@@ -360,10 +399,10 @@ class MinuteSignalReplayer:
                 from app.strategy.basic_filter import previous_session
 
                 source_day = previous_session(day)
-                validate_daily_close(
+                reference_errors = validate_daily_close(
                     repo, source_day, rows=panel.filter(pl.col("date") == source_day),
-                    check_closing_minute=False,
-                )
+                    check_closing_minute=False, **({"isolate_symbols": True} if routed_s02 else {}),
+                ) or {}
                 if signal_sections:
                     from app.strategy.signal_sections import select_rows
                     from app.strategy.suspension import annotate
@@ -371,6 +410,10 @@ class MinuteSignalReplayer:
                     selection_current = daily_history.filter(pl.col("date") == source_day)
                     if selection_current.is_empty():
                         raise ValueError(f"盘后预选缺少{source_day}完整行情")
+                    if routed_s02:
+                        selection_current = selection_current.filter(~pl.col("symbol").is_in(list(reference_errors)))
+                        if selection_current.is_empty():
+                            raise ValueError("S02隔离前日异常后无有效预选日线")
                     selection_current = annotate(
                         selection_current, as_of=source_day, evidence=pool_evidence(
                             repo, source_day, observed_at=datetime.combine(source_day, clock_time(16))),
@@ -392,21 +435,62 @@ class MinuteSignalReplayer:
                             "warnings": selection["warnings"],
                         })
                     else:
+                        if routed_s02:
+                            from app.strategy.overnight_runtime import annotate_prior_ex_dates
+                            selection_context = replace(selection_context, daily_history=annotate_prior_ex_dates(
+                                daily_history.filter(~pl.col("symbol").is_in(list(reference_errors))), repo))
                         selected = select_rows(
                             self.strategy_engine, strategy, selection_context,
                             overrides={**overrides, "basic_filter": {
                                 **overrides.get("basic_filter", {}),
                                 "data_reference": "previous_trade_day",
-                            }}, pool=pool,
+                            }}, pool=None if s05_scoring else pool,
                         )
                         selection = {"as_of": str(day), "source_date": str(source_day), "rows": selected}
+                        if s05_scoring:
+                            from app.market_time import CN_TZ
+                            from app.services.s05_scoring import compute_selection
+                            from app.services.selection_clock import SELECTION_TIME
+                            cutoff = datetime.combine(source_day, SELECTION_TIME, CN_TZ)
+                            observation = {}
+                            if not routed_s02:
+                                cutoff, observation = _s05_research_observation(repo, source_day, strict_research)
+                            selection = (compute_selection(repo, selection, source_day, day, cutoff)
+                                         if routed_s02 else compute_selection(
+                                             repo, selection, source_day, day, cutoff, include_entry_route=False))
+                            if not routed_s02:
+                                selection = {**selection, "entry_execution": "common_template_v1",
+                                    "score_provenance": {**selection["score_provenance"], **observation},
+                                    "warnings": [*selection.get("warnings", []), *([] if strict_research else [
+                                        "S05研究重建使用冻结快照中的历史数据; 后来采集或修订的数据不证明当时可见, 非历史实盘归档"])]}
+                            if market_thresholds is not None:
+                                selection = routed.freeze_market_route(selection, day, market_thresholds, observed=cutoff)
+                            result.selection_provenance.append({
+                                "as_of": str(day), "source_date": str(source_day),
+                                "entry_branch": selection["entry_branch"],
+                                **({"branch_code": selection["branch_code"]} if not routed_s02 else {}),
+                                "coverage": selection["score_coverage"],
+                                "scoring_provenance": selection["score_provenance"],
+                                "warnings": selection.get("warnings", []),
+                            })
+                            # Replay evaluates only the fixed completed bar and uses the same branch as live.
+                            if routed_s02:
+                                context = replace(context, independent_entry_phase="stocks")
                     context = replace(context, selection_snapshots={strategy.meta["id"]: selection})
+                run_overrides = overrides
+                if s05_scoring and not routed_s02:
+                    branch = routed.frozen_daily_branch(selection, day)
+                    if branch is None:
+                        result.replayed_days += 1
+                        continue
+                    name = "csgi_" + routed.ENTRY_IDS[branch]
+                    run_overrides = {**overrides, "entry_signals": [name] if name in requested_entries else []}
                 run_result = self.strategy_engine.run(
                     strategy.meta.get("id", ""),
                     context,
                     pool,
                     params,
-                    overrides,
+                    run_overrides,
                 )
             except ValueError as exc:
                 # 单日执行失败 (如窗口缺列) 记为跳过, 不中断整个回放。
@@ -421,7 +505,7 @@ class MinuteSignalReplayer:
                 f"{day}: {message}" for message in dict.fromkeys(
                     section_errors[key] for key in ("select", "buy") if section_errors.get(key))
             )
-            if full_pool:
+            if full_pool and not routed_s02:
                 # 入场回放保持旧兼容; 新现金账本消费诊断, 不把未知广度当成成功零信号。
                 from app.strategy import custom_signals
                 from app.strategy.late_session_strength import (
@@ -474,6 +558,18 @@ class MinuteSignalReplayer:
                 deadlines = [execution_end(sig, day) for name, sig in deadline_signals.items()
                              if name in hit_signals]
                 entry_window_end = min(deadlines) if deadlines else None
+                if routed_s02:
+                    definition = next((sig for name, sig in deadline_signals.items()
+                                       if name == "csgi_" + routed.ENTRY_IDS.get(
+                                           row.get("entry_branch"), "")), None)
+                    try:
+                        if definition is None:
+                            raise ValueError("S05回放缺少入场分支的冻结定义")
+                        entry_window_start, entry_window_end = routed.entry_window(trigger, signal=definition)
+                    except ValueError as exc:
+                        result.errors.append(f"{day}: {exc}")
+                        result.buy_no_next_minute += 1
+                        continue
                 if entry_window_end is not None and entry_window_start > entry_window_end:
                     result.buy_no_next_minute += 1
                     continue
@@ -513,6 +609,8 @@ class MinuteSignalReplayer:
                     signal_time=signal_time,
                     raw_entry_price=raw_close,
                     entry_window_end=entry_window_end,
+                    entry_branch=(row.get("entry_branch") if routed_s02 else selection["entry_branch"])
+                    if s05_scoring else None,
                 ))
 
         result.elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)

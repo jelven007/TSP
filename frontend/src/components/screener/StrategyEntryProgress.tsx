@@ -64,9 +64,10 @@ export function StrategyEntryProgress({ result, today }: { result: ScreenerResul
   }> | undefined
   const waitingInput = Object.values(signals ?? {}).some(signal =>
     signal?.stocks?.state === 'waiting_input' || signal?.stocks?.input_state === 'waiting_input')
+  const missingSelection = result.section_statuses?.select === 'unavailable'
   const emptyNote = <span className="strategy-result-note">
-    {result.as_of} · {historical ? '历史保存结果 · 未保存阶段进展'
-      : result.as_of > today ? '已保存预选 · 等待该交易日执行'
+    {result.as_of} · {historical ? (missingSelection ? '历史归档待查询' : '历史保存结果 · 未保存阶段进展')
+      : result.as_of > today ? (missingSelection ? '盘后预选尚未归档' : '已保存预选 · 等待该交易日执行')
       : buyTask?.published === true && !['success', 'rejected'].includes(String(buyTask.state))
         ? `部分入场确认完成 · ${result.sections?.buy.length ?? 0}只`
       : buyTask?.terminal === true && buyTask.state === 'rejected'

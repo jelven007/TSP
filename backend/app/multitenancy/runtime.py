@@ -73,6 +73,58 @@ def signal_event_identity(payload, event, *, as_of, execution=False):
     ])
 
 
+def freeze_task_history(payload, sid, saved, generation, contract):
+    """Only the current generation can resume unfinished work or publish pending events."""
+    previous = payload["strategy_task_results"].get(sid) or {}
+    identity = payload["daily_identities"][sid]["runtime_identity"]
+    if saved.get("contract") != contract or saved.get("runtime_identity") != identity:
+        payload["strategy_task_results"].pop(sid, None)
+        return {}, set()
+    if saved.get("generation") == generation:
+        if previous.get("runtime_identity") != identity:
+            payload["strategy_task_results"].pop(sid, None)
+        return saved, set()
+
+    # Keep outcomes already committed for this definition and day so that a
+    # monitor restart cannot repeat a published buy or sell. Unfinished work,
+    # repair ownership and pending events belong to the old generation.
+    tasks = saved.get("tasks") or {}
+    buy = tasks.get("buy") or {}
+    sell = tasks.get("sell") or {}
+    normal = ("success", "rejected")
+    kept = {}
+    def pending_publication(signal):
+        return (signal.get("joined_at") and signal.get("passed") is True and signal.get("breadth_required")
+                and signal.get("publication_state") != "complete"
+                and (signal.get("stocks") or {}).get("hits"))
+
+    if buy.get("published") is True:
+        signals = buy.get("signals") or {}
+        settled = {key: sig for key, sig in signals.items()
+                   if sig.get("state") in normal and not pending_publication(sig)}
+        if buy.get("state") in normal and buy.get("terminal") is True and settled == signals:
+            kept["buy"] = buy
+        elif settled:
+            kept["buy"] = {"signals": settled}
+    if sell.get("state") in normal and sell.get("terminal") is True:
+        kept["sell"] = sell
+    cached = previous.get("monitor_tasks") or {}
+    if previous.get("runtime_identity") == identity and any(cached.get(k) == v for k, v in kept.items()):
+        previous["monitor_tasks"] = kept
+        for kind, keys in (("buy", ("rows", "total", "entry_signal_hits", "entry_data_quality",
+                                    "entry_filter_error", "execution_status")),
+                           ("sell", ("exit_signal_hits", "exit_filter_error"))):
+            if kind not in kept or cached.get(kind) != kept[kind]:
+                for key in keys:
+                    previous.pop(key, None)
+                for key in ("sections", "section_statuses", "section_errors"):
+                    (previous.get(key) or {}).pop(kind, None)
+    else:
+        payload["strategy_task_results"].pop(sid, None)
+    closed = {kind for kind, task in tasks.items() if task.get("state") in ("cancelled", "expired")}
+    return {"tasks": kept}, closed
+
+
 class FullWorker:
     def __init__(self, db, repo, market, executor=None):
         from app.multitenancy.monitor_phase_inbox import PhaseInbox
@@ -126,6 +178,7 @@ class FullWorker:
                 documents.put("strategy_monitoring", saved["id"], {**state, "repair_cancel_pending": False})
             except Exception:
                 logger.warning("cancelled monitor input repair awaiting platform acknowledgement")
+        priority_plan = None
         with authorize(self.identity, context, account["auth_version"]), documents.transaction(write=False) as unit:
             conn = unit.connection
             definitions = conn.execute(
@@ -258,18 +311,14 @@ class FullWorker:
                     from app.services.minute_priority import build_plan
                     from app.services.screener import ScreenerService
                     try:
-                        plan = build_plan(catalog, ScreenerService(self.repo), unit,
-                                          priority_ids, cn_today(), overrides=payload["overrides"],
-                                          current=decode_frame(snapshot["frames"]["stock"]))
+                        priority_plan = build_plan(catalog, ScreenerService(self.repo), unit,
+                                                   priority_ids, cn_today(), overrides=payload["overrides"],
+                                                   current=decode_frame(snapshot["frames"]["stock"]))
                     except ValueError:
                         # A missing scope input must never shrink the priority cohort.
-                        plan = {"day": str(cn_today()), "sequence": time.time_ns(),
-                                "symbols": self.repo.get_instruments_asset("stock")["symbol"].to_list(),
-                                "selected": []}
-                    try:
-                        self.market.minute_priority(tenant_id, plan)
-                    except AccessError:
-                        logger.warning("minute priority bridge unavailable; ordinary collection retained")
+                        priority_plan = {"day": str(cn_today()), "sequence": time.time_ns(),
+                                         "symbols": self.repo.get_instruments_asset("stock")["symbol"].to_list(),
+                                         "selected": []}
                 for sid in {r.get("strategy_id") for r in rules} | set(priority_ids):
                     if sid and catalog.has(sid):
                         payload["daily_identities"][sid] = asdict(capture_identity(
@@ -277,16 +326,13 @@ class FullWorker:
                             timeframe=(catalog.get(sid).meta.get("timeframes") or ["1d"])[0]))
                         strategy = catalog.get(sid)
                         from app.market_time import published_trading_day
+                        from app.services.routed_strategy_monitor import task_windows
                         from app.services.strategy_monitor_state import (
                             CONTRACT,
                             plan,
                             resume_confirmation_timeout,
                         )
-                        from app.services.strategy_monitor_tasks import (
-                            sell_roster,
-                            task_receipt,
-                            task_windows,
-                        )
+                        from app.services.strategy_monitor_tasks import sell_roster, task_receipt
                         if (sid in {r.get("strategy_id") for r in rules}
                                 and strategy.source in ("custom", "ai")):
                             from app.strategy.daily_pool import DEFINITION_VERSION
@@ -303,33 +349,37 @@ class FullWorker:
                                         identity, pool, started_at=time.time_ns())
                                 except Exception as exc:
                                     payload["daily_pool_snapshots"][sid] = {"error": str(exc)}
+                            payload["sell_rosters"][sid] = roster = sell_roster(unit, sid, cn_today())
                             try:
-                                windows = task_windows(catalog, strategy, payload["overrides"].get(sid) or {})
-                            except ValueError:
-                                windows = {"buy": [], "sell": []}
+                                windows = task_windows(catalog, strategy, payload["overrides"].get(sid) or {},
+                                    day=cn_today(), selection=payload["selection_snapshots"].get(sid),
+                                    roster=roster, require_market_route=True)
+                            except ValueError as exc:
+                                windows = {"buy": [], "sell": [], "selection_error": str(exc)}
                             payload["strategy_task_windows"][sid] = windows
-                            saved = task_receipt(unit, sid, cn_today())
-                            if (saved.get("contract") != CONTRACT or saved.get("runtime_identity") !=
-                                    payload["daily_identities"][sid]["runtime_identity"]):
-                                saved = {}
+                            generation = unit.get("strategy_monitoring", sid)["generation"]
+                            receipt = task_receipt(unit, sid, cn_today())
+                            scope = f"{sid}:{runtime_identity(strategy, payload['overrides'].get(sid) or {})}"
+                            if receipt and receipt.get("generation") != generation:
+                                engine_state = payload["state"].get("engine") or {}
+                                phase_states = engine_state.get("late_session_tasks") or {}
+                                for key in [key for key in phase_states if key.startswith(scope + ":")]:
+                                    del phase_states[key]
+                            saved, closed = freeze_task_history(
+                                payload, sid, receipt, generation, CONTRACT)
                             saved["tasks"] = resume_confirmation_timeout(
                                 windows, saved.get("tasks", {}), deadline_context.observed_at)
                             payload["strategy_task_receipts"][sid] = saved
-                            payload["strategy_task_generations"][sid] = unit.get("strategy_monitoring", sid)["generation"]
+                            payload["strategy_task_generations"][sid] = generation
                             planning = plan(windows, saved.get("tasks", {}), deadline_context.observed_at,
                                             trading=published_trading_day(cn_today()))
-                            from app.services.strategy_monitor_tasks import wait_for_repairs
-                            wait_for_repairs(planning, saved, self.market,
-                                             current_release=payload.get("public_release_id"))
+                            # Reopening within a window must schedule real work; reopening
+                            # after it closes leaves the old cancellation/expiry as evidence.
+                            planning["actions"] = [action for action in planning["actions"]
+                                                   if action["phase"] != "expire" or action["kind"] not in closed]
                             payload["strategy_task_plans"][sid] = planning
-                            next_at = planning["next_at"]
-                            if next_at and (payload["next_evaluation_at"] is None or next_at < payload["next_evaluation_at"]):
-                                payload["next_evaluation_at"] = next_at
-                            payload["sell_rosters"][sid] = sell_roster(unit, sid, cn_today())
-                            if planning["actions"]:
-                                payload["strategy_task_ids"].append(sid)
                             # 自定义监控只由按日阶段计划驱动; 不同时交给报价驱动路径重复计算。
-                            payload["late_task_scopes"][sid] = f"{sid}:{runtime_identity(strategy, payload['overrides'].get(sid) or {})}"
+                            payload["late_task_scopes"][sid] = scope
                             continue
                         if strategy.execution_backend == "minute_filter":
                             end = entry_deadline(catalog, catalog.get(sid),
@@ -380,6 +430,22 @@ class FullWorker:
                     pass
             observed = fingerprint(conn)
             payload["_configuration_fingerprint"] = fingerprint(conn, include_state=False)
+        # Platform calls may wait on HTTP. Release both authorization and
+        # tenant binding locks first; commit still verifies all frozen guards.
+        if priority_plan is not None:
+            try:
+                self.market.minute_priority(tenant_id, priority_plan)
+            except AccessError:
+                logger.warning("minute priority bridge unavailable; ordinary collection retained")
+        from app.services.strategy_monitor_tasks import wait_for_repairs
+        for sid, planning in payload["strategy_task_plans"].items():
+            wait_for_repairs(planning, payload["strategy_task_receipts"][sid], self.market,
+                             current_release=payload.get("public_release_id"))
+            next_at = planning["next_at"]
+            if next_at and (payload["next_evaluation_at"] is None or next_at < payload["next_evaluation_at"]):
+                payload["next_evaluation_at"] = next_at
+            if planning["actions"]:
+                payload["strategy_task_ids"].append(sid)
         return account, context, payload, observed
 
     def evaluate(self, tenant_id, snapshot, claim=None):

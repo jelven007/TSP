@@ -278,10 +278,9 @@ async def _application_lifespan(app: FastAPI):
     app.state.watchdog = start_watchdog(app.state, repo)
 
     # 策略引擎
-    from app.strategy.engine import StrategyEngine
+    from app.services.screener import ScreenerService
     from app.strategy import config as strategy_config
     from app.strategy.monitor import StrategyMonitorService
-    from app.services.screener import ScreenerService
 
     _screener_svc = ScreenerService(repo)
     strategy_dirs = [
@@ -290,7 +289,9 @@ async def _application_lifespan(app: FastAPI):
         store.data_dir / "strategies" / "ai",
         store.data_dir / "strategies" / "composite",
     ]
-    strategy_engine = StrategyEngine(
+    from app.strategy.routed_engine import RoutedStrategyEngine
+
+    strategy_engine = RoutedStrategyEngine(
         strategy_dirs=strategy_dirs,
         override_loader=lambda sid: strategy_config.load_override(store.data_dir, sid),
     )

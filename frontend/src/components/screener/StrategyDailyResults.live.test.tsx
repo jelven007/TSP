@@ -201,3 +201,33 @@ it.each([
   await render(s03Result)
   expect(cell('建议卖出价')?.textContent).toBe('—')
 })
+
+it('computes each S05 sell suggestion from its source buy and matching enabled exit', async () => {
+  strategyGet.mockResolvedValue({ id: 'custom_mvxxcs05', exit_signals: [
+    'csgi_tail_exit_s05', 'csgi_low_gap_exit_s05', 'csgi_board_exit_s05',
+  ] })
+  const exit = (id: string, take_profit_pct: number | null) => ({
+    id, kind: 'exit', enabled: true, template: 'morning_liquidation', params: { take_profit_pct },
+  })
+  const signals = [exit('board_exit_s05', 4), exit('tail_exit_s05', 1), exit('low_gap_exit_s05', 2.5)]
+  customSignalsList.mockResolvedValue({ signals })
+  const oldInterval = { lower: 9, upper: 10 }
+  await render({ ...result, strategy: 'custom_mvxxcs05', selection_snapshot: {
+    as_of: result.as_of, source_date: '2026-11-05', generated_at: '2026-11-05T22:00:00', rows: [], branch_code: 4,
+  }, sections: { ...result.sections!, sell: [
+    { symbol: '600001.SH', close: 7, entry_signal_price: 10, holding_exit: true, entry_branch: 'board' },
+    { symbol: '600002.SH', close: 20, csgi_tail_entry_s05: true, suggested_sell_price: oldInterval },
+    { symbol: '600003.SH', close: 30, entry_branch: 'low_gap' },
+    { symbol: '600004.SH', close: 10, csgi_tail_entry_s05: true, entry_branch: 'board', suggested_sell_price: oldInterval },
+    { symbol: '600005.SH', close: 10, entry_branch: 'tail', holding_exit: true },
+    { symbol: '600006.SH', close: 10, suggested_sell_price: oldInterval },
+  ] } })
+  const prices = () => [...host.querySelectorAll('td[data-column="suggested_sell_price"]')].map(el => el.textContent)
+  expect(strategyGet).toHaveBeenCalledWith('custom_mvxxcs05')
+  expect(prices()).toEqual(['10.40', '20.20', '30.75', '—', '—', '—'])
+  await act(async () => client.setQueryData(QK.customSignals, { signals: [
+    { ...signals[0], enabled: false }, signals[1], exit('low_gap_exit_s05', null),
+  ] }))
+  await flush()
+  expect(prices()).toEqual(['—', '20.20', '—', '—', '—', '—'])
+})

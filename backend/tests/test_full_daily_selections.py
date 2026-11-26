@@ -20,6 +20,65 @@ NOW = datetime(2026, 10, 30, 21, tzinfo=ZoneInfo("Asia/Shanghai"))
 TARGET = date(2026, 11, 2)
 
 
+def test_s05_waits_for_s02_saves_it_first_and_retries_frozen_source(env, tmp_path):
+    from app.services.daily_selections import DailySelections
+    from app.services.s05_selection import POLICY, WEIGHTS
+    from app.services.selection_clock import S02_ID, S05_ID
+    from app.services.strategy_monitor_tasks import set_monitoring
+
+    _, documents = own(env)
+    for sid in (S02_ID, S05_ID):
+        code = CODE.replace("custom_test", sid)
+        (tmp_path / f"{sid}.py").write_text(code)
+        definition = definition_payload(StrategyEngine([tmp_path]).get(sid))
+        documents.put("strategy_sources", sid, {
+            "id": sid, "source": "custom", "code": code, "definition": definition})
+    set_monitoring(documents, S05_ID, "s05", True)
+    calls = []
+
+    def execute(task):
+        calls.append(task)
+        sid = task["strategy_ids"][0]
+        if sid == S05_ID and len([c for c in calls if c["strategy_ids"] == [S05_ID]]) == 1:
+            return {"selections": {}, "errors": {sid: "temporary scoring failure"}}
+        snapshot = {**selected(), "rows": []}
+        if sid == S05_ID:
+            snapshot.update(scoring_policy=POLICY, scoring_weights=WEIGHTS,
+                            source_selection=task["source_selection"])
+        return {"selections": {sid: snapshot}, "errors": {}}
+
+    service = TenantSchedules(env["db"], None, executor=SimpleNamespace(execute=execute))
+    lease = claim(env, documents)
+    ready = {"settlement_days": ["2026-10-30"]}
+    try:
+        service.daily_selections(documents, ready, None, NOW, lease)
+        store = DailySelections(documents)
+        assert calls == []
+        assert not store.job(f"{TARGET}:s05")
+        late = NOW.replace(hour=22)
+        service.daily_selections(documents, ready, None, late, lease)
+        assert store.job(f"{TARGET}:s05")["state"] == "waiting_data"
+        set_monitoring(documents, S02_ID, "s02", True)
+        service.daily_selections(documents, ready, None, NOW, lease)
+        assert [c["strategy_ids"] for c in calls] == [[S02_ID]]
+        service.daily_selections(documents, ready, None, late, lease)
+        assert [c["strategy_ids"] for c in calls] == [[S02_ID], [S05_ID]]
+        assert calls[1]["source_selection"]["snapshot"]["identity"]
+        assert calls[1]["observed_at"] == late.isoformat()
+        frozen = calls[1]["source_selection"]
+        service.daily_selections(documents, ready, None, late.replace(minute=1), lease)
+        assert calls[2]["source_selection"] == frozen
+        assert store.read(S05_ID, TARGET, policy=POLICY)["rows"] == []
+        assert store.job(str(TARGET))["state"] == "succeeded"
+        assert store.job(f"{TARGET}:s05")["state"] == "succeeded"
+        service.daily_selections(documents, ready, None, late.replace(hour=23, second=1), lease)
+        assert len(calls) == 3
+    finally:
+        from app.cell.scheduler import Scheduler
+        Scheduler(env["db"]).finish(lease, None)
+        service.runtime.close()
+
+
 def test_saved_suggestions_are_tenant_private_transactional_and_frozen(env):
     from test_minute_signal_sections import signal_result
 

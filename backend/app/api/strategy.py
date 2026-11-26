@@ -220,6 +220,10 @@ def _strategy_detail(
     # 名称/描述可被用户覆盖
     name = overrides.get("name", s.meta.get("name", "")) if overrides else s.meta.get("name", "")
     description = overrides.get("description", s.meta.get("description", "")) if overrides else s.meta.get("description", "")
+    from app.backtest.s05_exit_policy import local_policy
+
+    exit_policy = (local_policy(s.meta["id"]) if getattr(engine, "remote_context", False)
+                   and s.execution_backend == "minute_filter" and not s.meta.get("entry_routing") else None)
 
     return {
         "id": s.meta["id"],
@@ -231,6 +235,7 @@ def _strategy_detail(
         "research_only": s.meta.get("research_only", False),
         "execution_backend": s.execution_backend,
         "minute_execution": s.meta.get("minute_execution"),
+        **({"s05_exit_policy": exit_policy} if exit_policy else {}),
         **({"entry_allocation": "equal_selected_v1"} if equal_selected else {}),
         **({"optional_triggers": True} if optional_triggers(s) else {}),
         **({"result_sections": s.meta["result_sections"]} if "result_sections" in s.meta else {}),
@@ -260,6 +265,8 @@ def _strategy_detail(
             if name in scoring
         },
         "entry_signals": overrides.get("entry_signals", s.entry_signals) if overrides else s.entry_signals,
+        "entry_signal_match": "any" if s.meta.get("entry_signal_match") == "any" else "all",
+        "entry_routing": s.meta.get("entry_routing"),
         "exit_signals": overrides.get("exit_signals", s.exit_signals) if overrides else s.exit_signals,
         "minute_exit_trigger_supported_signals": sorted(MINUTE_EXIT_TRIGGER_SIGNALS),
         "stop_loss": overrides.get("stop_loss", s.stop_loss) if overrides else s.stop_loss,
@@ -570,10 +577,15 @@ def save_config(req: SaveConfigRequest, request: Request):
     _validate_overlay_config(req.overrides, strategy, engine)
     _validate_entry_risk(req.overrides, strategy)
     # 剥离与策略默认值相同的字段，只保存用户真正修改过的值
-    overrides = _strip_defaults(req.strategy_id, req.overrides, engine)
+    from app.services.selection_clock import S03_ID
+
+    data_dir = _data_dir(request)
+    previous = (strategy_config.load_override(data_dir, req.strategy_id)
+                if req.strategy_id == S03_ID else {})
+    overrides = _strip_defaults(req.strategy_id, req.overrides, engine, previous=previous)
 
     try:
-        strategy_config.save_override(_data_dir(request), req.strategy_id, overrides)
+        strategy_config.save_override(data_dir, req.strategy_id, overrides)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return {"ok": True}
@@ -584,7 +596,8 @@ def patch_config(req: SaveConfigRequest, request: Request):
     engine = _get_engine(request)
     strategy = _get_public_strategy(engine, req.strategy_id)
     data_dir = _data_dir(request)
-    overrides = strategy_config.load_override(data_dir, req.strategy_id)
+    previous = strategy_config.load_override(data_dir, req.strategy_id)
+    overrides = dict(previous)
     bf_patch = req.overrides.get("basic_filter")
     if isinstance(bf_patch, dict):
         previous_bf = {**strategy.basic_filter, **overrides.get("basic_filter", {})}
@@ -612,7 +625,7 @@ def patch_config(req: SaveConfigRequest, request: Request):
     _validate_entry_risk(overrides, strategy)
     try:
         strategy_config.save_override(
-            data_dir, req.strategy_id, _strip_defaults(req.strategy_id, overrides, engine),
+            data_dir, req.strategy_id, _strip_defaults(req.strategy_id, overrides, engine, previous=previous),
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -710,7 +723,7 @@ def _validate_scoring_config(overrides: dict) -> None:
         raise HTTPException(status_code=400, detail="scoring_replace 必须是布尔值")
 
 
-def _strip_defaults(strategy_id: str, overrides: dict, engine) -> dict:
+def _strip_defaults(strategy_id: str, overrides: dict, engine, *, previous=None) -> dict:
     """剥离与策略默认值相同的字段，避免默认值被固化到 override 中。
 
     核心问题: 前端把策略的默认 basic_filter 全量发回后端保存，
@@ -733,6 +746,13 @@ def _strip_defaults(strategy_id: str, overrides: dict, engine) -> dict:
             }
             if target_key or k not in default_bf or v != default_val:
                 stripped_bf[k] = v
+        from app.services.selection_clock import S03_ID
+        if strategy_id == S03_ID:
+            # S03 的在途及已完成回执绑定配置身份。保留已有、等同空默认值的
+            # 数值边界, 避免一次无实际变化的范围保存重开当日买入任务。
+            for k, v in ((previous or {}).get("basic_filter") or {}).items():
+                if v is None and k in default_bf and default_bf[k] is None:
+                    stripped_bf.setdefault(k, None)
         if stripped_bf:
             result["basic_filter"] = stripped_bf
         else:

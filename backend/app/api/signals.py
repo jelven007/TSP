@@ -191,10 +191,14 @@ def save_signal(req: SignalModel, request: Request, create_only: bool = False):
         from app.strategy.late_session_strength import DEFAULT_PARAMS
 
         sig["params"].setdefault("evaluation_delay_minutes", DEFAULT_PARAMS["evaluation_delay_minutes"])
+        from app.strategy.s02_173004552 import ENTRY_IDS
+
+        if sig["id"] in ENTRY_IDS.values():
+            sig["params"].pop("s05_entry", None)
     try:
         custom_signals.validate(sig)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     try:
         custom_signals.save_one(_data_dir(request), sig, create_only=create_only)
     except FileExistsError as e:
@@ -313,6 +317,10 @@ def intraday_replay(req: IntradayReplayRequest, request: Request):
             positions.append({**position, "qty": 1, "available_qty": 1})
         return replay(request.app.state.repo, sig, start=start, end=end, symbols=symbols, positions=positions)
     if sig.get("template") == "late_session_strength":
+        from app.strategy.s02_173004552 import ENTRY_IDS
+
+        if sig["id"] in ENTRY_IDS.values():
+            raise HTTPException(status_code=400, detail="S05分支信号须通过绑定策略回放冻结分流及完整候选名单")
         if not req.strategy_id or req.asset_type != "stock":
             raise HTTPException(status_code=400, detail="尾盘走强回放须指定股票策略 strategy_id, 使用其完整当日股票池快照")
         from app.services.late_session_replay import replay

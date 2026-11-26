@@ -80,7 +80,7 @@ def execute(payload: dict, private_root: Path) -> dict:
     """
     from app.config import settings
     from app.multitenancy.strategies import definition_payload
-    from app.strategy.engine import StrategyEngine
+    from app.strategy.routed_engine import RoutedStrategyEngine
 
     settings.data_dir = private_root
     for path in Path("/market").iterdir():
@@ -112,7 +112,7 @@ def execute(payload: dict, private_root: Path) -> dict:
             raise ValueError("invalid private strategy source")
         seen.add(sid)
         (private_root / "strategies" / source / f"{sid}.py").write_text(item["code"], encoding="utf-8")
-    engine = StrategyEngine(directories, override_loader=lambda sid: payload.get("overrides", {}).get(sid, {}))
+    engine = RoutedStrategyEngine(directories, override_loader=lambda sid: payload.get("overrides", {}).get(sid, {}))
     if engine.load_errors():
         raise ValueError("; ".join(item["error"] for item in engine.load_errors()))
     kind = payload["kind"]
@@ -132,6 +132,8 @@ def execute(payload: dict, private_root: Path) -> dict:
                 date.fromisoformat(payload["as_of"]), payload["strategy_ids"],
                 payload.get("overrides_map", {}),
                 source_selection=payload.get("source_selection"),
+                now=datetime.fromisoformat(payload["observed_at"]) if payload.get("observed_at") else None,
+                historical_replay=payload.get("historical_replay"),
             )
         if kind == "monitor":
             from app.multitenancy.monitor_compute import evaluate_snapshot
@@ -208,6 +210,10 @@ def execute(payload: dict, private_root: Path) -> dict:
             if as_of == cn_today():
                 context = replace(context, observed_at=cn_now(), realtime=True,
                                   signal_task_states=payload.get("signal_task_states", {}))
+            if payload.get("historical_replay") is not None:
+                from app.services.s05_task_replay import historical_context, replay_strategy
+                context = historical_context(context, payload["historical_replay"], ids)
+                return replay_strategy(engine, svc, context, payload)
             positions = payload.get("positions", {})
             if context.current is not None and context.current.is_empty() and not positions:
                 raise ValueError("无可用行情数据，请稍后重试")
@@ -216,7 +222,8 @@ def execute(payload: dict, private_root: Path) -> dict:
 
                 # Historical scans observe the selected day's close; live scans
                 # retain seconds for the holding deadline and fresh quote check.
-                observed_at = cn_now() if as_of == cn_today() else datetime.combine(as_of, time(15))
+                observed_at = (context.observed_at if payload.get("historical_replay") is not None else
+                               cn_now() if as_of == cn_today() else datetime.combine(as_of, time(15)))
                 results = {}
                 for sid in ids:
                     scoped = replace(context, positions=positions.get(sid), observed_at=observed_at)

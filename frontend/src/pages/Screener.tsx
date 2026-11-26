@@ -46,6 +46,7 @@ import {
 
 // 获取策略为占位功能, 暂时隐藏入口; 恢复时改回 true
 const SHOW_STRATEGY_STORE = false
+const S05_ID = 'custom_mvxxcs05'
 
 export function Screener() {
   const assetType = 'stock' as const
@@ -119,9 +120,9 @@ export function Screener() {
     [activeStrategy, signalColumnRevision])
   const signalsView = !showAll && result?.section_mode === 'signals'
   const handleSignalColumnsChange = useCallback((next: ColumnConfig[]) => {
-    saveStrategyResultColumns({ ...signalColumns, [activeResultTab]: next })
+    saveStrategyResultColumns(activeResultTab, next, activeStrategy)
     setSignalColumnRevision(previous => previous + 1)
-  }, [activeResultTab, signalColumns])
+  }, [activeResultTab, activeStrategy])
   const [holdingDraft, setHoldingDraft] = useState<{
     key: string; strategyId: string | null; recordId?: string; rows: Record<string, unknown>[]
   } | null>(null)
@@ -723,6 +724,15 @@ export function Screener() {
     refetchInterval: false,
     refetchOnWindowFocus: false,
   })
+  const datedMonitorEnabled = activeStrategy === S05_ID && !!asOf
+  const datedMonitor = useQuery({
+    queryKey: QK.strategyMonitoringDay(S05_ID, asOf),
+    queryFn: () => api.strategyMonitoringDay(S05_ID, asOf),
+    enabled: datedMonitorEnabled,
+  })
+  const selectedMonitor = activeStrategy === S05_ID
+    ? datedMonitor.data?.as_of === asOf && datedMonitor.data.strategy_id === S05_ID ? datedMonitor.data : undefined
+    : monitorTasks.data?.strategies.find(s => s.strategy_id === activeStrategy)
   const strategyMonitorMap = useMemo(() => {
     const m = new Map<string, string>()
     for (const r of monitorRules.data?.rules ?? []) {
@@ -1007,11 +1017,14 @@ export function Screener() {
               )
             })}
           </div>
-          {monitorTasks.data?.strategies.filter(s => s.strategy_id === activeStrategy).map(value => (
-            <StrategyMonitorTasks key={value.strategy_id} value={value}
-              pending={monitorPendingIds.includes(value.strategy_id)}
-              onToggle={() => void toggleStrategyMonitor(value.strategy_id)} />
-          ))}
+          {selectedMonitor && <StrategyMonitorTasks key={selectedMonitor.strategy_id} value={selectedMonitor}
+            pending={monitorPendingIds.includes(selectedMonitor.strategy_id)}
+            onToggle={selectedMonitor.historical ? undefined : () => void toggleStrategyMonitor(selectedMonitor.strategy_id)} />}
+          {datedMonitorEnabled && !selectedMonitor && (datedMonitor.isError
+            ? <p role="alert" className="text-xs text-danger">
+                {asOf} 定时任务读取失败。 <button className="underline" onClick={() => void datedMonitor.refetch()}>重试</button>
+              </p>
+            : <p role="status" className="text-xs text-muted">正在读取 {asOf} 的定时任务…</p>)}
           {isFutureQuery && (showAll || !result || result.section_mode !== 'signals') && (
             <p role="status" className="text-xs text-muted">
               {asOf} · 下一交易日归档查询：可查看已保存的卖／选／买，选名单在前一交易日
@@ -1308,6 +1321,7 @@ export function Screener() {
         strategyId={settingsStrategyId}
         onClose={() => setSettingsStrategyId(null)}
         onSaved={(limit) => {
+          if (settingsStrategyId === S05_ID) void qc.invalidateQueries({ queryKey: QK.strategyMonitoring })
           if (settingsStrategyId) {
             setStrategyLimits(prev => ({ ...prev, [settingsStrategyId]: limit }))
             // 次日查询只刷新归档，参数保存不能计算未来行情。

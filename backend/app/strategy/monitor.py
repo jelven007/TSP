@@ -1186,8 +1186,10 @@ class MonitorRuleEngine:
                     cache_key=f"monitor:{asset_type}",
                 )
                 try:
-                    from app.services.strategy_monitor_tasks import run_monitored, strategy_windows
-                    windows = (strategy_windows(strategy_engine, strategy, data_dir, calculation_overrides)
+                    from app.services.routed_strategy_monitor import strategy_windows
+                    from app.services.strategy_monitor_tasks import run_monitored
+                    windows = (strategy_windows(strategy_engine, strategy, data_dir, calculation_overrides,
+                                                day=today)
                                if data_dir and any(r.get("strategy_id") == strategy_id and not r.get("lot_id")
                                                   for r in asset_rules) else None)
                     if windows is not None and backend == "minute_filter":
@@ -2006,10 +2008,11 @@ class MonitorRuleEngine:
             except Exception:
                 pass
         if self._data_dir and not rule.get("lot_id") and not callable(has_outcome):
-            from app.services.strategy_monitor_tasks import monitoring_state, strategy_windows
+            from app.services.routed_strategy_monitor import strategy_windows
+            from app.services.strategy_monitor_tasks import monitoring_state
             if monitoring_state(self._data_dir, sid).get("enabled") is False:
                 return []
-            windows = strategy_windows(self._strategy_engine, s, self._data_dir, overrides)
+            windows = strategy_windows(self._strategy_engine, s, self._data_dir, overrides, day=cn_today())
 
         # 声明 filter_history 的策略 (如反包) 需要多日历史窗口才能判定形态。
         # 旧实现因"实时监控不支持 history loader"直接跳过 → 反包等策略盘中永不触发。
@@ -2222,6 +2225,7 @@ class MonitorRuleEngine:
         try:
             from app.strategy.entry_risk import EntryRiskPolicy, reference_from_row
             from app.strategy.morning_liquidation import selected_definitions
+            from app.strategy.s02_173004552 import SID as ROUTED_SID
 
             signal_engine = getattr(self._strategy_engine, "_source", self._strategy_engine)
             resolve_signals = getattr(signal_engine, "_effective_signals", None)
@@ -2231,7 +2235,7 @@ class MonitorRuleEngine:
             exit_definitions = selected_definitions(
                 signal_engine,
                 resolve_signals(overrides, "exit_signals", getattr(s, "exit_signals", [])),
-            ) if sid == "custom_mvxxcp88" else []
+            ) if sid in ("custom_mvxxcp88", ROUTED_SID) else []
             from app.strategy.s01_signals import stored_definitions
             entry_names = resolve_signals(overrides, "entry_signals", getattr(s, "entry_signals", []))
             entry_definitions = [sig for sig in stored_definitions(signal_engine)
@@ -2278,11 +2282,33 @@ class MonitorRuleEngine:
                     row = row_map.get(hit[1], {})
                     score = row.get("score", result.scores.get(hit[1]))
                     score = score if isinstance(score, (float, int)) and not isinstance(score, bool) and math.isfinite(score) else None
+                    from app.strategy import s02_173004552 as s02
+                    branch_policy = {}
+                    if s.meta.get("id") == s02.SID and not s02.enabled(s) and event_type in ("buy_signal", "pool_entry"):
+                        named = signal_map.get("buy_signal", {}).get(hit[1], [])
+                        entry = next((sig for sig in sorted(entry_definitions, key=lambda value: (
+                            (value.get("params") or {}).get("time") or "", value["id"]))
+                            if "csgi_" + sig["id"] in named), None)
+                        branch = next((name for name, sid in s02.ENTRY_IDS.items()
+                                       if entry is not None and sid == entry["id"]), None)
+                        exit_point = next((sig for sig in exit_definitions
+                                           if sig["id"] == s02.EXIT_IDS.get(branch)
+                                           and sig.get("enabled")), None)
+                        branch_policy = {"entry_definition": entry, "exit_definition": exit_point}
+                    if s02.enabled(s) and event_type in ("buy_signal", "pool_entry"):
+                        branch = row.get("entry_branch")
+                        entry = next((sig for sig in entry_definitions
+                                      if sig["id"] == s02.ENTRY_IDS.get(branch)), None)
+                        exit_point = next((sig for sig in exit_definitions
+                                           if sig["id"] == s02.EXIT_IDS.get(branch)
+                                           and sig.get("enabled")), None)
+                        branch_policy = {"entry_branch": branch, "execution_policy": s02.POLICY,
+                                         "entry_definition": entry, "exit_definition": exit_point}
                     # Notifications retain their display price; executions use raw money.
                     execution_rows.append((
                         *hit[:3], row.get("raw_close", hit[3]), *hit[4:],
                         {**candidate_ranks.get(hit[1], {}), "score": score, "entry_policy": {
-                            **entry_policy, "signal_reference": reference_from_row(row),
+                            **entry_policy, **branch_policy, "signal_reference": reference_from_row(row),
                             **({
                                 "signal_datetime": row["last_datetime"].isoformat(),
                                 "entry_evaluated_at": (row.get("entry_evaluated_at") or row["last_datetime"]).isoformat(),

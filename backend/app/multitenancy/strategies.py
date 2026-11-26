@@ -17,6 +17,7 @@ from app.strategy.engine import (
     StrategyEngine,
     StrategyResult,
 )
+from app.strategy.routed_engine import RoutedStrategyEngine
 
 DEFINITION_FIELDS = (
     "meta", "basic_filter", "entry_signals", "exit_signals", "stop_loss",
@@ -44,7 +45,7 @@ def metadata_definition(value: dict) -> StrategyDef:
     )
 
 
-class TenantStrategyEngine(StrategyEngine):
+class TenantStrategyEngine(RoutedStrategyEngine):
     # ScreenerService lets the container load its own public market window,
     # avoiding private signal/factor columns in shared repository caches.
     remote_context = True

@@ -313,7 +313,7 @@ def selection_receipts(storage, job, now):
         task_receipt(storage, sid, job["source_date"], saved_receipt)
 
 
-def monitoring_summary(engine, storage, *, now=None):
+def monitoring_summary(engine, storage, *, now=None, strategy_id=None):
     from app.market_time import as_cn_datetime, cn_now, published_trading_day
     from app.services.daily_selections import DailySelections, due_window
     from app.strategy.config import list_overrides
@@ -321,7 +321,8 @@ def monitoring_summary(engine, storage, *, now=None):
     calendar = published_trading_day(now.date())
     active, overrides = monitored_ids(storage), list_overrides(storage)
     rows = []
-    for sid, strategy in engine._strategies.items():
+    strategies = {strategy_id: engine.get(strategy_id)} if strategy_id else engine._strategies
+    for sid, strategy in strategies.items():
         enabled = sid in active
         errors = []
         try:
@@ -426,7 +427,7 @@ def sell_roster(storage, sid, day):
         if conn is None:
             return None
         saved = _get(store, conn, "strategy_sell_rosters", _key(sid, day, "stock", "1m"))
-        if saved is not None:
+        if saved is not None and sid != "custom_mvxxcs05":
             return saved
         # 已有成功历史买档仍是卖名单证据, 不为恢复名单重算历史入场。
         from app.services.strategy_results import ResultIdentity
@@ -436,6 +437,8 @@ def sell_roster(storage, sid, day):
         }, str(day))
         if (result.get("section_errors") or {}).get("sell"):
             return None
+        if result.get("sell_roster") is not None:
+            return result["sell_roster"]
         from app.strategy.basic_filter import previous_session
         return {"strategy_id": sid, "as_of": str(day),
                 "source_date": str(previous_session(date.fromisoformat(str(day)))),
@@ -775,6 +778,8 @@ def run_tasks(engine, strategy, context, overrides, windows, roster, *, exit_con
     saved_loader = getattr(engine, "_monitor_receipt_loader", None)
     saved = saved_loader(sid) if callable(saved_loader) else {}
     tasks = deepcopy((saved or {}).get("tasks", {}))
+    if windows["sell"] and (tasks.get("sell") or {}).get("completion_reason") == "s05_no_daily_branch":
+        tasks.pop("sell")
     from app.services.strategy_monitor_state import resume_confirmation_timeout
     tasks = resume_confirmation_timeout(windows, tasks, context.observed_at)
     if (windows["sell"] and published_trading_day(context.as_of) and roster is not None
@@ -884,6 +889,10 @@ def run_tasks(engine, strategy, context, overrides, windows, roster, *, exit_con
             result.section_errors["select"] = "盘后选股尚未生成"
     result.section_errors = result.section_errors or {}
     result.section_statuses = result.section_statuses or {}
+    if windows.get("buy_no_market_route") and not result.rows and not result.entry_signal_hits:
+        tasks["buy"] = deepcopy(windows["buy_no_market_route"])
+    if windows.get("sell_no_market_route") and not tasks.get("sell", {}).get("triggered"):
+        tasks["sell"] = deepcopy(windows["sell_no_market_route"])
 
     sell_actions = [a for a in actions if a["kind"] == "sell" and a["phase"] == "observe"]
     sell_task = tasks.setdefault("sell", {})
@@ -893,22 +902,26 @@ def run_tasks(engine, strategy, context, overrides, windows, roster, *, exit_con
         sell_task["new_triggered"] = {}
         triggered = deepcopy(sell_task.get("triggered", {}))
         for action in sell_actions:
-            remaining = ({**roster, "rows": [r for r in roster["rows"] if r["symbol"] not in triggered]}
-                         if roster is not None else None)
             active_windows = {**windows, "sell": [
                 w for w in windows["sell"] if w["signal"]["id"] == action["signal_id"]]}
+            allowed = active_windows["sell"][0].get("symbols")
+            scoped = [r for r in (roster or {}).get("rows", [])
+                      if allowed is None or r["symbol"] in allowed]
+            remaining = ({**roster, "rows": [r for r in scoped if r["symbol"] not in triggered]}
+                         if roster is not None else None)
             evaluated = evaluate_sell_task(engine, strategy, exit_context or context, overrides,
                                            active_windows, remaining)
             for hit in evaluated["hits"]:
                 if hit["symbol"] not in triggered:
                     triggered[hit["symbol"]] = {**hit, "monitor_signal_id": action["signal_id"]}
                     sell_task["new_triggered"][hit["symbol"]] = triggered[hit["symbol"]]
-            done = roster is not None and len(triggered) == len(roster["rows"])
+            count = sum(r["symbol"] in triggered for r in scoped)
+            done = roster is not None and count == len(scoped)
             old = sell_task.setdefault("signals", {}).get(action["signal_id"], {})
             sell_task["signals"][action["signal_id"]] = receipt(
                 old, action, context.observed_at, errors=evaluated["errors"],
-                passed=bool(triggered), complete=done, details={
-                    "count": len(triggered), "remaining_count": len((roster or {}).get("rows", [])) - len(triggered),
+                passed=bool(count), complete=done, details={
+                    "count": count, "remaining_count": len(scoped) - count,
                     "hits": evaluated["hits"]})
         sell_task["triggered"] = triggered
         result.exit_signal_hits = list(triggered.values())
@@ -938,6 +951,8 @@ def run_tasks(engine, strategy, context, overrides, windows, roster, *, exit_con
                     ("success", "rejected") else "failed" if terminal else "queued",
                     errors=list(dict.fromkeys(error for s in signals for error in s.get("errors", []))),
                     count=len(result.exit_signal_hits) if kind == "sell" else len(result.rows))
+        if "branch_code" in windows:
+            task["branch_code"] = windows["branch_code"]
         if terminal:
             task["completed_at"] = max(s.get("completed_at") or
                 (s.get("stocks") or {}).get("completed_at") or context.observed_at.isoformat() for s in signals)
@@ -959,6 +974,14 @@ def run_tasks(engine, strategy, context, overrides, windows, roster, *, exit_con
         result.entry_filter_error = ("入场触发器未配置有效时段" if buy_state == "unconfigured" else
             "入场信号时段已结束" if buy_state == "expired" else "等待入场阶段计算")
         result.section_errors["buy"] = result.entry_filter_error
+    if "sell_source_error" in windows:
+        tasks["sell"]["errors"] = list(dict.fromkeys([
+            *tasks["sell"].get("errors", []), windows["sell_source_error"]]))
+        if not windows["sell"]:
+            tasks["sell"].update(state="waiting", terminal=False, status="queued")
+        elif tasks["sell"].get("terminal"):
+            tasks["sell"].update(state="failed", status="failed")
+        result.section_statuses["sell"] = tasks["sell"]["state"]
     result.sections["sell"] = (roster or {}).get("rows", [])
     result.section_errors.pop("sell", None)
     if tasks["sell"].get("errors"):
@@ -1042,6 +1065,9 @@ def forward_buy(store, conn, identity, saved):
     from app.services.strategy_day_views import _get, _key, _put, publish
     from app.strategy.overnight_runtime import next_market_day
     result = saved["result"]
+    if identity.strategy_id == "custom_mvxxcs05":
+        from app.strategy.s02_173004552 import project_daily_buys
+        result = project_daily_buys(result)
     published = (result.get("monitor_contract") == CONTRACT
                  and (result.get("monitor_tasks") or {}).get("buy", {}).get("published"))
     if (result.get("selection_only") or result.get("sell_roster_only")
@@ -1051,12 +1077,17 @@ def forward_buy(store, conn, identity, saved):
                 "buy", "waiting") not in ("success", "rejected"))):
         return
     day = str(next_market_day(date.fromisoformat(result["as_of"])))
+    bought = result["sections"]["buy"]
+    if identity.strategy_id == "custom_mvxxcs05":
+        from app.strategy.s02_173004552 import with_entry_branches
+
+        bought = with_entry_branches(bought, result.get("entry_signal_hits") or [])
     roster = {
         "strategy_id": identity.strategy_id, "as_of": day, "source_date": result["as_of"],
         "source_record_id": saved["record_id"],
         "strategy_version": saved["summary"]["strategy_version"],
         "rows": [{**row, "entry_date": result["as_of"], "entry_record_id": saved["record_id"]}
-                 for row in result["sections"]["buy"]],
+                 for row in bought],
     }
     key = _key(identity.strategy_id, day, identity.asset_type, identity.timeframe)
     if _get(store, conn, "strategy_sell_rosters", key) != roster:

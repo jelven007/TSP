@@ -1,15 +1,51 @@
-import type { CustomSignal, LateSessionStrengthParams, MorningLiquidationParams, S01EntryParams, S01ExitParams, S01VolumeExitParams } from './api'
+import type { CustomSignal, LateSessionStrengthParams, MorningLiquidationParams, S01EntryParams, S01ExitParams, S01VolumeExitParams, S05EntryParams, S05EntrySort } from './api'
 
 const signalNameOrder = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' })
 export const sortSignalsByName = (signals: CustomSignal[]) =>
   [...signals].sort((a, b) => signalNameOrder.compare(a.name, b.name) || a.id.localeCompare(b.id))
 
 export const LATE_SESSION_DEFAULTS: LateSessionStrengthParams = {
-  time: '14:30:00', change_min_pct: 0.4, change_max_pct: 4,
+  time: '14:30:00', change_min_pct: null, change_max_pct: null,
   pool_up_min_pct: 60, ma5_1m_count: 7, ma5_5m_count: 4,
   evaluation_delay_minutes: 0.5,
   amount_min_100m: null, turnover_min_pct: null, amplitude_max_pct: null,
   volume_ratio_min: null, end_time: null,
+  return_5m_min_pct: null, return_15m_min_pct: null, position_min_pct: null, gap_max_pct: null,
+}
+
+export function lateSessionDraft(signal: CustomSignal): LateSessionStrengthParams {
+  const { s05_entry: _legacy, ...stored } = (signal.params ?? {}) as Partial<LateSessionStrengthParams>
+  return { ...LATE_SESSION_DEFAULTS, ...stored }
+}
+
+export const S05_SORT_LABELS: Record<S05EntrySort, string> = {
+  return_5m: '近5分钟涨幅', fund_tech: '资金技术加权分', four_dimension: '四维综合分',
+}
+export const S05_BRANCH_LABELS = {
+  1: '尾段加速', 2: '低缺口资金趋势', 3: '板块强势综合', 4: '均不满足',
+} as const
+
+export const S05_ENTRY_FIELDS: [Exclude<keyof S05EntryParams, 'sort_by'>, string, number][] = [
+  ['prior_up_5d_min_pct', '近5交易日平均上涨占比下限（%）', 0],
+  ['prior_up_vs_5d_max_pp', '前日较5交易日前上涨占比变化上限（百分点）', -100],
+  ['prior_up_2d_min_pct', '近2交易日平均上涨占比下限（%）', 0],
+  ['prior_up_vs_20d_min_pp', '前日较20交易日前上涨占比变化下限（百分点）', -100],
+  ['return_5m_min_pct', '近5分钟涨幅下限（%）', -100],
+  ['return_15m_min_pct', '近15分钟涨幅下限（%）', -100],
+  ['gap_max_pct', '开盘缺口上限（%）', -100],
+  ['change_min_pct', '当日涨幅下限（%）', -100],
+  ['change_max_pct', '当日涨幅上限（%）', -100],
+  ['position_min_pct', '日内价格位置下限（%）', 0],
+  ['prior_up_min_pct', '前一交易日上涨占比下限（%）', 0],
+  ['prior_above_ma20_min_pct', '前一交易日站上MA20占比下限（%）', 0],
+  ['veto_change_min_pct', '首名否决涨幅（%）', -100],
+  ['fund_weight_pct', '资金分权重（%）', 0],
+]
+
+export function s05SortLabel(sort: S05EntrySort, fundWeight?: number) {
+  return sort === 'fund_tech' && fundWeight != null
+    ? `${S05_SORT_LABELS[sort]}（资金${fundWeight}%＋技术${Number((100 - fundWeight).toFixed(8))}%）`
+    : S05_SORT_LABELS[sort]
 }
 
 export const MORNING_LIQUIDATION_DEFAULTS: Required<Omit<MorningLiquidationParams, 'amplitude_pct'>> = {
@@ -104,6 +140,7 @@ export function lateSessionSummary(signal: CustomSignal): string[] {
       ? `确认延迟 ${p.evaluation_delay_minutes * 60}秒 · 确认时间 ${lateSessionCheckTime(p)}`
       : '确认延迟 未设置',
     `K线截止 ${barTime}`,
+    ...(p.s05_entry ? [`排序：${s05SortLabel(p.s05_entry.sort_by, p.s05_entry.fund_weight_pct)}降序`] : []),
     ...(p.pool_up_min_pct == null ? [] : [`股票池有效成员上涨占比 ≥ ${p.pool_up_min_pct}%`]),
     ...(p.amount_min_100m == null ? [] : [`当日成交额 ≥ ${p.amount_min_100m}亿元`]),
     ...(p.turnover_min_pct == null ? [] : [`当日换手率 ≥ ${p.turnover_min_pct}%`]),
@@ -111,6 +148,10 @@ export function lateSessionSummary(signal: CustomSignal): string[] {
     ...(p.change_min_pct == null ? [] : [`当日涨幅 ≥ ${p.change_min_pct}%`]),
     ...(p.change_max_pct == null ? [] : [`当日涨幅 ≤ ${p.change_max_pct}%`]),
     ...(p.volume_ratio_min == null ? [] : [`当日量比 ≥ ${p.volume_ratio_min}`]),
+    ...(p.return_5m_min_pct == null ? [] : [`最近5分钟涨幅 ≥ ${p.return_5m_min_pct}%`]),
+    ...(p.return_15m_min_pct == null ? [] : [`最近15分钟涨幅 ≥ ${p.return_15m_min_pct}%`]),
+    ...(p.position_min_pct == null ? [] : [`日内位置 ≥ ${p.position_min_pct}%`]),
+    ...(p.gap_max_pct == null ? [] : [`开盘缺口 ≤ ${p.gap_max_pct}%`]),
     ...(p.ma5_1m_count == null ? [] : [`1分钟MA5 连增 ${p.ma5_1m_count} 个值（${p.ma5_1m_count - 1} 次比较）`]),
     ...(p.ma5_5m_count == null ? [] : [`5分钟MA5 连增 ${p.ma5_5m_count} 个值（${p.ma5_5m_count - 1} 次比较）`]),
     ...(p.end_time == null ? [] : [`买入结束时间 ${p.end_time}（北京时间），超过停止买入并撤销余单`]),

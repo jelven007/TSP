@@ -6,12 +6,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { Screener } from './Screener'
 
 const { summary, detail, dayView, run, runAll, reload, batchMutate, oldPreferences,
-  monitorList, monitorSave, monitorDelete, monitorToggle, monitorTasks, rules, poolState, dataState, clockState, reorderPool, addToPool, calendar } = vi.hoisted(() => ({
+  monitorList, monitorSave, monitorDelete, monitorToggle, monitorTasks, datedTasks, rules, poolState, dataState, clockState, reorderPool, addToPool, calendar } = vi.hoisted(() => ({
   summary: vi.fn(), detail: vi.fn(), dayView: vi.fn(), run: vi.fn(), runAll: vi.fn(),
   reload: vi.fn(), batchMutate: vi.fn(),
   oldPreferences: { screener_auto_run: false as boolean | undefined },
   monitorList: vi.fn(), monitorSave: vi.fn(), monitorDelete: vi.fn(),
-  monitorToggle: vi.fn(), monitorTasks: vi.fn(),
+  monitorToggle: vi.fn(), monitorTasks: vi.fn(), datedTasks: vi.fn(),
   rules: [] as any[], poolState: { ids: ['sample', 'minute'] },
   dataState: { latest: '2026-10-23' as string | null },
   clockState: { data: {} as { market_date?: string; market_time?: string; is_trading_day?: boolean | null } },
@@ -28,6 +28,8 @@ vi.mock('@/lib/api', () => ({
         source: 'custom', result_sections: 'signals' },
       { id: 'custom_mvxxcs01', name: 's01', asset_types: ['stock'], timeframes: ['1m'],
         source: 'custom', result_sections: 'signals', minute_execution: 'overnight_capacity_v1', optional_triggers: true },
+      { id: 'custom_mvxxcs05', name: 's05', asset_types: ['stock'], timeframes: ['1m'],
+        source: 'custom', result_sections: 'signals' },
       { id: 'added', name: '新增样例', asset_types: ['stock'], timeframes: ['1d'] },
       { id: 'composite', name: '叠加样例', asset_types: ['stock'], timeframes: ['1d'] },
     ] }),
@@ -43,6 +45,7 @@ vi.mock('@/lib/api', () => ({
     monitorRuleDelete: monitorDelete,
     strategyMonitoringSet: monitorToggle,
     strategyMonitoring: monitorTasks,
+    strategyMonitoringDay: datedTasks,
     minuteRefreshStatus: async () => ({}),
     watchlistGroups: async () => ({ groups: [] }),
     strategyGet: async () => ({ params_defaults: { position_limit: 5, take_profit_pct: .06, stop_loss_pct: .05 } }),
@@ -113,6 +116,7 @@ beforeEach(() => {
   })
   monitorDelete.mockReset().mockResolvedValue({})
   monitorTasks.mockReset().mockResolvedValue({ strategies: [] })
+  datedTasks.mockReset()
   monitorToggle.mockReset().mockResolvedValue({ enabled: true })
   run.mockReset()
   runAll.mockReset()
@@ -426,6 +430,42 @@ it('keeps an explicitly chosen historical date when the trading clock refreshes'
   const date = host.querySelector<HTMLInputElement>('[aria-label="测试日期"]')!
   expect(date.value).toBe('2026-10-22')
   expect(date.max).toBe('2026-11-03')
+})
+
+it('shows S05 tasks for the chosen date even when an earlier date responds late', async () => {
+  const id = 'custom_mvxxcs05', today = '2026-11-27', past = '2026-11-26'
+  poolState.ids = [id]
+  clockState.data = { market_date: today, is_trading_day: true }
+  const schedule = (day: string) => ({
+    strategy_id: id, as_of: day, enabled: true, historical: day !== today,
+    tasks: {
+      select: { state: 'no_receipt', windows: [] },
+      buy: { state: 'no_receipt', branch_code: 4, branch_date: day, windows: [] },
+      sell: { state: 'expired', branch_code: 2, branch_date: '2026-11-25',
+        windows: [{ start: '09:43:00', end: '13:55:00', signal_name: '分支2出场' }],
+        receipt_source: 'scheduler' },
+    },
+  })
+  let completeToday!: (value: unknown) => void
+  datedTasks.mockImplementation((_id, day) => day === today
+    ? new Promise(resolve => { completeToday = resolve }) : Promise.resolve(schedule(day)))
+  dayView.mockResolvedValue({ result: null })
+  await render()
+  await act(async () => button('s05').click())
+  await flush()
+  await setDate(past)
+  await flush()
+  expect(datedTasks).toHaveBeenCalledWith(id, past)
+  await act(async () => completeToday(schedule(today)))
+  await flush()
+  const tasks = host.querySelector('[aria-label="策略定时任务"]')?.textContent
+  expect(tasks).toContain('历史定时任务 · 北京时间 · 2026-11-26')
+  expect(tasks).toContain('2026-11-25')
+  expect(tasks).toContain('09:43:00～13:55:00')
+  expect(tasks).toContain('不安排买入')
+  expect(tasks).toContain('已结束')
+  expect(tasks).not.toContain(today)
+  expect(run).not.toHaveBeenCalled()
 })
 
 it('enables monitoring without changing the viewed date or starting a calculation', async () => {

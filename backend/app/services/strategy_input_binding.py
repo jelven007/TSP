@@ -75,12 +75,17 @@ def input_request(payload, sid, action):
     window = next(w for w in payload["strategy_task_windows"][sid]["buy"]
                   if w["signal"]["id"] == action["signal_id"])
     identity = payload["daily_identities"][sid]
+    definition = {key: identity[key] for key in (
+        "strategy_version", "params_json", "overrides_json", "asset_type", "timeframe", "runtime_identity")}
+    if sid == S01_ID:
+        # runtime_identity覆盖S01自身逻辑; 全局目录版本还包含无关策略信号。
+        definition.pop("strategy_version")
+        definition["schema"] = "s01_bound_definition_v2"
     from app.services.strategy_input_manifest import normalize_request
     return normalize_request({
         "strategy_id": sid, "as_of": str(day), "reference_date": str(previous_session(day)),
         "bar_at": datetime.combine(day, datetime.fromisoformat(f"{day}T{window['start']}").time()).isoformat(),
-        "definition_sha256": digest({key: identity[key] for key in (
-            "strategy_version", "params_json", "overrides_json", "asset_type", "timeframe", "runtime_identity")}),
+        "definition_sha256": digest(definition),
         "algorithm_sha256": algorithm_sha256(),
         "pool": deepcopy(payload["daily_pool_snapshots"].get(sid) or {}),
         "selection": deepcopy(payload["selection_snapshots"].get(sid) or {}),

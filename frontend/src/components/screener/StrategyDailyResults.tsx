@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
-import { api, type ScreenerResult } from '@/lib/api'
+import { api, type ScreenerResult, type S05EntrySort } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { StockPreviewDialog } from '@/components/StockPreviewDialog'
 import { toNavItems, type NavItem } from '@/lib/listNav'
@@ -12,6 +12,7 @@ import type { ColumnConfig } from '@/lib/list-columns'
 import { useTableSort } from '@/components/stock-table/useTableSort'
 import { StrategyEntryProgress } from './StrategyEntryProgress'
 import { selectionWindow } from '@/lib/selection-clock'
+import { S05_BRANCH_LABELS, S05_SORT_LABELS, s05SortLabel } from '@/lib/customSignals'
 
 export type { StrategyResultTab } from '@/lib/strategy-result-columns'
 type Tab = StrategyResultTab
@@ -42,10 +43,31 @@ const labels: Record<string, string> = {
   net_stop: '扣费净止损', gross_target: '毛止盈', time_guard: '时间兜底',
   suspended: '停牌等待复牌', pending: '等待卖出指标',
 }
+const s02Branches: Record<string, string> = {
+  tail: '尾段加速', low_gap: '低缺口资金趋势', board: '板块强势综合',
+}
+const s05Branches = Object.keys(s02Branches)
+const s05ExitId = (row: Record<string, unknown>) => {
+  // Older sell rosters carry the actual entry signal column instead of entry_branch.
+  const branches = s05Branches.filter(branch =>
+    row.entry_branch === branch || row[`csgi_${branch}_entry_s05`] === true)
+  return branches.length === 1 ? `${branches[0]}_exit_s05` : undefined
+}
+const s05DefaultSort: Record<string, S05EntrySort> = {
+  tail: 'return_5m', low_gap: 'fund_tech', board: 'four_dimension',
+}
+const s05NoMarketRoute = (result: ScreenerResult) =>
+  result.strategy === 'custom_mvxxcs05'
+  && result.selection_snapshot?.as_of === result.as_of
+  && result.selection_snapshot.entry_branch === null
+  && ['s05_market_route_v2', 's05_daily_branch_v3'].includes(result.selection_snapshot.entry_route?.schema ?? '')
+  && result.selection_snapshot.entry_route?.matched.length === 0
+  && !result.sections?.buy.length
 const finiteNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value)
 function format(key: string, value: unknown) {
   if (value == null) return '—'
+  if (key === 'entry_branch') return s02Branches[String(value)] ?? '—'
   if (key === 'suggested_sell_price') {
     if (typeof value === 'number') return Number.isFinite(value) && value > 0 ? value.toFixed(2) : '—'
     if (typeof value !== 'object') return '—'
@@ -62,7 +84,7 @@ function format(key: string, value: unknown) {
     if (['live_turnover', 'reference_turnover_rate'].includes(key)) return value >= 0 ? `${value.toFixed(2)}%` : '—'
     if (['volume', 'amount', 'suggested_lots_100k'].includes(key)) return value.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
     if (key === 'float_cap_1430') return (value / 1e8).toFixed(2)
-    if (['shares', 'sold_shares', 'remaining', 'filled_shares', 'rank', 'selection_rank', 'breadth_denominator', 'atr_rank'].includes(key)) return value.toLocaleString('zh-CN')
+    if (['shares', 'sold_shares', 'remaining', 'filled_shares', 'rank', 'selection_rank', 'breadth_denominator', 'atr_rank', 's02_rank'].includes(key)) return value.toLocaleString('zh-CN')
     return value.toFixed(2)
   }
   return labels[String(value)] ?? String(value)
@@ -92,7 +114,8 @@ export function StrategyDailyResultToolbar({ result, activeTab, onTabChange, cur
         aria-controls={`daily-${result.strategy}-${tab.id}`} id={`daily-tab-${result.strategy}-${tab.id}`}
         onClick={() => onTabChange(tab.id)}
         className={`h-7 px-3 rounded-btn text-xs ${activeTab === tab.id ? 'bg-accent text-white' : 'text-secondary hover:bg-elevated'}`}>
-        {tab.label} · {signals && tab.id === 'buy' && result.monitor_tasks?.buy?.published === true
+        {tab.label} · {tab.id === 'buy' && s05NoMarketRoute(result) ? '无分支'
+          : signals && tab.id === 'buy' && result.monitor_tasks?.buy?.published === true
           ? section.buy?.length ?? 0
           : signals && result.section_statuses?.[tab.id] === 'unavailable' ? '未归档'
           : signals && result.section_statuses?.[tab.id] === 'failed' ? '失败'
@@ -128,24 +151,48 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
   const signals = result.section_mode === 'signals'
   const s01 = result.strategy === 'custom_mvxxcs01'
   const s03 = result.strategy === 'custom_mvxxcs03'
+  const s05 = result.strategy === 'custom_mvxxcs05'
+  const s05SignalPage = s05 && active !== 'select' && signals
+  const s05Projected = s05SignalPage && section[active].some(row => Object.hasOwn(row, 'signal_score'))
+  const noMarketRoute = s05NoMarketRoute(result)
+  const routedS02 = s05
+    && result.selection_snapshot?.entry_routing === 's02_173004552_v1'
+  const branch = (routedS02 ? result.selection_snapshot?.entry_branch : undefined)
+    ?? section.buy[0]?.entry_branch
+  const entryQuality = s05 && active === 'buy'
+    ? Object.values(result.entry_data_quality ?? {}).find(quality => quality.entry_branch === branch && quality.sort_by)
+    : undefined
+  const archivedSort = entryQuality?.sort_by ?? section.buy[0]?.entry_sort_by
+  const entrySort: S05EntrySort | undefined = !s05Projected && s05 && active === 'buy' && branch
+    ? (archivedSort && Object.hasOwn(S05_SORT_LABELS, archivedSort) ? archivedSort : s05DefaultSort[String(branch)])
+    : undefined
+  const entrySortId = `builtin:entry_sort_${entrySort}`
+  const fundWeight = entryQuality?.fund_weight_pct ?? section.buy[0]?.entry_sort_fund_weight_pct
+  const showEntryBranch = active === 'sell'
+    ? s05 && section.sell.some(row => row.entry_branch in s02Branches)
+    : active === 'buy' && s05 && !!branch
+  const calculateSellSuggestion = signals && active === 'sell' && (s03 || s05)
   const strategy = useQuery({
     queryKey: QK.strategyDetail(result.strategy ?? ''),
     queryFn: () => api.strategyGet(result.strategy!),
-    enabled: signals && s03 && active === 'sell',
+    enabled: calculateSellSuggestion && section.sell.length > 0,
     staleTime: 60_000,
   })
   const exitSignals = useQuery({
     queryKey: QK.customSignals,
     queryFn: () => api.customSignalsList(),
-    enabled: signals && s03 && active === 'sell',
+    enabled: calculateSellSuggestion && section.sell.length > 0,
     staleTime: 60_000,
   })
-  const exitSignal = exitSignals.data?.signals.find(signal =>
+  const linkedExits = useMemo(() => exitSignals.data?.signals.filter(signal =>
     strategy.data?.exit_signals.includes(`csgi_${signal.id}`) && signal.enabled
-      && signal.kind !== 'entry' && signal.template === 'morning_liquidation')
-  const takeProfit = exitSignal?.params && 'take_profit_pct' in exitSignal.params
-    ? exitSignal.params.take_profit_pct : null
+      && signal.kind !== 'entry' && signal.template === 'morning_liquidation') ?? [],
+    [exitSignals.data, strategy.data])
   const suggestedSellPrice = (row: Record<string, unknown>) => {
+    const exitId = s05 ? s05ExitId(row) : undefined
+    const exitSignal = s05 ? linkedExits.find(signal => signal.id === exitId) : linkedExits[0]
+    const takeProfit = exitSignal?.params && 'take_profit_pct' in exitSignal.params
+      ? exitSignal.params.take_profit_pct : null
     // 出场计算会用卖出触发价覆盖 close，原买入触发价保存在 entry_signal_price。
     const price = 'entry_signal_price' in row ? row.entry_signal_price
       : row.holding_exit ? null : row.close
@@ -166,6 +213,8 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
       } : {}),
       }))
       if (s03) return selectedRows.sort((a, b) => a.selection_rank - b.selection_rank)
+      if (routedS02) return selectedRows.sort((a, b) =>
+        (a.s02_rank ?? Infinity) - (b.s02_rank ?? Infinity) || String(a.symbol).localeCompare(String(b.symbol)))
       if (result.strategy !== 'custom_mvxxcp88') return selectedRows
       const metric = (row: (typeof selectedRows)[number]) => typeof row.atr14_previous_close === 'number'
         && Number.isFinite(row.atr14_previous_close) ? row.atr14_previous_close : -Infinity
@@ -180,18 +229,32 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
       const x = metric(a), y = metric(b)
       return (x === y ? 0 : x > y ? -1 : 1) || String(a.symbol).localeCompare(String(b.symbol))
     }).map((row, i) => ({ ...row, selection_rank: i + 1 }))
-  }, [section.select, signals, result.strategy, result.as_of, s03])
+  }, [section.select, signals, result.strategy, result.as_of, routedS02, s03])
   const rows = useMemo(() => {
     if (active === 'select') return selected
     const saved = section[active] ?? []
+    if (s05Projected) {
+      const score = (value: unknown) => finiteNumber(value) ? value : -Infinity
+      return [...saved].sort((a, b) =>
+        score(b.signal_score) - score(a.signal_score)
+        || (a.s02_rank ?? Infinity) - (b.s02_rank ?? Infinity)
+        || String(a.symbol).localeCompare(String(b.symbol)))
+    }
+    if (entrySort && saved.some(row => finiteNumber(row.entry_sort_value))) {
+      return [...saved].sort((a, b) =>
+        (finiteNumber(b.entry_sort_value) ? b.entry_sort_value : -Infinity)
+          - (finiteNumber(a.entry_sort_value) ? a.entry_sort_value : -Infinity)
+        || (a.s02_rank ?? Infinity) - (b.s02_rank ?? Infinity)
+        || String(a.symbol).localeCompare(String(b.symbol)))
+    }
     if (!signals || !s03 || active !== 'buy') return saved
     return [...saved].sort((a, b) =>
       (a.entry_priority ?? Infinity) - (b.entry_priority ?? Infinity)
         || String(a.symbol).localeCompare(String(b.symbol)))
-  }, [active, selected, section, signals, s03])
+  }, [active, selected, section, signals, s03, entrySort, s05Projected])
   const fiveDimensions = result.selection_snapshot?.scoring_policy === 's03_five_dimensions_v1'
   const preselectionWindow = selectionWindow(result.strategy)
-  const atrRanking = signals && !s01 && !s03
+  const atrRanking = signals && !s01 && !s03 && !s05
     && (active === 'select' || rows.some(row => row.atr14_previous_close != null))
   const symbols = useMemo(() => [...new Set(rows.map(row => row.symbol)
     .filter((symbol): symbol is string => typeof symbol === 'string' && /^[0-9]{6}\.(SH|SZ|BJ)$/.test(symbol)))].sort(), [rows])
@@ -228,21 +291,35 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
     if (key === 'live_vol_ratio') return quote?.vol_ratio_5d
     return null
   }
-  const sortColumns = signals
+  const baseSortColumns = signals
     ? resolveStrategyResultColumns(active, result.strategy,
       signalColumns ?? defaultStrategyResultColumns(active, result.strategy)).filter(col => col.visible && col.source.type === 'builtin'
       && (atrRanking || !['atr14_previous_close', 'atr_rank', 'atr_rank_score'].includes(col.source.key))
       && (fiveDimensions || !['tech_score', 'fund_score', 'emotion_score', 'fundamental_score', 'news_score'].includes(col.source.key)))
     : []
+  const sortColumns: ColumnConfig[] = showEntryBranch ? [
+    ...baseSortColumns.slice(0, 2),
+    { id: 'builtin:entry_branch', source: { type: 'builtin', key: 'entry_branch' },
+      label: '入场分支', visible: true, pinned: false, align: 'right' },
+    ...(entrySort ? [{ id: entrySortId, source: { type: 'builtin' as const, key: 'entry_sort_value' },
+      label: S05_SORT_LABELS[entrySort], visible: true, pinned: false, align: 'right' as const }] : []),
+    ...baseSortColumns.slice(2).filter(col => !col.id.startsWith('builtin:atr')),
+  ] : baseSortColumns
   const { sort, toggle, sortRows } = useTableSort<(typeof rows)[number]>((row, col) => {
     if (col.source.type !== 'builtin') return null
     const key = col.source.key
-    const value = key.startsWith('live_') ? liveValue(key, row.symbol) : row[key]
+    const value = key === 'score' && s05SignalPage ? row.signal_score
+      : key.startsWith('live_') ? liveValue(key, row.symbol) : row[key]
     if (typeof value === 'number') return Number.isFinite(value) ? value : null
     return typeof value === 'string' || typeof value === 'boolean' ? value : null
   })
   const activeSort = sortColumns.some(col => col.id === sort?.key) ? sort : null
   const defaultAtrSort = signals && !activeSort && active === 'select' && result.strategy === 'custom_mvxxcp88'
+  const defaultEntrySort = !activeSort && !!entrySort && rows.some(row => finiteNumber(row.entry_sort_value))
+  const defaultSignalSort = !activeSort && s05Projected && rows.some(row => finiteNumber(row.signal_score))
+  const scoreBranch = active === 'buy' ? result.selection_snapshot?.branch_code : undefined
+  const currentScoreRule = scoreBranch === 1 ? '近5分钟涨幅'
+    : scoreBranch === 2 ? '70%资金分＋30%技术分' : scoreBranch === 3 ? '四维综合分' : null
   const displayedRows = sortRows(rows, sortColumns)
   const panelRef = useRef<HTMLDivElement>(null)
   const sectionRef = useRef<HTMLElement>(null)
@@ -305,6 +382,20 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
     retrying: '重试中', deferred: '延迟处理', disabled: '停用', expired: '买入未确认，已过入场时限' }
   const executionStatus = result.execution_status
   const resultNotes = [
+    s05SignalPage && active === 'sell' ? '信号评分沿用前一交易日的买入评分。' : null,
+    s05SignalPage && active === 'buy' && currentScoreRule ? `信号评分：${currentScoreRule}降序` : null,
+    s05 && result.selection_snapshot?.branch_code != null
+      ? `交易日分支参数：${result.selection_snapshot.branch_code} · ${S05_BRANCH_LABELS[result.selection_snapshot.branch_code]} · ${result.as_of}`
+      : null,
+    noMarketRoute && active !== 'sell'
+      ? '三种市场分支均未满足，本交易日不新买' : null,
+    s05 && active === 'sell' && result.monitor_tasks?.sell?.completion_reason === 's05_no_daily_branch'
+      ? '此日期的卖任务为旧规则归档，未按新规则执行；下方仍显示前一交易日买入关注名单' : null,
+    routedS02 && active !== 'sell' && result.selection_snapshot?.entry_branch
+      ? `当日分支：${s02Branches[result.selection_snapshot.entry_branch]} · 前50名参与入场计算`
+      : null,
+    entrySort ? `${archivedSort ? '买入排序' : '分支默认排序'}：${s05SortLabel(entrySort, fundWeight)}降序`
+      : null,
     signals && result.as_of > today
       ? `${result.as_of} · 下一交易日归档查询：可查看已保存的卖／选／买，开启监控后，选名单在前一交易日${preselectionWindow}生成；买入信号等待该交易日运行。`
       : null,
@@ -348,7 +439,7 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
     {signals && result.selection_snapshot && <p>
       数值参考日：{result.selection_snapshot.source_date} · 生成于
       {' '}{new Date(result.selection_snapshot.generated_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
-      {result.selection_only && ' · 仅预选，买入信号尚未计算'}
+      {result.selection_only && !noMarketRoute && ' · 仅预选，买入信号尚未计算'}
     </p>}
     {signals && <p>
       {historical ? '历史结果按保存字段展示；现价等当前行情列不参与历史读取。'
@@ -356,7 +447,9 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
         : '现价等行情列取当日最新数据，缺失时显示“—”。'}
       {active === 'select' && result.strategy === 'custom_mvxxcp88' && ' 参考日换手率取前一交易日，与右侧当日行情换手率分别显示。'}
       {s01 && active !== 'select' && ' 当日涨幅、振幅、累计成交额和评分取买入信号的已完成分钟快照。卖页继承前交易日保存字段，实际持仓出场另按出场触发器计算。'}
-      {!s01 && active === 'sell' && ' 分钟成交量、成交额来自保存信号的触发分钟；建议卖出价为上一个交易日原始收盘价的94%～106%，缺少参考价时显示“—”。'}
+      {!s01 && active === 'sell' && (s05
+        ? ' 分钟成交量、成交额来自保存信号的触发分钟；建议卖出价＝买入信号触发价×（1＋对应出场信号的止盈比例），缺少有效输入时显示“—”。'
+        : ' 分钟成交量、成交额来自保存信号的触发分钟；建议卖出价为上一个交易日原始收盘价的94%～106%，缺少参考价时显示“—”。')}
       {!s01 && active === 'buy' && ' 建议购买量单位为手（100股），按保存的触发价计算10万元最大整手数，不含费用与滑点。'}</p>}
       </div>
     </details>}
@@ -391,7 +484,8 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
       className="overflow-auto rounded-btn border border-border"
       style={virtualized ? { maxHeight: fillViewport ? panelHeight : 480 } : undefined}>
       {rows.length === 0 ? <p className="p-8 text-sm text-muted text-center">
-        {sectionError ? '该页签结果暂不可确认' : signals ? signalEmpty[active] : config.empty}</p>
+        {active === 'buy' && noMarketRoute ? '本交易日没有需要执行的买入分支'
+          : sectionError ? '该页签结果暂不可确认' : signals ? signalEmpty[active] : config.empty}</p>
         : <table className="text-xs whitespace-nowrap text-left table-fixed"
             style={{ width: displayedColumns.reduce((sum, [key]) => sum + width(key), 0) }}>
           <colgroup>{displayedColumns.map(([key]) => <col key={key} style={{ width: width(key) }} />)}</colgroup>
@@ -400,7 +494,8 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
               const sortable = signals && !['live_signals', 'suggested_sell_price'].includes(key)
               const colId = sortColumns.find(col => col.source.type === 'builtin' && col.source.key === key)?.id
               const direction = activeSort?.key === colId ? activeSort?.dir
-                : defaultAtrSort && key === 'atr14_previous_close' ? 'desc' : null
+                : (defaultAtrSort && key === 'atr14_previous_close')
+                  || (defaultEntrySort && key === 'entry_sort_value') || (defaultSignalSort && key === 'score') ? 'desc' : null
               const Icon = direction === 'asc' ? ArrowUp : direction === 'desc' ? ArrowDown : ArrowUpDown
               return <th key={key} data-column={key}
                 aria-sort={sortable ? direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none' : undefined}
@@ -428,7 +523,12 @@ export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange
                 ? <button type="button" title="查看个股详情"
                     className="text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                     onClick={() => openStock(row)}>{format(key, row[key])}</button>
-                : format(key, signals && s03 && active === 'sell' && key === 'suggested_sell_price'
+                : key === 'entry_sort_value' && entrySort === 'return_5m' && finiteNumber(row[key])
+                  ? `${row[key].toFixed(2)}%`
+                  : key === 'score' && s05SignalPage
+                    ? (row.signal_score_rule === 'return_5m' && finiteNumber(row.signal_score)
+                      ? `${row.signal_score.toFixed(2)}%` : format(key, row.signal_score))
+                  : format(key, calculateSellSuggestion && key === 'suggested_sell_price'
                   ? suggestedSellPrice(row) : row[key])}
             </td>)}
           </tr>)}
