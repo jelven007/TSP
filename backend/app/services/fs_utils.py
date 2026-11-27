@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import errno
 import os
 import tempfile
 from contextlib import suppress
@@ -15,6 +16,20 @@ if TYPE_CHECKING:  # 只做类型标注; JSON 原子写的调用方 (preferences
     import polars as pl
 
 
+def _write_ntfs_stream(path: Path, text: str, *, mode: int | None, overwrite: bool) -> None:
+    """NTFS 把 ``name:stream`` 解析为备用数据流: rename/硬链接都无法发布, 只能直接写入。
+
+    落盘结果与其他直接 ``write_text`` 的调用处一致, 读侧按同一路径点读即可;
+    目录遍历(glob/iterdir)看不到数据流, 这是平台限制。
+    """
+    if not overwrite and path.exists():
+        raise FileExistsError(errno.EEXIST, os.strerror(errno.EEXIST), str(path))
+    path.write_text(text, encoding="utf-8")
+    if mode is not None:
+        with suppress(OSError):
+            os.chmod(path, mode)
+
+
 def atomic_write_text(path: Path, text: str, *, mode: int | None = None, overwrite: bool = True) -> None:
     """临时文件 + os.replace 原子替换, 避免读侧读到半截 JSON。
 
@@ -22,7 +37,11 @@ def atomic_write_text(path: Path, text: str, *, mode: int | None = None, overwri
     以默认权限存在的窗口; 先改临时文件就没有这个窗口。Windows 上 chmod 只影响
     只读位, 失败不该让写入失败, 所以吞掉 OSError, 与原调用处的处理一致。
     `overwrite=False` 用同目录硬链接原子发布; 目标已存在则失败, 不暴露半写文件。
+    Windows 下文件名含冒号时目标是 NTFS 备用数据流, 无法 rename 发布, 退化为直接写入。
     """
+    if os.name == "nt" and ":" in path.name:
+        _write_ntfs_stream(path, text, mode=mode, overwrite=overwrite)
+        return
     # 同目录的独立临时文件避免并发 replace 抢走另一写入者的文件。
     # mkstemp 从创建起即为 0600, 凭据内容不会先以默认权限落盘。
     fd, name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
