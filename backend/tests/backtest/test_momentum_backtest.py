@@ -1,7 +1,6 @@
 """Shared momentum replay must use real Parquet projection and dependency checks."""
 from dataclasses import replace
 from datetime import date, datetime, timedelta
-from pathlib import Path
 from types import SimpleNamespace
 
 import polars as pl
@@ -16,7 +15,6 @@ from app.backtest.strategy import (
 )
 from app.market_time import published_trading_days
 from app.strategy.builtin._momentum_members import MEMBERS
-from app.strategy.engine import StrategyEngine
 from app.strategy.momentum_selection import PARAMS, select_entries
 
 START = date(2026, 8, 25)
@@ -71,10 +69,9 @@ def replay(tmp_path):
         get_minute_by_dates=lambda symbols, dates, _: minutes[dates[0]].filter(
             pl.col("symbol").is_in(symbols)),
     )
-    registry = StrategyEngine(
-        [Path(__file__).resolve().parents[2] / "app/strategy/builtin"],
-        override_loader=lambda _: {},
-    )
+    from test_s01_strategy import s01_engine
+
+    registry = s01_engine(override_loader=lambda _: {})
     # Exercise the shared kernel without restoring the retired production entry.
     base = registry.get("s01")
     params = [{**p, "default": "15:00" if p["id"] in {"guard_time", "sell_deadline"}

@@ -47,12 +47,12 @@ def test_premarket_clock_trigger_waits_for_real_session_capacity(tmp_path):
 
 
 def test_s01_optional_morning_adapter_carries_the_actual_fallback_deadline():
-    from test_s01_strategy import BUILTINS
+    from test_s01_strategy import s01_engine
 
-    from app.strategy.engine import StrategyDataContext, StrategyEngine
+    from app.strategy.engine import StrategyDataContext
     from app.strategy.s01_signals import optional_exit_hits
 
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     strategy = engine.get("s01")
     sig = {
         "id": "exit", "column": "csgi_exit", "template": "morning_liquidation",

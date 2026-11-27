@@ -8,7 +8,7 @@ import polars as pl
 import pytest
 from test_s01_optional_triggers import context, optional
 from test_s01_parameter_signals import ENTRY, EXIT
-from test_s01_strategy import BUILTINS, bars, daily
+from test_s01_strategy import bars, daily, s01_engine
 
 from app.services.daily_selections import signal_strategy
 from app.services.strategy_results import ResultIdentity, StrategyResults
@@ -18,7 +18,7 @@ from app.strategy.engine import StrategyEngine
 
 @pytest.fixture
 def scan():
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     strategy = optional(engine)
     strategy.meta.update(result_sections="signals", entry_window_policy="available_minutes_v1")
     ctx = context()
@@ -72,6 +72,8 @@ def test_missing_minutes_preserves_frozen_selection_with_waiting_buy(scan):
 
 def test_old_optional_source_retains_its_unsectioned_contract(scan):
     engine, strategy, ctx, _ = scan
+    # 已删除的内置模板是 builtin 来源; 夹具目录按 custom 加载, 这里还原该前提。
+    strategy.source = "builtin"
     strategy.meta.pop("result_sections")
     assert not signal_strategy(strategy)
     result = engine.run("s01", ctx)

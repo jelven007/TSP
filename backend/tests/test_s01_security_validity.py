@@ -6,10 +6,9 @@ import pytest
 from test_s01_entry_timing import timed
 from test_s01_optional_triggers import context, optional
 from test_s01_parameter_signals import ENTRY, EXIT
-from test_s01_strategy import BUILTINS, bars, daily
+from test_s01_strategy import bars, daily, s01_engine
 
 from app.strategy import custom_signals
-from app.strategy.engine import StrategyEngine
 from app.strategy.s01_signals import signal_parameters, timed_entry
 
 RULE = "price_amount_prev_close_v2"
@@ -98,7 +97,7 @@ def test_legacy_six_and_eight_parameter_snapshots_keep_their_original_denominato
 
 
 def test_actual_engine_uses_new_denominator_and_keeps_individual_amount_filter():
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     ctx = context(end=890)
     ctx.observed_at = datetime(2026, 8, 25, 14, 46)

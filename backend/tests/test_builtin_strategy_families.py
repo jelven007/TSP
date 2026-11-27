@@ -100,11 +100,11 @@ def test_catalog_groups_defaults_and_excludes_research_template():
 
     engine = StrategyEngine([BUILTIN])
     ids = [sid for _, members in BUILTIN_FAMILIES.values() for sid in members]
-    assert len(ids) == len(set(ids)) == 23
+    assert len(ids) == len(set(ids)) == 22
     assert set(ids) == {s["id"] for s in engine.list_strategies()}
     assert builtin_family("factor_rank_research") is None
     assert builtin_family("custom_unknown") is None
-    assert len(BUILTIN_FAMILIES) == 7
+    assert len(BUILTIN_FAMILIES) == 6
 
 
 def test_retired_builtin_s02_is_absent_but_same_name_custom_is_accessible(tmp_path, monkeypatch):
@@ -131,7 +131,7 @@ def test_retired_builtin_s02_is_absent_but_same_name_custom_is_accessible(tmp_pa
         assert "s02" not in items
         assert client.get("/api/strategies/s02").status_code == 404
         assert client.get("/api/strategies/custom_mvxxcp88").status_code == 200
-    assert "s01" in items
+    assert "s01" not in items
     assert items["custom_mvxxcp88"]["name"] == "s02"
     assert items["custom_mvxxcp88"]["source"] == "custom"
     assert builtin_family("s02") is None
@@ -157,8 +157,7 @@ def test_api_family_contract_keeps_ids_overrides_and_uncategorized_strategies(tm
         response = client.get("/api/strategies")
     assert response.status_code == 200
     items = {s["id"]: s for s in response.json()["strategies"]}
-    assert len(items) == 23
-    assert items["s01"]["family"] == {"id": "overnight", "name": "隔夜交易"}
+    assert len(items) == 22
     assert items["ma_golden_cross"]["family"] == {"id": "trend", "name": "趋势跟随"}
     assert items["ma_golden_cross"]["params_defaults"]["require_ma60_non_declining"] is False
     custom = engine.get("oversold_bounce")

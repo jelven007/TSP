@@ -7,7 +7,7 @@ import pytest
 from test_s01_optional_triggers import DAILY_ENTRY, context, optional
 from test_s01_parameter_signals import EXIT
 from test_s01_security_validity import current
-from test_s01_strategy import BUILTINS, bars
+from test_s01_strategy import bars, s01_engine
 
 from app.strategy import custom_signals
 from app.strategy.engine import StrategyEngine
@@ -17,7 +17,7 @@ SOURCE = Path(__file__).resolve().parents[2] / "examples/strategies/s01_signal_s
 
 
 def evaluate(frame, *, signal=None, completed=None, legacy=False):
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     strategy = optional(engine)
     if not legacy:
         strategy.meta["entry_window_policy"] = POLICY
@@ -118,7 +118,7 @@ def test_actual_saved_source_all_entry_paths_allow_available_minutes(tmp_path, s
 
 
 def test_policy_is_owned_by_source_and_cannot_be_enabled_by_runtime_params():
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     strategy = optional(engine)
     ctx = context(end=890)
     ctx.history = sparse()

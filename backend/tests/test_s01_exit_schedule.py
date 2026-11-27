@@ -8,7 +8,7 @@ import pytest
 from test_s01_equal_selected import SECOND, START, service
 from test_s01_optional_triggers import context, optional
 from test_s01_parameter_signals import ENTRY, EXIT
-from test_s01_strategy import BUILTINS, bars
+from test_s01_strategy import bars, s01_engine
 
 from app.backtest.overnight import order_fee
 from app.backtest.strategy import BacktestResultPolicy, StrategyBacktestConfig
@@ -80,7 +80,7 @@ def test_pending_conditional_sale_rearms_at_stop_then_fallback():
 
 
 def test_runtime_emits_independent_clock_events_for_remaining_cycles():
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     optional(engine)
     ctx = context(end=815, price=11)
     ctx.history = pl.DataFrame()
@@ -116,7 +116,7 @@ def test_current_custom_source_accepts_new_signal_without_changing_entry_paramet
 
 
 def test_new_and_frozen_exit_selections_keep_independent_clock_semantics():
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     optional(engine)
     ctx = context(end=815, price=11)
     ctx.positions = [{"symbol": "600001.SH", "qty": 100, "available_qty": 100,

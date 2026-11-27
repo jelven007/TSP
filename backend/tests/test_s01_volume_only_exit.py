@@ -7,7 +7,7 @@ import pytest
 from test_s01_exit_schedule import NEW_EXIT, SCHEDULE, scheduled_replay
 from test_s01_optional_triggers import context, optional
 from test_s01_parameter_signals import ENTRY, EXIT
-from test_s01_strategy import BUILTINS, bars
+from test_s01_strategy import bars, s01_engine
 
 from app.backtest.overnight import order_fee
 from app.strategy import custom_signals
@@ -49,7 +49,7 @@ def test_new_values_do_not_reacquire_obsolete_conditions_from_shared_defaults():
 
 @pytest.mark.parametrize("current_baseline", [False, True])
 def test_selected_volume_only_values_prune_baseline_and_stale_strategy_overrides(current_baseline):
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     strategy = optional(engine)
     if current_baseline:
         strategy.meta["trigger_parameter_defaults"] = {**ENTRY["params"], **VOLUME_PARAMS}

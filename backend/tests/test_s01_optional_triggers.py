@@ -6,11 +6,11 @@ import polars as pl
 import pytest
 from fastapi import HTTPException
 from test_s01_parameter_signals import ENTRY, EXIT
-from test_s01_strategy import BUILTINS, _service, bars, daily
+from test_s01_strategy import _service, bars, daily, s01_engine
 
 from app.api.strategy import _strategy_detail, _validate_overlay_config
 from app.strategy import custom_signals
-from app.strategy.engine import StrategyDataContext, StrategyEngine
+from app.strategy.engine import StrategyDataContext
 
 MINUTE_ENTRY = {
     "id": "other_entry", "name": "另一个买点", "kind": "entry", "enabled": True,
@@ -56,7 +56,7 @@ def context(price=10.25, end=885):
     {"entry_signals": ["csgi_other_entry", "csgi_" + ENTRY["id"]], "exit_signals": []},
 ])
 def test_save_accepts_empty_other_and_multiple_signals_and_keeps_entrypoints(selection):
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     s = optional(e)
     with custom_signals.private_signal_registry(ALL):
         _validate_overlay_config(selection, s, e)
@@ -69,7 +69,7 @@ def test_save_accepts_empty_other_and_multiple_signals_and_keeps_entrypoints(sel
 @pytest.mark.parametrize("names", [["csgi_missing"], ["csgi_other_exit"], [None],
                                   ["signal_unknown"], ["csgi_other_entry"] * 2, "csgi_other_entry"])
 def test_invalid_optional_selection_is_rejected_before_save_or_execution(names):
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     s = optional(e)
     with custom_signals.private_signal_registry(ALL):
         with pytest.raises(HTTPException) as error:
@@ -80,7 +80,7 @@ def test_invalid_optional_selection_is_rejected_before_save_or_execution(names):
 
 
 def test_clearing_entry_removes_native_signal_thresholds_and_clearing_exit_removes_guard():
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     ctx = context(price=10.5)
     ctx.positions = [{"symbol": "600001.SH", "qty": 100, "available_qty": 100,
@@ -95,7 +95,7 @@ def test_clearing_entry_removes_native_signal_thresholds_and_clearing_exit_remov
 
 @pytest.mark.parametrize("other", ["csgi_other_entry", "csg_daily_entry", "signal_macd_golden"])
 def test_multiple_entry_signals_require_all_selected_hits(other):
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     ctx = context(price=10.5)
     ctx.daily_history = ctx.daily_history.with_columns(pl.lit(True).alias("signal_macd_golden"))
@@ -107,7 +107,7 @@ def test_multiple_entry_signals_require_all_selected_hits(other):
 
 
 def test_multiple_native_entries_do_not_merge_thresholds_and_generic_false_blocks_buy():
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     tighter = {**ENTRY, "id": "tight", "params": {**ENTRY["params"], "current_return_max": .021}}
     never = {**MINUTE_ENTRY, "conditions": [{"left": "price", "op": ">", "right": "100"}]}
@@ -120,7 +120,7 @@ def test_multiple_native_entries_do_not_merge_thresholds_and_generic_false_block
 
 
 def test_generic_exit_replaces_native_guard_and_first_hit_of_multiple_exits_wins():
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     ctx = context(end=690)
     ctx.positions = [{"symbol": "600001.SH", "qty": 100, "available_qty": 100,
@@ -163,7 +163,7 @@ def test_optional_backtest_orders_use_frozen_selection(tmp_path, selection, buys
 
 
 def test_all_native_and_daily_entry_signals_pass_without_merging_parameters():
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     second = {**ENTRY, "id": "second", "params": {**ENTRY["params"], "current_return_min": .01}}
     names = ["csgi_" + ENTRY["id"], "csgi_second", "csg_daily_entry"]
@@ -177,7 +177,7 @@ def test_all_native_and_daily_entry_signals_pass_without_merging_parameters():
 def test_multiple_minute_entries_cannot_combine_hits_from_different_minutes(same_time):
     from app.strategy.s01_signals import entry_frame
 
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     s = optional(e)
     ctx = context()
     first = datetime(2026, 8, 25, 14, 30)
@@ -215,7 +215,7 @@ def test_default_optional_native_selection_retains_original_timing_and_values(tm
 
 
 def test_generic_entry_cannot_use_later_minutes_or_current_day_final_daily_values():
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     ctx = context(end=890)
     ctx.history = ctx.history.with_columns(pl.when(pl.col("datetime") > datetime(2026, 8, 25, 14, 45))
@@ -231,7 +231,7 @@ def test_generic_entry_cannot_use_later_minutes_or_current_day_final_daily_value
 
 
 def test_stopped_selected_signal_is_rejected_and_two_native_exits_keep_independent_clocks():
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     early = {**EXIT, "id": "early", "params": {**EXIT["params"], "guard_time": "11:22"}}
     ctx = context(end=690)
@@ -264,7 +264,7 @@ def test_generic_s02_templates_can_replace_s01_entry_and_exit():
     from test_late_session_strength import definition as late_signal
     from test_morning_liquidation_returns import signal as morning_signal
 
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     late = late_signal(change_min_pct=0, change_max_pct=10, pool_up_min_pct=0,
                        ma5_1m_count=2, ma5_5m_count=2, evaluation_delay_minutes=.5)
@@ -289,7 +289,7 @@ def test_generic_s02_templates_can_replace_s01_entry_and_exit():
 
 
 def test_generic_minute_trigger_receives_raw_previous_close():
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     ctx = context()
     ctx.history = ctx.history.with_columns(

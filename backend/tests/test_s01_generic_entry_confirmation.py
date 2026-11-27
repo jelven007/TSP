@@ -3,11 +3,10 @@ from datetime import date, datetime
 
 import pytest
 from test_s01_optional_triggers import context, optional
-from test_s01_strategy import BUILTINS, _service
+from test_s01_strategy import _service, s01_engine
 
 from app.backtest.strategy import BacktestResultPolicy, StrategyBacktestConfig
 from app.strategy import custom_signals
-from app.strategy.engine import StrategyEngine
 
 ENTRY = {
     "id": "delayed_tail", "name": "尾盘确认", "kind": "entry", "enabled": True,
@@ -48,7 +47,7 @@ def test_replay_consumes_confirmed_generic_tail_signal(tmp_path):
     ("14:45:59", 0), ("14:46:00", 1),
 ])
 def test_generic_confirmation_is_separate_from_its_completed_bar(observed, expected):
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     configure(engine)
     ctx = context(price=10.1)
     ctx.observed_at = datetime.fromisoformat("2026-08-25T" + observed)

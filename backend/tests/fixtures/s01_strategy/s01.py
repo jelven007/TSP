@@ -1,4 +1,6 @@
-"""尾盘低振幅隔夜, 完整早盘退出。"""
+"""S01 测试载体: 内置模板 ``s01`` 已退役并删除源码, 本文件原样保留其定义,
+供共享 ``_overnight`` 内核、通用信号及回测回归测试加载; 不是产品内置策略。
+只能通过 ``test_s01_strategy.s01_engine()`` 加载, 见该函数说明。"""
 from app.strategy.builtin._overnight import PARAMS, select_entries
 
 META = {

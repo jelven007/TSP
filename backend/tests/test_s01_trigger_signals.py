@@ -5,11 +5,11 @@ from datetime import date, datetime
 import pytest
 from fastapi import HTTPException
 from test_s01_parameter_signals import ENTRY, EXIT
-from test_s01_strategy import BUILTINS, _service, bars, daily
+from test_s01_strategy import _service, bars, daily, s01_engine
 
 from app.api.strategy import _strategy_detail, _validate_overlay_config
 from app.strategy import custom_signals
-from app.strategy.engine import StrategyDataContext, StrategyEngine
+from app.strategy.engine import StrategyDataContext
 
 REFS = {"entry_signals": ["csgi_" + ENTRY["id"]], "exit_signals": ["csgi_" + EXIT["id"]]}
 
@@ -26,7 +26,7 @@ def with_triggers(engine):
 
 
 def test_ordinary_trigger_references_drive_actual_entry_and_holding_exit():
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     with_triggers(engine)
     context = StrategyDataContext(
         "stock", "1m", date(2026, 8, 25), current=daily().tail(1),
@@ -45,7 +45,7 @@ def test_ordinary_trigger_references_drive_actual_entry_and_holding_exit():
 
 
 def test_selected_override_is_the_only_parameter_source_in_execution_and_detail():
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     strategy = with_triggers(engine)
     alternate = {**ENTRY, "id": "tighter_s01",
                  "params": {**ENTRY["params"], "current_return_max": .021}}
@@ -62,7 +62,7 @@ def test_selected_override_is_the_only_parameter_source_in_execution_and_detail(
 
 
 def test_config_save_accepts_correct_s01_trigger_selection():
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     strategy = with_triggers(engine)
     with custom_signals.private_signal_registry([ENTRY, EXIT]):
         _validate_overlay_config(REFS, strategy, engine)
@@ -77,7 +77,7 @@ def test_config_save_accepts_correct_s01_trigger_selection():
     {"entry_signals": [None]}, {"entry_signals": "csgi_missing"},
 ])
 def test_save_and_execution_reject_incomplete_or_incompatible_trigger_selection(patch):
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     strategy = with_triggers(engine)
     overrides = {**REFS, **patch}
     with custom_signals.private_signal_registry([ENTRY, EXIT]):
@@ -110,7 +110,7 @@ def test_backtest_accepts_and_freezes_ordinary_s01_trigger_references(tmp_path):
 
 
 def test_s01_templates_cannot_be_selected_for_generic_minute_strategies():
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     strategy = with_triggers(engine)
     strategy.meta.pop("minute_execution")
     with custom_signals.private_signal_registry([ENTRY, EXIT]), pytest.raises(HTTPException) as error:

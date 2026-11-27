@@ -4,14 +4,13 @@ from datetime import datetime
 import polars as pl
 from test_s01_optional_triggers import context, optional
 from test_s01_parameter_signals import ENTRY, EXIT
-from test_s01_strategy import BUILTINS, bars
+from test_s01_strategy import bars, s01_engine
 
 from app.strategy import custom_signals
-from app.strategy.engine import StrategyEngine
 
 
 def evaluate(frame, *, policy=True, params=None):
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     strategy = optional(engine)
     if policy:
         strategy.meta["entry_window_policy"] = "available_minutes_v1"

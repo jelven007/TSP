@@ -45,7 +45,7 @@ S05三个早盘定义及当日分支现金回测沿
 实际目录包另行核对保存源码与 Compute describe、完整因子目录、信号和监控绑定；
 页面须选择对应稳定策略 ID，并核对重载后的默认设置，不自动提交金融回测。
 
-自定义回测参与率覆盖`tests/backtest/test_custom_participation.py`、`test_morning_backtest.py`、`test_momentum_backtest.py`与`tests/test_s01_common_backtest.py`：检验买卖独立比例、向下取整、分钟最高/最低价、日线两种时点、组合/独立模拟、无退出模板的持有期退出、截止余股与冻结输入兼容。API/SSE须冻结比例并区分任务身份，取消请求须命中同一任务。前端`StrategyBacktest.test.tsx`覆盖任意自定义日线/分钟策略的默认、单位转换和保存，`backtestTask.test.tsx`覆盖SSE传递。旧内置S01夹具须在隔离测试进程用`RETIRED_BUILTIN_STRATEGIES='[]'`解除夹具屏蔽，不修改运行配置。
+自定义回测参与率覆盖`tests/backtest/test_custom_participation.py`、`test_morning_backtest.py`、`test_momentum_backtest.py`与`tests/test_s01_common_backtest.py`：检验买卖独立比例、向下取整、分钟最高/最低价、日线两种时点、组合/独立模拟、无退出模板的持有期退出、截止余股与冻结输入兼容。API/SSE须冻结比例并区分任务身份，取消请求须命中同一任务。前端`StrategyBacktest.test.tsx`覆盖任意自定义日线/分钟策略的默认、单位转换和保存，`backtestTask.test.tsx`覆盖SSE传递。旧内置S01已退役并删除源码，上述回归改用`tests/fixtures/s01_strategy/s01.py`夹具载体（`test_s01_strategy.s01_engine()`，默认扫描`S01_DIR`，仅为该仓库受控载体放行`_overnight`导入），不依赖运行配置。
 
 S03规则、异常矩阵、源码及专项测试入口统一见[S03当前实现](reference/s03.md#7-源码与测试入口)；
 当前安装源测试与历史冻结兼容测试分别验证，测试路径与断言沿实际源码复核。

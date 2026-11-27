@@ -5,10 +5,9 @@ import polars as pl
 import pytest
 from test_s01_optional_triggers import context, optional
 from test_s01_parameter_signals import ENTRY, EXIT
-from test_s01_strategy import BUILTINS, _service
+from test_s01_strategy import _service, s01_engine
 
 from app.strategy import custom_signals
-from app.strategy.engine import StrategyEngine
 
 
 def timed(**values):
@@ -35,7 +34,7 @@ def test_invalid_clock_is_rejected(values):
 
 
 def test_environment_starts_before_stock_confirmation_and_never_uses_future_bars():
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     ctx = context(end=890)
     ctx.history = ctx.history.with_columns(
@@ -65,7 +64,7 @@ def test_environment_starts_before_stock_confirmation_and_never_uses_future_bars
 def test_timed_native_and_daily_entry_require_both_independent_conditions(maximum, expected):
     from test_s01_optional_triggers import DAILY_ENTRY
 
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     ctx = context(end=890)
     ctx.observed_at = datetime(2026, 8, 25, 14, 46)
@@ -83,7 +82,7 @@ def test_timed_native_and_daily_entry_require_both_independent_conditions(maximu
 def test_next_pulse_visits_start_then_confirmation(tmp_path):
     from app.strategy.s01_signals import next_entry_evaluation_time
 
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     s = optional(e)
     e.documents = tmp_path
     ctx = context(end=890)
@@ -96,7 +95,7 @@ def test_next_pulse_visits_start_then_confirmation(tmp_path):
 
 
 def test_changed_second_clock_uses_its_completed_start_minute_and_saved_values():
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     ctx = context(end=884)
     sig = timed(time="14:44:20", evaluation_delay_minutes=.5)

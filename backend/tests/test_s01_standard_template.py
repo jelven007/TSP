@@ -5,12 +5,11 @@ import polars as pl
 import pytest
 from fastapi import HTTPException
 from test_s01_optional_triggers import ALL, context, optional
-from test_s01_strategy import BUILTINS, _service, bars
+from test_s01_strategy import _service, bars, s01_engine
 
 from app.api.strategy import _validate_overlay_config
 from app.backtest.strategy import BacktestResultPolicy, StrategyBacktestConfig
 from app.strategy import custom_signals
-from app.strategy.engine import StrategyEngine
 
 
 def controls(**values):
@@ -18,7 +17,7 @@ def controls(**values):
 
 
 def test_common_controls_save_but_legacy_specialized_strategy_keeps_rejection():
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     values = controls(overlay_filter=[{"left": "close", "op": ">", "right": "9"}],
                       scoring={"change_pct": 1}, stop_loss=-.06)
     with custom_signals.private_signal_registry(ALL):
@@ -28,7 +27,7 @@ def test_common_controls_save_but_legacy_specialized_strategy_keeps_rejection():
 
 
 def test_optional_overlay_uses_previous_close_and_never_changes_full_pool():
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     ctx = context()
     ctx.daily_history = pl.concat([ctx.daily_history, ctx.daily_history.tail(1).with_columns(
@@ -41,7 +40,7 @@ def test_optional_overlay_uses_previous_close_and_never_changes_full_pool():
 
 
 def test_daily_rolling_score_controls_actual_candidate_order():
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     ctx = context()
     days = pl.date_range(date(2026, 7, 20), date(2026, 8, 24), eager=True).to_list()
@@ -69,7 +68,7 @@ def test_daily_rolling_score_controls_actual_candidate_order():
     ({"trailing_stop": -.05}, 9.3, "trailing_stop"),
 ])
 def test_price_control_exit_is_completed_t1_and_independent_of_entries(control, price, reason):
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     ctx = context(end=573)
     ctx.history = bars(price=price, end=574)
@@ -87,7 +86,7 @@ def test_price_control_exit_is_completed_t1_and_independent_of_entries(control, 
 
 
 def test_peak_uses_previous_minute_and_price_protection_precedes_profit():
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     ctx = context(end=573)
     ctx.history = bars(price=10., end=574).with_columns(
@@ -105,7 +104,7 @@ def test_peak_uses_previous_minute_and_price_protection_precedes_profit():
 
 
 def test_max_hold_counts_confirmed_sessions_and_does_not_need_price():
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     ctx = context(end=573)
     ctx.history = pl.DataFrame()
@@ -141,7 +140,7 @@ def test_backtest_risk_setting_reaches_real_next_minute_capacity_sales(tmp_path)
 
 
 def test_trailing_reconstructs_prior_peak_only_after_the_buy_minute():
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     ctx = context(end=573)
     ctx.history = bars(price=10., end=574)
@@ -163,7 +162,7 @@ def test_trailing_reconstructs_prior_peak_only_after_the_buy_minute():
 
 
 def test_missing_risk_cost_and_trailing_history_report_failure():
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     ctx = context(end=573)
     ctx.positions = [{"symbol": "600001.SH", "qty": 100, "available_qty": 100,
@@ -184,7 +183,7 @@ def test_full_optional_s01_captures_authorized_cost_and_clock_snapshot(monkeypat
     from app.multitenancy.strategies import TenantStrategyEngine
     from app.strategy import overnight_runtime
 
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     positions = [{"symbol": "600001.SH", "qty": 100, "available_qty": 100,
                   "entry_unit_cost": 10., "entry_time": "2026-08-24 14:47:00"}]
@@ -203,7 +202,7 @@ def test_monitor_uses_frozen_capacity_holdings_even_without_morning_template():
 
     from app.strategy.overnight_runtime import monitor_context
 
-    e = StrategyEngine([BUILTINS])
+    e = s01_engine()
     optional(e)
     positions = [{"symbol": "600001.SH", "qty": 100, "available_qty": 100,
                   "entry_unit_cost": 10., "entry_date": "2026-08-24", "sell_date": "2026-08-25"}]

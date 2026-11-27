@@ -140,5 +140,5 @@ def test_builtin_catalog_keeps_retired_id_absent():
     from pathlib import Path
     engine = StrategyEngine([Path(__file__).parents[1] / "app/strategy/builtin"])
     assert not engine.has("s02")
+    assert not engine.has("s01")
     assert not engine.has("s021") and not engine.has("s022")
-    assert engine.get("s01").meta["timeframes"] == ["1m"]

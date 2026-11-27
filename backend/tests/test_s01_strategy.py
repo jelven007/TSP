@@ -6,7 +6,28 @@ import pytest
 
 from app.strategy.engine import StrategyDataContext, StrategyEngine
 
-BUILTINS = Path(__file__).resolve().parents[1] / "app/strategy/builtin"
+S01_DIR = Path(__file__).resolve().parent / "fixtures/s01_strategy"
+
+
+def s01_engine(*args, **kwargs) -> StrategyEngine:
+    """加载 S01 测试载体的引擎(默认只扫描 S01_DIR)。
+
+    载体是仓库受控的测试文件而不是用户策略。引擎的安全白名单只对 builtin 目录放行
+    app.strategy.builtin._overnight; 这里仅为该载体的加载补上这一项, 其余校验不变。
+    """
+    from unittest.mock import patch
+
+    from app.strategy.ai_generator import AIStrategyGenerator
+
+    original = AIStrategyGenerator._validate_safety
+    extra = frozenset({"app.strategy.builtin._overnight"})
+
+    def validate(cls, code, *, extra_allowed_import_modules=frozenset(), extra_allowed_calls=frozenset()):
+        original(code, extra_allowed_import_modules=extra_allowed_import_modules | extra,
+                 extra_allowed_calls=extra_allowed_calls)
+
+    with patch.object(AIStrategyGenerator, "_validate_safety", classmethod(validate)):
+        return StrategyEngine(*(args or ([S01_DIR],)), **kwargs)
 
 
 def bars(day=date(2026, 8, 25), end=885, symbol="600001.SH", price=10.1):
@@ -34,8 +55,8 @@ def daily():
     })
 
 
-def test_s01_registered_and_causal_prefix():
-    engine = StrategyEngine(strategy_dirs=[BUILTINS])
+def test_s01_fixture_loads_and_causal_prefix():
+    engine = s01_engine()
     assert engine.has("s01"), engine.load_errors()
     context = StrategyDataContext("stock", "1m", date(2026, 8, 25),
                                   current=daily().tail(1), history=bars(end=890),
@@ -48,7 +69,7 @@ def test_s01_registered_and_causal_prefix():
 
 
 def test_listing_age_parameter_controls_the_shared_engine_filter():
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     history = daily().with_columns(pl.lit(40).alias("listing_age_days"))
     context = StrategyDataContext("stock", "1m", date(2026, 8, 25),
                                   current=history.tail(1), history=bars(), daily_history=history)
@@ -85,7 +106,7 @@ def test_morning_short_windows_guard_and_persistence():
 def test_s01_parameters_persist(tmp_path):
     from app.strategy.config import load_override, save_override
 
-    engine = StrategyEngine(strategy_dirs=[BUILTINS])
+    engine = s01_engine()
     assert engine.has("s01")
     values = {"params": {"participation": .075, "entry_budget": 20000,
                          "volume_ratio_min": 1.5, "guard_time": "11:22"}}
@@ -124,7 +145,7 @@ def test_capacity_star_odd_remainder_and_zero_volume():
 
 
 def test_engine_sell_is_independent_of_candidates_and_t1():
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     context = StrategyDataContext("stock", "1m", date(2026, 8, 25),
                                   current=daily().tail(1), history=bars(end=689),
                                   daily_history=daily(),
@@ -177,7 +198,7 @@ def _service(tmp_path, sell_volume=1000., missing=False):
         def load_panel_for_backtest(self, *args, **kwargs):
             return panel
 
-    return StrategyBacktestService(Engine(), StrategyEngine([BUILTINS]))
+    return StrategyBacktestService(Engine(), s01_engine())
 
 
 @pytest.mark.parametrize("missing", [False, True])
@@ -244,7 +265,7 @@ def test_api_detail_and_saved_execution_parameters(tmp_path, monkeypatch):
 
     from app.api import strategy as api
 
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     monkeypatch.setattr(api, "_get_engine", lambda request: engine)
     monkeypatch.setattr(api, "_data_dir", lambda request: tmp_path)
     app = FastAPI()
@@ -397,7 +418,7 @@ def test_monitor_clock_guard_survives_missing_minute_partition(tmp_path, monkeyp
     from app.strategy import overnight_runtime as runtime
     from app.strategy.monitor import MonitorRuleEngine
 
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     day = date(2026, 8, 25)
     monkeypatch.setattr(runtime, "cn_now", lambda: datetime(2026, 8, 25, 11, 22))
     monkeypatch.setattr(runtime, "position_snapshot", lambda *args: [

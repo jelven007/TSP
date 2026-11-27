@@ -29,7 +29,7 @@ def local(tmp_path, monkeypatch):
     return tmp_path, request, engine, contexts
 
 
-@pytest.mark.parametrize("sid", ["s01", "ma_golden_cross"])
+@pytest.mark.parametrize("sid", ["ma_golden_cross"])
 def test_create_edit_disable_and_reenable_use_the_declared_cycle(local, sid):
     storage, request, engine, contexts = local
     rule = api.RuleModel(id=f"{sid}_monitor", name="monitor", type="strategy",

@@ -8,19 +8,18 @@ from test_full_identity import full_cluster as full_cluster
 from test_full_runtime import owned as owned
 from test_s01_entry_timing import timed
 from test_s01_optional_triggers import optional
-from test_s01_strategy import BUILTINS
+from test_s01_strategy import s01_engine
 
 from app.market_time import CN_TZ, cn_today
 from app.multitenancy.monitor_rules import Rules
 from app.multitenancy.strategies import TenantStrategyEngine, definition_payload
 from app.strategy import monitor_rules
-from app.strategy.engine import StrategyEngine
 
 
 @pytest.mark.skipif(not hasattr(TenantStrategyEngine, "_saved_pools"),
                     reason="requires the deployed schema-seven daily-pool adapter")
 def test_enabled_optional_s01_monitor_wakes_at_environment_and_confirmation(owned):
-    strategy = optional(StrategyEngine([BUILTINS]))
+    strategy = optional(s01_engine())
     sid = "custom_timing_s01"
     strategy.meta["id"] = sid
     assert "result_sections" not in strategy.meta

@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import polars as pl
 import pytest
 from test_s01_optional_triggers import optional
-from test_s01_strategy import BUILTINS, bars, daily
+from test_s01_strategy import bars, daily, s01_engine
 
 from app.api.strategy import _strategy_detail
 from app.backtest.strategy import (
@@ -14,7 +14,6 @@ from app.backtest.strategy import (
     StrategyBacktestService,
 )
 from app.strategy import custom_signals
-from app.strategy.engine import StrategyEngine
 
 MODE = "equal_selected_v1"
 START, SECOND, END = date(2026, 8, 25), date(2026, 8, 26), date(2026, 8, 27)
@@ -61,7 +60,7 @@ def service(tmp_path, count, *, partial=False, retained=False, equal=True):
         def load_panel_for_backtest(self, *args, **kwargs):
             return panel
 
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     definition = optional(engine)
     if equal:
         definition.meta["entry_allocation"] = MODE

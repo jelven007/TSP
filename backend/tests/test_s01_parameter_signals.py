@@ -3,10 +3,10 @@ from copy import deepcopy
 from datetime import date, datetime
 
 import pytest
-from test_s01_strategy import BUILTINS, _service, bars, daily
+from test_s01_strategy import _service, bars, daily, s01_engine
 
 from app.strategy import custom_signals
-from app.strategy.engine import StrategyDataContext, StrategyEngine
+from app.strategy.engine import StrategyDataContext
 
 ENTRY = {
     "id": "late_session_strength_s01", "name": "尾盘建仓_s01", "kind": "entry",
@@ -61,7 +61,7 @@ def test_invalid_s01_exit_values_rejected(patch):
 
 
 def test_saved_signal_changes_actual_entry_even_with_stale_strategy_params():
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     bind(engine)
     context = StrategyDataContext(
         "stock", "1m", date(2026, 8, 25), current=daily().tail(1),
@@ -74,7 +74,7 @@ def test_saved_signal_changes_actual_entry_even_with_stale_strategy_params():
 
 
 def test_saved_exit_guard_controls_actual_holding_exit():
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     bind(engine)
     context = StrategyDataContext(
         "stock", "1m", date(2026, 8, 25), current=daily().tail(1), daily_history=daily(),
@@ -93,7 +93,7 @@ def test_saved_exit_guard_controls_actual_holding_exit():
 @pytest.mark.parametrize("definitions", [[], [ENTRY], [ENTRY, {**EXIT, "enabled": False}],
                                         [ENTRY, {**EXIT, "template": "morning_liquidation"}]])
 def test_broken_binding_fails_instead_of_using_old_defaults(definitions):
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     bind(engine)
     with custom_signals.private_signal_registry(definitions), pytest.raises(ValueError, match="S01"):
         engine.run("s01", StrategyDataContext(
@@ -121,7 +121,7 @@ def test_backtest_freezes_bound_values_and_definitions(tmp_path):
 def test_detail_exposes_signal_values_without_duplicate_strategy_parameters():
     from app.api.strategy import _strategy_detail
 
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     strategy = bind(engine)
     with custom_signals.private_signal_registry([ENTRY, EXIT]):
         detail = _strategy_detail(strategy, {"params": {"guard_time": "11:22"}}, engine)
@@ -132,7 +132,7 @@ def test_detail_exposes_signal_values_without_duplicate_strategy_parameters():
 def test_detail_reads_account_document_storage_without_custom_directory(tmp_path):
     from app.api.strategy import _strategy_detail
 
-    engine = StrategyEngine([BUILTINS])
+    engine = s01_engine()
     strategy = bind(engine)
     engine.documents = tmp_path
     assert engine._user_data_dir() is None
