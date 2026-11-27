@@ -355,6 +355,7 @@ def _history_payload(request, as_of, asset_type, timeframe, *, strategy_id=None,
     day = str(as_of)
     engine = _strategy_engine(request)
     from app.services.daily_selections import signal_strategy
+    from app.services.selection_clock import S03_ID, S05_ID
 
     signal_ids = {
         identity.strategy_id for identity in identities
@@ -404,6 +405,10 @@ def _history_payload(request, as_of, asset_type, timeframe, *, strategy_id=None,
                     transaction = store.storage._transaction if store.tenant else store._local
                     with transaction() as conn:
                         daily = store._with_previous_buy(conn, identity, daily, day)
+                        if identity.strategy_id == S05_ID and identity.timeframe == "1m":
+                            from app.services.s05_signal_scores import apply_to_view
+
+                            apply_to_view(store, conn, daily, daily, daily.get("selection_snapshot"))
                 results[identity.strategy_id] = {
                     **daily, "record_id": saved["record_id"],
                     "source": "saved", "strategy_version": saved["summary"]["strategy_version"],
@@ -421,6 +426,12 @@ def _history_payload(request, as_of, asset_type, timeframe, *, strategy_id=None,
                 transaction = store.storage._transaction if store.tenant else store._local
                 with transaction() as conn:
                     live = store._with_previous_buy(conn, identity, live, day)
+                    if sid == S05_ID and identity.timeframe == "1m" and live.get("sections"):
+                        from app.services.s05_signal_scores import apply_to_view
+
+                        apply_to_view(store, conn, live, live, live.get("selection_snapshot"))
+                if sid == S03_ID:
+                    live = _with_saved_s03_buy_review(store, identity, live, results.get(sid))
             results[sid] = {**live, "source": "realtime"}
         if sid not in summaries:
             summaries[sid] = {"ever_count": len(symbols), "computed_at": live.get("computed_at")}
@@ -430,6 +441,51 @@ def _history_payload(request, as_of, asset_type, timeframe, *, strategy_id=None,
         "as_of": day, "results": results, "today_ever_rows": ever,
         "today_ever_counts": {sid: r["ever_count"] for sid, r in summaries.items()},
         "updated_at": max((r["computed_at"] for r in summaries.values() if r["computed_at"] is not None), default=None),
+    }
+
+
+def _with_saved_s03_buy_review(store, identity, live, saved):
+    """补算仅更新买入展示, 保留实时卖、选、原始监控回执和发布边界。"""
+    if ((live.get("section_statuses") or {}).get("buy") not in ("expired", "failed", "waiting")
+            or ((live.get("monitor_tasks") or {}).get("buy") or {}).get("published") is True):
+        return live
+
+    def usable(review):
+        provenance = (review or {}).get("repair_provenance") or {}
+        return (bool(identity.runtime_identity) and bool(review)
+                and review.get("runtime_identity") == identity.runtime_identity
+                and review.get("as_of") == provenance.get("as_of") == live["as_of"]
+                and provenance.get("kind") == "post_close_signal_review_v1"
+                and not provenance.get("diagnostic_only")
+                and (review.get("section_statuses") or {}).get("buy") == "success"
+                and (review.get("execution_status") or {}).get("state") == "success"
+                and not (review.get("section_errors") or {}).get("buy")
+                and not review.get("entry_filter_error")
+                and isinstance((review.get("sections") or {}).get("buy"), list))
+
+    if not usable(saved):
+        # 更新的卖回执可能已占用最新归档槽; 日视图仍保留相同身份的补算。
+        import gzip
+        import json
+
+        encoded = store.day_view(identity.strategy_id, live["as_of"], identity.asset_type, identity.timeframe)
+        saved = json.loads(gzip.decompress(encoded[1]))["result"] if encoded else None
+        if usable(saved) and (review_id := saved.get("buy_review_record_id")):
+            # 日视图只投影部分字段, 原始任务说明仍取补算归档。
+            original = store.detail(identity.strategy_id, review_id)
+            if original:
+                saved["original_realtime"] = original["result"].get("original_realtime")
+    if not usable(saved):
+        return live
+    rows = saved["sections"]["buy"]
+    return {
+        **live, "rows": rows, "total": len(rows), "sections": {**live["sections"], "buy": rows},
+        "section_statuses": {**live["section_statuses"], "buy": "success"},
+        "section_errors": {k: v for k, v in (live.get("section_errors") or {}).items() if k != "buy"},
+        "buy_review_record_id": saved.get("buy_review_record_id") or saved["record_id"],
+        **{key: saved.get(key) for key in (
+            "entry_signal_hits", "entry_filter_error", "entry_data_quality",
+            "execution_status", "repair_provenance", "original_realtime")},
     }
 
 
@@ -750,7 +806,7 @@ def get_cached_result(
         "monitor_tasks": raw_result.get("monitor_tasks"),
         "monitor_executed_signals": raw_result.get("monitor_executed_signals"),
     }
-    for field in ("repair_provenance", "original_realtime", "diagnostic_review",
+    for field in ("repair_provenance", "original_realtime", "diagnostic_review", "buy_review_record_id",
                   "run_evidence", "run_commit", "operational_state"):
         if field in raw_result:
             result[field] = raw_result[field]

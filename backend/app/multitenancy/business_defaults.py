@@ -12,6 +12,8 @@ from typing import Literal
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.multitenancy.schedule_defaults import ScheduleDefaults
+
 NAMESPACES = {
     "strategy_sources", "strategy_overrides", "custom_factors", "custom_signals",
     "strategy_monitoring", "strategy_pool_preferences",
@@ -47,11 +49,12 @@ class Payload(BaseModel):
     factor_catalog: list[dict] = Field(max_length=2000)
     code_hashes: dict[str, str]
     backtest: dict
+    schedules: ScheduleDefaults | None = None
 
 
 class Snapshot(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    format_version: Literal[1]
+    format_version: Literal[1, 2]
     snapshot_id: str = Field(pattern=r"^[a-f0-9]{64}$")
     payload: Payload
 
@@ -61,7 +64,12 @@ def load_snapshot(path: Path) -> Snapshot:
     if len(raw) > 32 * 1024 * 1024:
         raise ValueError("business defaults too large")
     snapshot = Snapshot.model_validate_json(raw)
-    if hashlib.sha256(canonical(snapshot.payload.model_dump())).hexdigest() != snapshot.snapshot_id:
+    payload = snapshot.payload
+    if (snapshot.format_version == 2) != (payload.schedules is not None):
+        raise ValueError("business defaults schedule format mismatch")
+    # Hash the original payload: v1 never had a schedule key and v2 may omit
+    # optional preferences to use the application default for that setting.
+    if hashlib.sha256(canonical(json.loads(raw)["payload"])).hexdigest() != snapshot.snapshot_id:
         raise ValueError("business defaults digest mismatch")
     identities = [(row.namespace, row.id) for row in snapshot.payload.documents]
     if len(set(identities)) != len(identities):
@@ -162,6 +170,7 @@ def seed_business(conn, job: dict, snapshot: Snapshot) -> None:
     if existing:
         return
     conn.execute("SELECT set_config('app.user_id',%s,true)", (job["user_id"],))
+    owner = {key: job[key] for key in ("user_id", "auth_version", "policy_version", "routing_epoch")}
     for row in snapshot.payload.documents:
         value = copy.deepcopy(row.value)
         document_id = job["user_id"] if row.namespace == "strategy_pool_preferences" else row.id
@@ -177,13 +186,29 @@ def seed_business(conn, job: dict, snapshot: Snapshot) -> None:
     for rule in snapshot.payload.monitor_rules:
         definition = {key: value for key, value in rule.definition.items()
                       if key not in {"_execution", "_system_task"}}
-        definition["_execution"] = {
-            "user_id": job["user_id"], "auth_version": job["auth_version"],
-            "policy_version": job["policy_version"], "routing_epoch": job["routing_epoch"],
-        }
+        definition["_execution"] = owner
         conn.execute(
             "INSERT INTO business.monitor_rules(tenant_id,id,definition,enabled) VALUES(%s,%s,%s,%s)",
             (job["tenant_id"], rule.id, Jsonb(definition), rule.enabled),
+        )
+    schedules = snapshot.payload.schedules
+    if schedules is not None:
+        mining = schedules.mining.model_dump()
+        for namespace, value in (
+            ("mining_schedule", {**mining, **owner}),
+            ("review_schedule", {**schedules.review.model_dump(), **owner}),
+            ("notification_preferences", {"default_channels": [], "review_channels": [],
+                                          "review_push_mode": schedules.review_push_mode}),
+        ):
+            conn.execute(
+                "INSERT INTO business.documents(tenant_id,namespace,id,value) VALUES(%s,%s,'default',%s)",
+                (job["tenant_id"], namespace, Jsonb(value)),
+            )
+        conn.execute(
+            """INSERT INTO business.documents AS d(tenant_id,namespace,id,value)
+               VALUES(%s,'preferences','default',%s)
+               ON CONFLICT(tenant_id,namespace,id) DO UPDATE SET value=d.value || excluded.value""",
+            (job["tenant_id"], Jsonb(mining)),
         )
     receipt = {"snapshot_id": snapshot.snapshot_id, "source": snapshot.payload.source,
                "backtest": snapshot.payload.backtest, "documents": len(snapshot.payload.documents),

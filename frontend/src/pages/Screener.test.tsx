@@ -6,12 +6,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { Screener } from './Screener'
 
 const { summary, detail, dayView, run, runAll, reload, batchMutate, oldPreferences,
-  monitorList, monitorSave, monitorDelete, monitorToggle, monitorTasks, rules, poolState, dataState, clockState, reorderPool, addToPool, calendar } = vi.hoisted(() => ({
+  monitorList, monitorSave, monitorDelete, monitorToggle, monitorTasks, datedTasks, rules, poolState, dataState, clockState, reorderPool, addToPool, calendar } = vi.hoisted(() => ({
   summary: vi.fn(), detail: vi.fn(), dayView: vi.fn(), run: vi.fn(), runAll: vi.fn(),
   reload: vi.fn(), batchMutate: vi.fn(),
   oldPreferences: { screener_auto_run: false as boolean | undefined },
   monitorList: vi.fn(), monitorSave: vi.fn(), monitorDelete: vi.fn(),
-  monitorToggle: vi.fn(), monitorTasks: vi.fn(),
+  monitorToggle: vi.fn(), monitorTasks: vi.fn(), datedTasks: vi.fn(),
   rules: [] as any[], poolState: { ids: ['sample', 'minute'] },
   dataState: { latest: '2026-10-23' as string | null },
   clockState: { data: {} as { market_date?: string; market_time?: string; is_trading_day?: boolean | null } },
@@ -28,6 +28,8 @@ vi.mock('@/lib/api', () => ({
         source: 'custom', result_sections: 'signals' },
       { id: 'custom_mvxxcs01', name: 's01', asset_types: ['stock'], timeframes: ['1m'],
         source: 'custom', result_sections: 'signals', minute_execution: 'overnight_capacity_v1', optional_triggers: true },
+      { id: 'custom_mvxxcs05', name: 's05', asset_types: ['stock'], timeframes: ['1m'],
+        source: 'custom', result_sections: 'signals' },
       { id: 'added', name: '新增样例', asset_types: ['stock'], timeframes: ['1d'] },
       { id: 'composite', name: '叠加样例', asset_types: ['stock'], timeframes: ['1d'] },
     ] }),
@@ -43,6 +45,7 @@ vi.mock('@/lib/api', () => ({
     monitorRuleDelete: monitorDelete,
     strategyMonitoringSet: monitorToggle,
     strategyMonitoring: monitorTasks,
+    strategyMonitoringDay: datedTasks,
     minuteRefreshStatus: async () => ({}),
     watchlistGroups: async () => ({ groups: [] }),
     strategyGet: async () => ({ params_defaults: { position_limit: 5, take_profit_pct: .06, stop_loss_pct: .05 } }),
@@ -69,7 +72,10 @@ vi.mock('@/lib/screener-columns', () => ({
   buildExtColumnsParam: () => '', loadScreenerColumnConfig: async () => [], saveScreenerColumnConfig: vi.fn(),
 }))
 vi.mock('@/components/DatePicker', () => ({
-  DatePicker: ({ value, onChange, min, max }: any) => <input aria-label="测试日期" min={min} max={max} value={value} onChange={e => onChange(e.target.value)} />,
+  DatePicker: ({ value, onChange, onDateIntent, min, max }: any) => <>
+    <input aria-label="测试日期" min={min} max={max} value={value} onChange={e => onChange(e.target.value)} />
+    <button type="button" onClick={() => onDateIntent?.('2026-11-26')}>停在历史日期</button>
+  </>,
 }))
 vi.mock('@/components/screener/ScreenerTable', () => ({
   ScreenerTable: ({ rows }: any) => <div data-testid="rows">{JSON.stringify(rows)}</div>,
@@ -113,6 +119,7 @@ beforeEach(() => {
   })
   monitorDelete.mockReset().mockResolvedValue({})
   monitorTasks.mockReset().mockResolvedValue({ strategies: [] })
+  datedTasks.mockReset()
   monitorToggle.mockReset().mockResolvedValue({ enabled: true })
   run.mockReset()
   runAll.mockReset()
@@ -194,6 +201,64 @@ it('reads current S02 directly without a summary and never polls its completed r
   })
   await flush()
   expect(detail.mock.calls.length).toBe(reads)
+})
+
+it('shows the same-day saved tabs before the realtime request finishes and gates result actions', async () => {
+  poolState.ids = ['custom_mvxxcp88']
+  clockState.data = { market_date: '2026-11-27', market_time: '2026-11-27T14:40:00+08:00', is_trading_day: true }
+  summary.mockImplementation(() => new Promise(() => {}))
+  const saved = { strategy: 'custom_mvxxcp88', as_of: '2026-11-27', rows: [], total: 0, elapsed_ms: 0,
+    section_mode: 'signals', sections: { sell: [], select: [{ symbol: '000001.SZ' }], buy: [] } }
+  dayView.mockResolvedValue({ result: saved })
+  let finish!: (value: unknown) => void
+  detail.mockImplementation(() => new Promise(resolve => { finish = resolve }))
+  await render()
+  await act(async () => button('自定义S02').click())
+  await flush()
+  expect(host.textContent).toContain('已保存结果 · 正在读取当日最新状态')
+  expect(host.querySelector('[role="tablist"]')?.textContent).toContain('选 · 1')
+  await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1].click())
+  expect(host.querySelector<HTMLButtonElement>('[aria-label="批量加持仓"]')?.disabled).toBe(true)
+  await act(async () => finish({ result: { ...saved, source: 'realtime',
+    sections: { ...saved.sections, select: [{ symbol: '000002.SZ' }, { symbol: '000003.SZ' }] } } }))
+  await flush()
+  expect(host.querySelector('[role="tablist"]')?.textContent).toContain('选 · 2')
+  expect(host.querySelector<HTMLButtonElement>('[aria-label="批量加持仓"]')?.disabled).toBe(false)
+  expect(host.textContent).not.toContain('正在读取当日最新状态')
+  expect(run).not.toHaveBeenCalled()
+})
+
+it('loads a selected daily strategy in parallel with the card summary', async () => {
+  summary.mockImplementation(() => new Promise(() => {}))
+  detail.mockImplementation(async (id, _ext, day) => ({
+    result: { as_of: day, strategy: id, rows: [{ symbol: '600001.SH' }], total: 1, elapsed_ms: 0 },
+  }))
+  await render()
+  await act(async () => button('样例').click())
+  await flush()
+  expect(detail).toHaveBeenCalledWith('sample', undefined, '2026-10-23', 'stock', '1d')
+  expect(host.querySelector('[data-testid="rows"]')?.textContent).toContain('600001.SH')
+})
+
+it('reads one intended prior date and reuses it when that date is selected', async () => {
+  poolState.ids = ['custom_mvxxcp88']
+  clockState.data = { market_date: '2026-11-27', market_time: '2026-11-27T14:40:00+08:00', is_trading_day: true }
+  summary.mockResolvedValue({ as_of: '2026-11-27', results: {}, today_ever_counts: {} })
+  const result = (id: string, day: string) => ({
+    result: { as_of: day, strategy: id, rows: [], total: 0, elapsed_ms: 0,
+      section_mode: 'signals', sections: { sell: [], select: [{ symbol: '000001.SZ' }], buy: [] } },
+  })
+  detail.mockImplementation(async (id, _ext, day) => result(id, day))
+  dayView.mockImplementation(async (id, day) => result(id, day))
+  await render()
+  await act(async () => button('自定义S02').click())
+  await flush()
+  await act(async () => button('停在历史日期').click())
+  await vi.waitFor(() => expect(dayView).toHaveBeenCalledWith('custom_mvxxcp88', '2026-11-26', 'stock', '1m'))
+  await setDate('2026-11-26')
+  expect(host.querySelector('[role="tablist"]')?.textContent).toContain('选 · 1')
+  expect(dayView.mock.calls.filter(([, day]) => day === '2026-11-26')).toHaveLength(1)
+  expect(run).not.toHaveBeenCalled()
 })
 
 it('keeps current S02 tabs available with explicit missing archive state and no recalculation', async () => {
@@ -426,6 +491,42 @@ it('keeps an explicitly chosen historical date when the trading clock refreshes'
   const date = host.querySelector<HTMLInputElement>('[aria-label="测试日期"]')!
   expect(date.value).toBe('2026-10-22')
   expect(date.max).toBe('2026-11-03')
+})
+
+it('shows S05 tasks for the chosen date even when an earlier date responds late', async () => {
+  const id = 'custom_mvxxcs05', today = '2026-11-27', past = '2026-11-26'
+  poolState.ids = [id]
+  clockState.data = { market_date: today, is_trading_day: true }
+  const schedule = (day: string) => ({
+    strategy_id: id, as_of: day, enabled: true, historical: day !== today,
+    tasks: {
+      select: { state: 'no_receipt', windows: [] },
+      buy: { state: 'no_receipt', branch_code: 4, branch_date: day, windows: [] },
+      sell: { state: 'expired', branch_code: 2, branch_date: '2026-11-25',
+        windows: [{ start: '09:43:00', end: '13:55:00', signal_name: '分支2出场' }],
+        receipt_source: 'scheduler' },
+    },
+  })
+  let completeToday!: (value: unknown) => void
+  datedTasks.mockImplementation((_id, day) => day === today
+    ? new Promise(resolve => { completeToday = resolve }) : Promise.resolve(schedule(day)))
+  dayView.mockResolvedValue({ result: null })
+  await render()
+  await act(async () => button('s05').click())
+  await flush()
+  await setDate(past)
+  await flush()
+  expect(datedTasks).toHaveBeenCalledWith(id, past)
+  await act(async () => completeToday(schedule(today)))
+  await flush()
+  const tasks = host.querySelector('[aria-label="策略定时任务"]')?.textContent
+  expect(tasks).toContain('历史定时任务 · 北京时间 · 2026-11-26')
+  expect(tasks).toContain('2026-11-25')
+  expect(tasks).toContain('09:43:00～13:55:00')
+  expect(tasks).toContain('不安排买入')
+  expect(tasks).toContain('已结束')
+  expect(tasks).not.toContain(today)
+  expect(run).not.toHaveBeenCalled()
 })
 
 it('enables monitoring without changing the viewed date or starting a calculation', async () => {

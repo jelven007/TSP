@@ -1,0 +1,54 @@
+[
+  {
+    "id": "tail_entry_s05", "kind": "entry", "name": "s02_尾段加速",
+    "enabled": true, "template": "late_session_strength", "timeframe": "intraday",
+    "conditions": [], "min_bars": 0,
+    "params": {"time": "14:05:00", "end_time": "14:16:00", "evaluation_delay_minutes": 0.5,
+      "change_min_pct": null, "change_max_pct": null, "pool_up_min_pct": null,
+      "ma5_1m_count": null, "ma5_5m_count": null,
+      "s05_entry": {"return_5m_min_pct": 0, "return_15m_min_pct": 0.1,
+        "change_min_pct": 0, "change_max_pct": 7, "sort_by": "return_5m", "fund_weight_pct": 70}}
+  },
+  {
+    "id": "low_gap_entry_s05", "kind": "entry", "name": "s02_低缺口资金趋势",
+    "enabled": true, "template": "late_session_strength", "timeframe": "intraday",
+    "conditions": [], "min_bars": 0,
+    "params": {"time": "14:14:00", "end_time": "14:25:00", "evaluation_delay_minutes": 0.5,
+      "change_min_pct": null, "change_max_pct": null, "pool_up_min_pct": null,
+      "ma5_1m_count": null, "ma5_5m_count": null,
+      "s05_entry": {"gap_max_pct": 1, "change_min_pct": -1, "change_max_pct": 6,
+        "position_min_pct": 65, "return_15m_min_pct": -0.15,
+        "veto_change_min_pct": 2.5, "sort_by": "fund_tech", "fund_weight_pct": 70}}
+  },
+  {
+    "id": "board_entry_s05", "kind": "entry", "name": "s02_板块强势综合",
+    "enabled": true, "template": "late_session_strength", "timeframe": "intraday",
+    "conditions": [], "min_bars": 0,
+    "params": {"time": "14:40:00", "end_time": "14:51:00", "evaluation_delay_minutes": 0.5,
+      "change_min_pct": null, "change_max_pct": null, "pool_up_min_pct": null,
+      "ma5_1m_count": null, "ma5_5m_count": null,
+      "s05_entry": {"prior_up_min_pct": 48, "prior_above_ma20_min_pct": 45,
+        "change_max_pct": 7, "sort_by": "four_dimension", "fund_weight_pct": 70}}
+  },
+  {
+    "id": "tail_exit_s05", "kind": "exit", "name": "s02_尾段次日出场",
+    "enabled": true, "template": "morning_liquidation", "timeframe": "intraday",
+    "conditions": [], "min_bars": 0,
+    "params": {"start_time": "09:49:00", "time": "09:59:00", "fallback_time": "14:00:00",
+      "take_profit_pct": 1, "stop_loss_pct": 1.5, "rise_pct": null, "fall_pct": null}
+  },
+  {
+    "id": "low_gap_exit_s05", "kind": "exit", "name": "s02_低缺口次日出场",
+    "enabled": true, "template": "morning_liquidation", "timeframe": "intraday",
+    "conditions": [], "min_bars": 0,
+    "params": {"start_time": "09:43:00", "time": "13:25:00", "fallback_time": "14:00:00",
+      "take_profit_pct": 2.5, "stop_loss_pct": 3, "rise_pct": null, "fall_pct": null}
+  },
+  {
+    "id": "board_exit_s05", "kind": "exit", "name": "s02_板块强势次日出场",
+    "enabled": true, "template": "morning_liquidation", "timeframe": "intraday",
+    "conditions": [], "min_bars": 0,
+    "params": {"start_time": "10:13:00", "time": "10:53:00", "fallback_time": "14:00:00",
+      "take_profit_pct": 4, "stop_loss_pct": 3, "rise_pct": null, "fall_pct": null}
+  }
+]

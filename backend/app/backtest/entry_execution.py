@@ -138,9 +138,14 @@ def execute_entry_window(
     end_at: datetime | None = None,
     asset_type: str = "stock",
     participation_pct: float = 1.0,
+    slippage_bps: float = 0.0,
+    first_executable: bool = False,
 ) -> EntryExecution:
     """An explicit deadline replaces the legacy five-bar limit; missing slots never extend it."""
     rate = participation_rate(participation_pct)
+    if not math.isfinite(slippage_bps) or slippage_bps < 0:
+        raise ValueError("分钟买入滑点无效")
+    multiplier = 1 + slippage_bps / 10000
     if not _finite_positive(prior_close):
         raise ValueError("缺少有效上一交易日收盘价")
     if not math.isfinite(float(budget)) or budget < 0:
@@ -182,9 +187,11 @@ def execute_entry_window(
 
     first_price = next(
         (
-            min(limit_up, float(row["high"]))
+            min(limit_up, float(row["high"]) * multiplier)
             for moment in window
             if (row := by_datetime.get(moment)) is not None and _valid_price_row(row)
+            and (not first_executable or (_finite_positive(row.get("volume"))
+                  and float(row["low"]) < limit_up - 1e-9))
         ),
         None,
     )
@@ -216,7 +223,7 @@ def execute_entry_window(
         if math.isfinite(limit_up) and low >= limit_up - 1e-9 and high >= limit_up - 1e-9:
             continue
 
-        price = min(limit_up, high)
+        price = min(limit_up, high * multiplier)
         minute_volume_shares = volume * 100
         capacity = minute_capacity(volume, rate, step)
         proposed = min(target - shares, capacity)

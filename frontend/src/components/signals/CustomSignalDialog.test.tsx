@@ -42,7 +42,7 @@ it('creates and edits the late-session entry preset with all configurable defaul
   })
   expect(host.querySelector('button[aria-label="启动时间"]')?.textContent).toBe('14:30:00')
   expect([...host.querySelectorAll<HTMLInputElement>('input[type="number"]')].map(input => input.value))
-    .toEqual(['30', '60', '', '', '', '0.4', '4', '', '7', '4'])
+    .toEqual(['30', '60', '', '', '', '', '', '', '7', '4', '', '', '', ''])
   expect(host.textContent).toContain('14:30:30')
   expect(host.textContent).toContain('启动后30秒确认')
   expect(host.textContent).not.toContain('启动后90秒')
@@ -56,6 +56,9 @@ it('creates and edits the late-session entry preset with all configurable defaul
     params: LATE_SESSION_DEFAULTS,
   }), { createOnly: true })
   const stored = save.mock.calls[0][0]
+  expect(stored.params).toEqual(expect.objectContaining({
+    change_min_pct: null, change_max_pct: null,
+  }))
   await act(async () => render({ ...stored, params: { ...stored.params, ma5_1m_count: 9 } }))
   expect(host.querySelector<HTMLInputElement>('input[aria-label="1分钟MA5连增数量"]')?.value).toBe('9')
   await act(async () => render({ ...stored, params: { ...stored.params, evaluation_delay_minutes: 1.5 } }))
@@ -68,7 +71,7 @@ it('creates and edits the late-session entry preset with all configurable defaul
   expect(host.textContent).toContain('原为无延迟旧定义')
   expect(host.textContent).toContain('14:35:30')
   expect([...host.querySelectorAll<HTMLInputElement>('input[type="number"]')].map(input => input.value))
-    .toEqual(['30', '65', '', '', '', '0.6', '3.5', '', '8', '3'])
+    .toEqual(['30', '65', '', '', '', '0.6', '3.5', '', '8', '3', '', '', '', ''])
   await act(async () => [...host.querySelectorAll('button')].find(b => b.textContent?.includes('保存'))!.click())
   expect(save.mock.calls.at(-1)?.[0].params).toEqual({
     ...LATE_SESSION_DEFAULTS,

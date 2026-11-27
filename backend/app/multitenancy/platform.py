@@ -124,6 +124,7 @@ class PlatformAdmin:
 async def lifespan(app):
     """No legacy account, private factor, strategy, monitor, paper or AI jobs."""
     from app.cell.platform_market import _FULL_SNAPSHOT_LOCK
+    from app.config import settings
     from app.data_providers import custom
     from app.jobs import daily_pipeline
     from app.multitenancy.publication import PublicPublisher
@@ -135,6 +136,16 @@ async def lifespan(app):
     from app.services.sector_monitor import SectorMonitorService
     from app.tickflow.policy import detect_capabilities
     from app.tickflow.repository import DataStore, KlineRepository
+
+    if bundle := os.environ.get("TSP_PLATFORM_BUSINESS_DEFAULTS_DIR"):
+        from pathlib import Path
+
+        from app.multitenancy.business_defaults_bundle import install_extensions
+
+        install_extensions(
+            Path(bundle), settings.data_dir,
+            platform_config=settings.platform_config_dir or settings.data_dir / "user_data", apply=True,
+        )
 
     with ExitStack() as resources:
         store = DataStore()

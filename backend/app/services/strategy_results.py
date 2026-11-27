@@ -119,8 +119,10 @@ def execution_snapshot(engine, storage=None):
     snapshot = copy.copy(engine)
     if storage is not None:
         snapshot._daily_state_loader = lambda sid, day: previous_daily_state(storage, sid, day)
+        from app.market_time import cn_today
         from app.services.daily_selections import DailySelections
-        snapshot._selection_loader = lambda sid, day: DailySelections(storage).read(sid, day)
+        snapshot._selection_loader = lambda sid, day: DailySelections(storage).read(
+            sid, day, live_entry=day == cn_today())
         from functools import lru_cache
 
         from app.services.daily_stock_pools import DailyStockPools
@@ -429,17 +431,44 @@ class StrategyResults:
         if result.get("section_mode") != "signals":
             return result
         from app.services.strategy_day_views import _get, _key
+        is_s05 = identity.strategy_id == "custom_mvxxcs05"
+
+        def load(record_id):
+            if self.tenant:
+                found = conn.execute(
+                    "SELECT value FROM business.documents WHERE namespace=%s AND id=%s",
+                    (NAMESPACE, record_id),
+                ).fetchone()
+                return found["value"] if found else None
+            found = conn.execute("SELECT value FROM strategy_results WHERE id=?", (record_id,)).fetchone()
+            return json.loads(found["value"]) if found else None
+
         roster = _get(self, conn, "strategy_sell_rosters",
                       _key(identity.strategy_id, as_of, identity.asset_type, identity.timeframe))
+        if is_s05 and roster and roster.get("source_record_id"):
+            from app.strategy.s02_173004552 import project_daily_buys, with_entry_branches
+
+            source = load(roster["source_record_id"])
+            if source and source["summary"]["as_of"] == roster.get("source_date"):
+                prior = project_daily_buys(source["result"])
+                if (prior.get("section_errors") or {}).get("buy"):
+                    roster = None
+                else:
+                    allowed = {row["symbol"] for row in (prior.get("sections") or {}).get(
+                        "buy", prior.get("rows", []))}
+                    rows = [row for row in roster["rows"] if row["symbol"] in allowed]
+                    roster = {**roster, "rows": with_entry_branches(rows, prior.get("entry_signal_hits") or [])}
         if roster is not None:
             current = copy.deepcopy(result)
             current["sections"]["sell"] = copy.deepcopy(roster["rows"])
             current["sell_roster"] = roster
             errors = dict(current.get("section_errors") or {})
-            if (current.get("section_statuses") or {}).get("sell") != "failed":
+            s05_pending = is_s05 and bool(roster["rows"])
+            if not s05_pending and (current.get("section_statuses") or {}).get("sell") != "failed":
                 errors.pop("sell", None)
             if (current.get("section_statuses") or {}).get("sell") in (None, "waiting", "unavailable"):
-                current["section_statuses"] = {**(current.get("section_statuses") or {}), "sell": "success"}
+                current["section_statuses"] = {**(current.get("section_statuses") or {}),
+                                              "sell": "waiting" if s05_pending else "success"}
             current["section_errors"] = errors
             return current
         from app.strategy.basic_filter import previous_session
@@ -483,6 +512,19 @@ class StrategyResults:
         current = copy.deepcopy(result)
         errors = dict(current.get("section_errors") or {})
         confirmed_zero = False
+        if archived is None and is_s05:
+            from app.services.daily_selections import selection_record
+            from app.services.s05_selection import (
+                COMMON_BRANCH_POLICY,
+                NUMERIC_POLICY,
+                ROUTED_POLICY,
+            )
+
+            frozen = (selection_record(identity.strategy_id, previous, load, policy=COMMON_BRANCH_POLICY)
+                      or selection_record(identity.strategy_id, previous, load, policy=NUMERIC_POLICY)
+                      or selection_record(identity.strategy_id, previous, load, policy=ROUTED_POLICY))
+            if frozen and frozen["result"]["selection_snapshot"]["entry_branch"] is None:
+                archived = frozen
         if archived is None and self.tenant:
             from app.strategy.execution_status import successful_zero_receipt
 
@@ -499,6 +541,13 @@ class StrategyResults:
                 receipt["value"] if receipt else {}, identity.strategy_id, previous,
                 frozen["value"]["summary"].get("runtime_identity") if frozen else None,
             )
+        if archived is not None and is_s05:
+            from app.strategy.s02_173004552 import project_daily_buys
+
+            source = archived["result"]
+            prior = project_daily_buys(source)
+            if prior is not source:
+                archived = None if (prior.get("section_errors") or {}).get("buy") else {**archived, "result": prior}
         if archived is None:
             current["sections"]["sell"] = []
             if confirmed_zero:
@@ -510,6 +559,10 @@ class StrategyResults:
         else:
             prior = archived["result"]
             buys = (prior.get("sections") or {}).get("buy", prior.get("rows", []))
+            if is_s05:
+                from app.strategy.s02_173004552 import with_entry_branches
+
+                buys = with_entry_branches(buys, prior.get("entry_signal_hits") or [])
             current["sections"]["sell"] = [
                 {**item, "entry_date": previous, "entry_record_id": archived["record_id"]} for item in buys
             ]
@@ -727,9 +780,9 @@ class StrategyResults:
         saved = self.detail(identity.strategy_id, record_id or identity.record_id(as_of))
         from app.services.daily_selections import selection_record
         frozen = None
-        from app.services.selection_clock import S03_ID
+        from app.services.selection_clock import S03_ID, S05_ID
         if identity.timeframe in ("1d", "1m") and (
-                identity.strategy_id == S03_ID or saved is None
+                identity.strategy_id in (S03_ID, S05_ID) or saved is None
                 or not saved["result"].get("selection_snapshot")):
             frozen = selection_record(identity.strategy_id, as_of,
                                       lambda key: self.detail(identity.strategy_id, key))
@@ -741,7 +794,7 @@ class StrategyResults:
                 saved = fallback
         if (saved and identity.timeframe in ("1d", "1m")
                 and saved["result"].get("section_mode") == "signals"
-                and (not saved["result"].get("selection_snapshot") or identity.strategy_id == S03_ID)
+                and (not saved["result"].get("selection_snapshot") or identity.strategy_id in (S03_ID, S05_ID))
                 and not saved["result"].get("selection_only")):
             selected = (frozen or {}).get("result", {}).get("selection_snapshot")
             if selected is not None:
@@ -752,6 +805,16 @@ class StrategyResults:
                 saved["result"]["section_errors"] = {
                     key: value for key, value in (saved["result"].get("section_errors") or {}).items()
                     if key != "select"}
+                if identity.strategy_id == S05_ID:
+                    from app.strategy.s02_173004552 import (
+                        MARKET_ROUTE,
+                        project_daily_buys,
+                        project_no_market_route,
+                    )
+
+                    saved["result"] = project_daily_buys(saved["result"], selected)
+                    if (selected.get("entry_route") or {}).get("schema") != MARKET_ROUTE:
+                        project_no_market_route(saved["result"], selected)
         if saved:
             from app.services.custom_status_refresh import result
             saved = {**saved, "result": result(self, identity.strategy_id, saved["result"])}

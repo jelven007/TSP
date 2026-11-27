@@ -26,14 +26,34 @@ from app.backtest.minute_replay import (
     requires_full_pool,
     requires_s03_scoring,
 )
+from app.backtest.s05_exit_policy import CARRY_ENTRY_BRANCH, CARRY_NEXT_BRANCH
 from app.instrument_suspension import STATUS_COLUMN, dated_status, holding_exit_status
 from app.market_time import published_trading_day
 from app.price_limits import is_risk_warning_name, price_limit_pct
+from app.strategy import s02_173004552 as routed
 from app.strategy.morning_liquidation import evaluate, parameters
 from app.strategy.overnight_runtime import next_market_day
 from app.strategy.risk_policy import price_exit, strategy_policy, valid_price
 
 EXECUTION = "generic_morning_liquidation_resume_v2"
+
+
+def _exit_schedule(sig, config):
+    sig_params = parameters(sig)
+    staged = "amplitude_pct" not in sig_params
+    if all(value is None for value in sig_params.values()):
+        raise ValueError("早盘清仓全部参数为空, 无法执行清仓收益回测")
+    deadline = clock.fromisoformat(sig_params["time"]) if sig_params["time"] is not None else None
+    fallback_value = sig_params.get("fallback_time", sig_params["time"])
+    fallback = clock.fromisoformat(fallback_value) if fallback_value is not None else None
+    stages = sorted({at for at in (deadline, fallback) if at is not None})
+    execution = (fallback or clock(15)) if staged else deadline
+    observation = stages[0] if stages else execution
+    next_minute = staged or config.exit_fill == "signal_next_minute"
+    final = (expected_trading_minutes(
+        datetime.combine(config.start, execution) + timedelta(minutes=1),
+    )[-1].time() if next_minute and not staged else execution)
+    return sig_params, staged, fallback, stages, execution, observation, next_minute, final
 
 
 def run_morning(service, config, strategy, params, overrides, definitions, *,
@@ -45,8 +65,14 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
     )
     positions, marks, records, equities, exposures = {}, {}, [], [], []
     cash = float(config.initial_capital)
-    entry_rate = config.entry_participation_pct or 1.
-    exit_rate = config.exit_participation_pct or 1.
+    is_routed = routed.enabled(strategy)
+    common_s05 = strategy.meta.get("id") == routed.SID and not is_routed
+    entry_branch_exit = common_s05 and config.s05_exit_policy == CARRY_ENTRY_BRANCH
+    carry_s05 = entry_branch_exit or (common_s05 and config.s05_exit_policy == CARRY_NEXT_BRANCH)
+    execution_id = routed.POLICY if is_routed else EXECUTION
+    base_rate = routed.PARTICIPATION if is_routed else 1.
+    entry_rate = config.entry_participation_pct or base_rate
+    exit_rate = config.exit_participation_pct or base_rate
     counters = defaultdict(int)
     peak = cash
     replayed = 0
@@ -58,7 +84,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
         output.error = error
         output.elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
         output.stats.update({
-            "execution_backend": "minute_filter", "minute_execution": EXECUTION,
+            "execution_backend": "minute_filter", "minute_execution": execution_id,
             "result_scope": "raw_price_cash_ledger_excluding_unverified_dividends",
             "certified": False,
             "status": "rejected_before_NAV" if error else "completed",
@@ -85,33 +111,31 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
     if config.mode != "position" or config.asset_type != "stock":
         return finish("早盘清仓收益回测需要A股连续资金组合模式, 暂不支持独立全量模拟")
     exits = service._effective_signals(overrides, "exit_signals", strategy.exit_signals)
-    if len(definitions) != 1 or exits != ["csgi_" + definitions[0]["id"]]:
+    if is_routed and (set(exits) != {"csgi_" + sig["id"] for sig in definitions}
+                      or any(sig["id"] not in routed.EXIT_IDS.values()
+                             or not sig.get("enabled")
+                             for sig in definitions)):
+        return finish("S02分流回测只支持已启用的对应出场触发器")
+    if not is_routed and (
+        set(exits) != {"csgi_" + definition["id"] for definition in definitions}
+        or (len(definitions) != 1 and not common_s05)
+        or (common_s05 and any(definition["id"] not in routed.EXIT_IDS.values() for definition in definitions))
+    ):
         return finish("早盘清仓收益回测暂不支持混合其他出场触发器")
     sig = definitions[0]
-    if sig.get("enabled") is False:
+    if any(definition.get("enabled") is False for definition in definitions):
         return finish("早盘清仓信号已禁用, 无法执行清仓收益回测")
-    sig_params = parameters(sig)
-    staged = "amplitude_pct" not in sig_params
-    if all(value is None for value in sig_params.values()):
-        return finish("早盘清仓全部参数为空, 无法执行清仓收益回测")
-    deadline_clock = clock.fromisoformat(sig_params["time"]) if sig_params["time"] is not None else None
-    fallback_value = sig_params.get("fallback_time", sig_params["time"])
-    fallback_clock = clock.fromisoformat(fallback_value) if fallback_value is not None else None
-    stage_clocks = sorted({at for at in (deadline_clock, fallback_clock) if at is not None})
-    # 成交验收上界与信号时钟分开; 空兜底不会成为兜底信号。
-    execution_clock = (fallback_clock or clock(15)) if staged else deadline_clock
-    observation_clock = stage_clocks[0] if stage_clocks else execution_clock
+    schedules = {definition["id"]: _exit_schedule(definition, config) for definition in definitions}
+    (sig_params, staged, fallback_clock, stage_clocks, execution_clock,
+     observation_clock, next_minute_exit, final_clock) = schedules[sig["id"]]
+    by_exit_id = {sig["id"]: sig for sig in definitions}
     risk = strategy_policy(strategy, overrides)
     risk_enabled = any(v is not None for v in asdict(risk).values())
     from app.strategy.entry_risk import EntryRiskPolicy
     if EntryRiskPolicy.from_mapping(overrides.get("entry_risk")).enabled:
         return finish("冻结日线入场风险暂不支持分钟策略")
-    next_minute_exit = staged or config.exit_fill == "signal_next_minute"
-    minute_low_exit = config.minute_price_rule == "high_low_v1"
+    minute_low_exit = is_routed or config.minute_price_rule == "high_low_v1"
     minute_exit_fill = "signal_next_minute" if next_minute_exit else "trigger_minute_close"
-    final_clock = (expected_trading_minutes(
-        datetime.combine(config.start, execution_clock) + timedelta(minutes=1),
-    )[-1].time() if next_minute_exit and not staged else execution_clock)
     if (not valid_price(cash) or config.max_positions < 1
             or not math.isfinite(config.max_exposure_pct)
             or not 0 <= config.max_exposure_pct <= 1
@@ -176,14 +200,17 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
         *issues, "原始现金账本未计未经核验的分红送转; 分钟参与率为成交容量上界",
     ]
     output.config.update(
-        minute_execution=EXECUTION, minute_exit_fill=minute_exit_fill,
+        minute_execution=execution_id, minute_exit_fill=minute_exit_fill,
         volume_participation_upper_bound=max(entry_rate, exit_rate),
     )
+    if service.s05_selection_archive is not None:
+        provenance["s05_selection_policy"] = "saved_selection_v1"
     output.strategy_info = {
         "id": config.strategy_id, "name": strategy.meta.get("name", config.strategy_id),
-        "execution_backend": "minute_filter", "minute_execution": EXECUTION,
+        "execution_backend": "minute_filter", "minute_execution": execution_id,
         "entry_signals": service._effective_signals(overrides, "entry_signals", strategy.entry_signals),
-        "exit_signals": exits, "exit_params": sig_params,
+        "exit_signals": exits, "exit_params": ({key: parameters(value) for key, value in by_exit_id.items()}
+                                              if is_routed or common_s05 else sig_params),
         "minute_entry_fill": strategy.meta.get("minute_entry_fill", "signal_close"),
         "minute_exit_fill": minute_exit_fill, "volume_participation_upper_bound": max(entry_rate, exit_rate),
         "entry_participation_pct": entry_rate, "exit_participation_pct": exit_rate,
@@ -223,16 +250,30 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
         return (matcher.buy_value(notional) - notional if side == "buy"
                 else notional - sell_matcher.sell_value(notional, day))
 
-    def reject_overdue(day):
-        overdue = [p for p in positions.values() if p["entry_date"] < day
-                   and not p.get("suspension_deferred")]
+    def reject_overdue(day, triggers, unverified_sales, settled, *, deadlines=None, at=None):
+        overdue = []
+        for symbol, pos in positions.items():
+            if pos["entry_date"] >= day or symbol in settled:
+                continue
+            if deadlines is not None and (symbol not in deadlines or at < deadlines[symbol]):
+                continue
+            if carry_s05 and symbol in triggers:
+                if symbol in unverified_sales:
+                    return finish(f"{day} {symbol} 卖出窗口行情不完整, 无法确认余股续卖")
+                pos["s05_capacity_deferred"] = True
+                settled.add(symbol)
+                counters["s05_capacity_deferred_position_days"] += 1
+            elif not (pos.get("suspension_deferred") or pos.get("s05_branch_deferred")
+                      or (carry_s05 and pos.get("s05_capacity_deferred"))):
+                overdue.append(pos)
         if overdue:
             counters["deadline_violations"] += len(overdue)
             detail = "; ".join(
                 f"{p['symbol']} 剩余{p['remaining']}股, 已卖{p['shares'] - p['remaining']}/{p['shares']}股"
                 for p in overdue
             )
-            return finish(f"{day} {final_clock.isoformat()}清仓截止后仍有余股, {detail}; 保留实际成交和持仓")
+            cutoff = at or final_clock
+            return finish(f"{day} {cutoff.isoformat()}清仓截止后仍有余股, {detail}; 保留实际成交和持仓")
         return None
 
     try:
@@ -261,19 +302,36 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                 overrides={**overrides, "exit_signals": []},
                 symbols=config.symbols, cancel_event=cancel_event,
                 strict_research=config.strict_research,
+                s05_selection_archive=service.s05_selection_archive,
             )
             if replay.selection_provenance:
-                provenance.setdefault("s03_selection_replay", []).extend(replay.selection_provenance)
+                key = ("s02_173004552_selection_replay" if is_routed else
+                       "s05_selection_replay" if common_s05 else "s03_selection_replay")
+                provenance.setdefault(key, []).extend(replay.selection_provenance)
                 output.stats["warnings"] = list(dict.fromkeys([
                     *output.stats.get("warnings", []),
-                    *[warning for row in replay.selection_provenance for warning in row["warnings"]],
+                    *[warning for row in replay.selection_provenance for warning in row.get("warnings", [])],
                 ]))
             replayed += replay.replayed_days
+            buy_branch = None
             if cancel_event is not None and cancel_event.is_set():
                 return finish("cancelled")
             entry_error = ("; ".join(replay.errors) or f"{day} 分钟入场回放数据不完整") if (
                 replay.errors or replay.skipped_days
             ) else None
+            if common_s05 and not entry_error:
+                selection = next((row for row in replay.selection_provenance if row.get("as_of") == str(day)), None)
+                code = selection.get("branch_code") if selection else None
+                if type(code) is not int or code not in routed.BRANCH_CODES:
+                    return finish(f"{day} S05回测缺少有效整数分支参数")
+                branch = routed.BRANCH_CODES[code]
+                buy_branch = branch
+                sig = by_exit_id.get(routed.EXIT_IDS.get(branch))
+                if branch is not None and sig is None:
+                    return finish(f"{day} S05缺少当日分支对应卖出信号")
+                if sig is not None:
+                    (sig_params, staged, fallback_clock, stage_clocks, execution_clock,
+                     observation_clock, next_minute_exit, final_clock) = schedules[sig["id"]]
             counters["buy_limit_up"] += replay.buy_limit_up
             counters["buy_no_next_minute"] += replay.buy_no_next_minute
             hits_at = defaultdict(list)
@@ -289,6 +347,9 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     "signal_time": f"{day} {hit.signal_time or hit.trigger_time}",
                     "datetime": str(at), "price": hit.raw_entry_price, "score": hit.score,
                     "signal_bar": at.hour * 60 + at.minute, "reason": "entry",
+                    **({"entry_branch": hit.entry_branch} if is_routed or hit.signal_score is not None else {}),
+                    **({"signal_score": hit.signal_score, "selection_rank": hit.selection_rank}
+                       if hit.signal_score is not None else {}),
                 })
             symbols = set(positions) | {h.symbol for h in entry_hits}
             history = repo.get_minute_by_dates(sorted(symbols), [day], "stock") if symbols else pl.DataFrame()
@@ -296,28 +357,50 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                 history = history.with_columns(
                     pl.col("datetime").dt.convert_time_zone("Asia/Shanghai").dt.replace_time_zone(None),
                 )
+            if is_routed and not history.is_empty():
+                history = history.unique(["symbol", "datetime"], keep="last", maintain_order=True).sort("datetime")
             groups = history.partition_by("symbol", as_dict=True) if not history.is_empty() else {}
             triggers, last_sale, suspended, sell_windows = {}, {}, set(), {}
+            by_symbol_schedule, exit_deadlines = {}, {}
+            unverified_sales, settled = set(), set()
             for pos in positions.values():
                 pos["day_sell_notional"] = 0.
             for symbol, pos in positions.items():
+                if common_s05 and sig is None and not entry_branch_exit:
+                    pos["s05_branch_deferred"] = True
+                    counters["s05_branch_deferred_position_days"] += 1
                 due = next_market_day(pos["entry_date"])
                 # 离线预先定位当天已公开的复牌触发点, 成交事件仍受该时点约束。
                 status = holding_exit_status(
                     suspension_history, symbol, due, day, observed_at=datetime.combine(day, clock(15)),
                 )
+                carried = carry_s05 and pos.get("s05_capacity_deferred") is True
+                holding_history = None
+                if carried:
+                    holding_history = (suspension_history.filter(pl.col("symbol") == symbol)
+                                       if not suspension_history.is_empty() else suspension_history)
+                    today_status = dated_status(holding_history, day, observed_at=datetime.combine(day, clock(15)))
+                    status = "suspended" if not today_status.is_empty() and today_status[STATUS_COLUMN][0] is True else None
+                if is_routed and (pos.get("exit_window_exhausted") or due != day):
+                    if status == "suspended":
+                        suspended.add(symbol)
+                    continue
                 if status == "suspended":
                     suspended.add(symbol)
                     pos["suspension_deferred"] = True
                     counters["suspended_position_days"] += 1
+                    if is_routed:
+                        pos["exit_window_exhausted"] = True
                     continue
-                if due != day and status != "resume":
+                if common_s05 and sig is None and not entry_branch_exit:
+                    continue
+                if due != day and status != "resume" and not (pos.get("s05_branch_deferred") or carried):
                     return finish(f"{day} {symbol} 已错过精确次交易日清仓")
                 frame = groups.get((symbol,), pl.DataFrame())
                 prev = prev_rows.get(symbol, {}).get("raw_close")
-                if not valid_price(prev) and status == "resume":
+                if not valid_price(prev) and (status == "resume" or carried):
                     prior_status = dated_status(
-                        suspension_history.filter(pl.col("symbol") == symbol), prior,
+                        holding_history if carried else suspension_history.filter(pl.col("symbol") == symbol), prior,
                         observed_at=datetime.combine(prior, clock(15)),
                     )
                     if not prior_status.is_empty() and prior_status[STATUS_COLUMN][0] is True:
@@ -325,23 +408,34 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                 if not valid_price(prev):
                     return finish(f"{day} {symbol} 缺原始昨收")
                 pos["sell_reference"] = prev
+                if entry_branch_exit:
+                    active_signal = by_exit_id.get(routed.EXIT_IDS.get(pos.get("entry_branch")))
+                    if active_signal is None:
+                        return finish(f"{day} {symbol} 缺原入场分支对应的有效卖出信号")
+                    (_, staged, fallback_clock, stage_clocks, execution_clock,
+                     observation_clock, next_minute_exit, final_clock) = schedules[active_signal["id"]]
+                    by_symbol_schedule[symbol] = schedules[active_signal["id"]]
+                    exit_deadlines[symbol] = clock(15) if status == "resume" else final_clock
+                else:
+                    active_signal = by_exit_id[routed.EXIT_IDS[pos["entry_branch"]]] if is_routed else sig
                 observation = datetime.combine(day, clock(15) if status == "resume" else observation_clock)
-                if staged and stage_clocks and status != "resume":
+                if is_routed:
+                    observation = datetime.combine(day, clock.fromisoformat(parameters(active_signal)["time"]))
+                if not is_routed and staged and stage_clocks and status != "resume":
                     observation -= timedelta(microseconds=1)
+                # Once the original exit window has been used, wait for this day's branch,
+                # not the original due-day suspension's special resume order.
+                exit_suspension = None if carried else suspension_history
+                held_position = {**pos, "entry_date": str(pos["entry_date"]), "entry_price": pos["price"],
+                                 "qty": pos["remaining"], "available_qty": pos["remaining"]}
                 evaluated = evaluate(
-                    frame, sig, day=day, now=observation,
-                    positions=[{**pos, "entry_date": str(pos["entry_date"]),
-                                "entry_price": pos["price"],
-                                "qty": pos["remaining"], "available_qty": pos["remaining"]}],
-                    prev_close={symbol: prev}, suspension_history=suspension_history,
+                    frame, active_signal, day=day, now=observation,
+                    positions=[held_position], prev_close={symbol: prev}, suspension_history=exit_suspension,
                 )
-                if not evaluated.hits and staged and stage_clocks and status != "resume":
+                if not is_routed and not evaluated.hits and staged and stage_clocks and status != "resume":
                     evaluated = evaluate(
-                        frame, sig, day=day, now=datetime.combine(day, observation_clock),
-                        positions=[{**pos, "entry_date": str(pos["entry_date"]),
-                                    "entry_price": pos["price"],
-                                    "qty": pos["remaining"], "available_qty": pos["remaining"]}],
-                        prev_close={symbol: prev}, suspension_history=suspension_history,
+                        frame, active_signal, day=day, now=datetime.combine(day, observation_clock),
+                        positions=[held_position], prev_close={symbol: prev}, suspension_history=exit_suspension,
                     )
                 hit = evaluated.hits[0] if evaluated.hits else None
                 if risk_enabled and status != "resume" and not frame.is_empty():
@@ -370,9 +464,19 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                                    "price": threshold, "signal_id": "risk_" + reason}
                             break
                         known_peak = max(known_peak, row["high"])
-                if hit is None:
+                if hit is None and not (carried and staged):
                     return finish(f"{day} {symbol} 无法确定早盘清仓触发")
-                at = datetime.fromisoformat(hit["trigger_time"])
+                at = datetime.fromisoformat(hit["trigger_time"]) if hit else datetime.combine(day, observation_clock)
+                if is_routed:
+                    first, end = routed.exit_window(at)
+                    sell_windows[symbol] = tuple(moment for moment in expected_trading_minutes(first, count=30)
+                                                 if moment <= end)
+                    triggers[symbol] = {**hit, "signal_id": "csgi_" + active_signal["id"]}
+                    last_sale[symbol] = at
+                    output.signals.append({"date": str(day), "side": "sell", **triggers[symbol],
+                                           "signal_bar": at.hour * 60 + at.minute,
+                                           "entry_branch": pos["entry_branch"]})
+                    continue
                 if status == "resume":
                     at = at.replace(second=0, microsecond=0) + timedelta(minutes=1)
                     if clock(11, 31) <= at.time() < clock(13, 1):
@@ -397,6 +501,9 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     )
                 ) or (prefix.height and prefix.filter(pl.col("high") < pl.col("low")).height):
                     return finish(f"{day} {symbol} 早盘清仓分钟前缀缺失、重复或无效")
+                if hit is None:
+                    continue
+                pos.pop("s05_branch_deferred", None)
                 triggers[symbol] = hit
                 last_sale[symbol] = at - timedelta(minutes=1)
                 if next_minute_exit:
@@ -410,7 +517,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         sell_windows[symbol] = tuple(moment for moment in sell_windows[symbol]
                                                      if moment < end_at or (
                                                          fallback_clock is None and moment == end_at))
-                hit.setdefault("signal_id", exits[0])
+                hit.setdefault("signal_id", "csgi_" + active_signal["id"])
                 output.signals.append({"date": str(day), "side": "sell", **hit,
                                        "signal_bar": at.hour * 60 + at.minute})
             # 只用截至当前事件的分钟价估值与分配预算, 不借未来卖款或日终价格。
@@ -420,11 +527,15 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     events[row["datetime"]].append(row)
             # 同一分钟先处理开盘成交, 再处理收盘信号; 不得预支未来卖款。
             timeline = {(at, 1) for at in events} | set(hits_at)
-            if next_minute_exit:
+            if next_minute_exit or any(s[6] for s in by_symbol_schedule.values()):
                 timeline |= {(at, 0) for at in events}
-                timeline |= {(at, 0) for window in sell_windows.values() for at in window}
-                timeline |= {(datetime.combine(day, final_clock), 1)}
-                if not staged:
+                timeline |= {(at, int(carry_s05 and minute_low_exit))
+                             for window in sell_windows.values() for at in window}
+                if entry_branch_exit:
+                    timeline |= {(datetime.combine(day, end), 1) for end in exit_deadlines.values()}
+                else:
+                    timeline |= {(datetime.combine(day, final_clock), 1)}
+                if not staged and not entry_branch_exit:
                     timeline |= {(datetime.combine(day, stage), 1) for stage in stage_clocks}
             for at, phase in sorted(timeline):
                 if cancel_event is not None and cancel_event.is_set():
@@ -447,6 +558,11 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         pos["risk_peak"] = max(pos["risk_peak"], row["high"])
                 for symbol in list(positions):
                     trigger = triggers.get(symbol)
+                    if entry_branch_exit:
+                        schedule = by_symbol_schedule.get(symbol)
+                        if schedule is None:
+                            continue
+                        execution_clock, next_minute_exit = schedule[4], schedule[6]
                     deadline = clock(15) if trigger and trigger["reason"] == "resume" else execution_clock
                     if next_minute_exit:
                         if not trigger:
@@ -470,12 +586,15 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     last_sale[symbol] = at
                     if next_minute_exit and not rows:
                         counters["sell_missing_minutes"] += 1
+                        unverified_sales.add(symbol)
                         continue
                     row = rows[0]
                     volume = row.get("volume")
                     if next_minute_exit and (not all(valid_price(row.get(c)) for c in ("open", "high", "low", "close"))
-                                             or volume is None or not math.isfinite(volume) or volume < 0):
+                                             or volume is None or not math.isfinite(volume) or volume < 0
+                                             or (carry_s05 and row["high"] < row["low"])):
                         counters["sell_no_volume_or_price"] += 1
+                        unverified_sales.add(symbol)
                         continue
                     if (not valid_price(row.get("close")) or volume is None
                             or not math.isfinite(volume) or volume < 0):
@@ -488,7 +607,8 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         current_rows.get(symbol, {}).get("is_risk_warning", is_risk_warning_name(name)),
                     ))
                     down = _scalar_limit_up_price(pos["sell_reference"], -pct)
-                    price = max(down, row["low"]) if minute_low_exit else (
+                    price = max(down, row["low"] * (1 - config.slippage_bps / 10000 if is_routed else 1)
+                                ) if minute_low_exit else (
                         max(down, row["open"] * (1 - config.slippage_bps / 10000))
                         if next_minute_exit else row["close"])
                     if (row["high"] if next_minute_exit else price) <= down + 1e-9:
@@ -539,14 +659,18 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         del positions[symbol]
                         del triggers[symbol]
                         del last_sale[symbol]
-                if phase == 1 and at.time() >= final_clock:
-                    rejected = reject_overdue(day)
+                if phase == 1 and (entry_branch_exit or at.time() >= final_clock):
+                    rejected = reject_overdue(day, triggers, unverified_sales, settled, **(
+                        {"deadlines": exit_deadlines, "at": at.time()} if entry_branch_exit else {}))
                     if rejected is not None:
                         return rejected
                 candidates = []
                 if entry_error:
                     continue
-                for hit in sorted(hits_at[(at, phase)], key=lambda h: (-h.score, h.symbol)):
+                for hit in sorted(hits_at[(at, phase)], key=lambda h: (
+                    -(h.score if h.signal_score is None else h.signal_score),
+                    h.selection_rank or 0, h.symbol,
+                )):
                     if hit.symbol in positions:
                         continue
                     if hit.symbol in sold_this_event:
@@ -570,6 +694,8 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                 weights = [v / sum(weights) for v in weights] if sum(weights) > 0 else [1 / len(candidates)] * len(candidates)
                 for hit, weight in zip(candidates, weights, strict=True):
                     symbol = hit.symbol
+                    if is_routed and routed.EXIT_IDS.get(hit.entry_branch) not in by_exit_id:
+                        return finish(f"{day} {symbol} 缺少入场分支对应卖出信号")
                     previous_close = prev_rows.get(symbol, {}).get("raw_close")
                     if not valid_price(previous_close):
                         return finish(f"{day} {symbol} 缺精确昨收")
@@ -600,6 +726,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                             ),
                         ),
                         asset_type="stock",
+                        **({"first_executable": True, "slippage_bps": config.slippage_bps} if is_routed else {}),
                     )
                     counters["entry_target_shares"] += execution.target_shares
                     counters["entry_filled_shares"] += execution.filled_shares
@@ -617,6 +744,8 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         "cancelled_shares": execution.cancelled_shares,
                         "average_price": execution.average_price,
                         "status": execution.status,
+                        **({"entry_branch": hit.entry_branch, "window_end": hit.entry_window_end.isoformat(sep=" ")}
+                           if is_routed else {}),
                     })
                     if execution.filled_shares <= 0 or execution.average_price is None:
                         counters["buy_lot_size"] += 1
@@ -637,6 +766,8 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         "fill_time": first_fill.datetime.strftime("%Y-%m-%d %H:%M"),
                         "sell_notional": 0., "sell_fees": 0.,
                         "risk_peak": price, "last_buy_fill": execution.fills[-1].datetime,
+                        **({"entry_branch": hit.entry_branch} if is_routed else
+                           {"entry_branch": buy_branch} if entry_branch_exit else {}),
                     }
                     marks[symbol] = price
                     output.fills.extend({
@@ -654,13 +785,20 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     } for fill in execution.fills)
             for symbol, trigger in triggers.items():
                 if symbol in positions and trigger["reason"] == "resume":
-                    expected_last = sell_windows[symbol][-1] if next_minute_exit else datetime.combine(day, clock(15))
+                    minute_exit = by_symbol_schedule[symbol][6] if entry_branch_exit else next_minute_exit
+                    expected_last = sell_windows[symbol][-1] if minute_exit else datetime.combine(day, clock(15))
                     if last_sale[symbol] != expected_last:
                         return finish(f"{day} {symbol} 复牌卖出成交窗口未完整覆盖至收盘")
                     counters["resume_pending_position_days"] += 1
-            rejected = reject_overdue(day)
-            if rejected is not None:
-                return rejected
+            if is_routed:
+                remaining = [pos for symbol, pos in positions.items() if symbol in triggers]
+                for pos in remaining:
+                    pos["exit_window_exhausted"] = True
+                counters["exit_window_remaining_positions"] += len(remaining)
+            else:
+                rejected = reject_overdue(day, triggers, unverified_sales, settled)
+                if rejected is not None:
+                    return rejected
             if entry_error:
                 return finish(entry_error)
             for symbol in positions:
@@ -701,6 +839,9 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
             p["sell_notional"] - p["sell_fees"] - p["entry_value"] * (1 - p["remaining"] / p["shares"])
             for p in positions.values()),
     )
+    if carry_s05:
+        output.stats["pending_exit_positions"] = sum(
+            p.get("s05_capacity_deferred") is True for p in positions.values())
     output.equity_curve = equities if result_policy.include_curves else []
     if not result_policy.include_curves:
         output.drawdown_curve = []

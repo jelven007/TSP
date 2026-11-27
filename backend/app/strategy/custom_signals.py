@@ -309,7 +309,19 @@ def validate(sig: dict) -> None:
             raise ValueError("尾盘走强仅支持盘中入场信号")
         if sig.get("conditions"):
             raise ValueError("尾盘走强使用专用参数, 不能混入普通条件")
-        parameters(sig)
+        from app.strategy.s02_173004552 import (
+            ENTRY_IDS,
+            branch_clock,
+            entry_window,
+        )
+
+        if sid in ENTRY_IDS.values() and "s05_entry" in (sig.get("params") or {}):
+            from datetime import date
+
+            _, bar, _ = branch_clock(sig, date.min)
+            entry_window(bar, signal=sig)
+        else:
+            parameters(sig)
         return
     conds = sig.get("conditions")
     if not isinstance(conds, list) or len(conds) == 0:

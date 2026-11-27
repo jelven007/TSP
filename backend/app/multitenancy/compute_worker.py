@@ -80,7 +80,7 @@ def execute(payload: dict, private_root: Path) -> dict:
     """
     from app.config import settings
     from app.multitenancy.strategies import definition_payload
-    from app.strategy.engine import StrategyEngine
+    from app.strategy.routed_engine import RoutedStrategyEngine
 
     settings.data_dir = private_root
     for path in Path("/market").iterdir():
@@ -112,7 +112,7 @@ def execute(payload: dict, private_root: Path) -> dict:
             raise ValueError("invalid private strategy source")
         seen.add(sid)
         (private_root / "strategies" / source / f"{sid}.py").write_text(item["code"], encoding="utf-8")
-    engine = StrategyEngine(directories, override_loader=lambda sid: payload.get("overrides", {}).get(sid, {}))
+    engine = RoutedStrategyEngine(directories, override_loader=lambda sid: payload.get("overrides", {}).get(sid, {}))
     if engine.load_errors():
         raise ValueError("; ".join(item["error"] for item in engine.load_errors()))
     kind = payload["kind"]
@@ -132,6 +132,8 @@ def execute(payload: dict, private_root: Path) -> dict:
                 date.fromisoformat(payload["as_of"]), payload["strategy_ids"],
                 payload.get("overrides_map", {}),
                 source_selection=payload.get("source_selection"),
+                now=datetime.fromisoformat(payload["observed_at"]) if payload.get("observed_at") else None,
+                historical_replay=payload.get("historical_replay"),
             )
         if kind == "monitor":
             from app.multitenancy.monitor_compute import evaluate_snapshot
@@ -190,6 +192,7 @@ def execute(payload: dict, private_root: Path) -> dict:
                           else factors.run(FactorConfig(**values)))
         if kind == "strategy":
             from app.services.screener import ScreenerService
+            from app.services.selection_clock import S05_ID
 
             as_of = date.fromisoformat(payload["as_of"])
             svc = ScreenerService(repo, asset_type=payload.get("asset_type", "stock"))
@@ -200,6 +203,7 @@ def execute(payload: dict, private_root: Path) -> dict:
             context = svc.build_strategy_context(
                 engine, as_of, ids, timeframe=payload.get("timeframe", "1d"),
                 params_map=payload.get("params_map"), overrides_map=payload.get("overrides_map"),
+                selection_snapshots=payload.get("selection_snapshots", {}),
             )
             context.previous_states = payload.get("previous_states")
             context.selection_snapshots = payload.get("selection_snapshots", {})
@@ -208,18 +212,33 @@ def execute(payload: dict, private_root: Path) -> dict:
             if as_of == cn_today():
                 context = replace(context, observed_at=cn_now(), realtime=True,
                                   signal_task_states=payload.get("signal_task_states", {}))
+            if payload.get("historical_replay") is not None:
+                from app.services.s05_task_replay import historical_context, replay_strategy
+                context = historical_context(context, payload["historical_replay"], ids)
+                return replay_strategy(engine, svc, context, payload)
             positions = payload.get("positions", {})
-            if context.current is not None and context.current.is_empty() and not positions:
+            if (context.current is not None and context.current.is_empty() and not positions
+                    and not (ids == [S05_ID] and context.realtime)):
                 raise ValueError("无可用行情数据，请稍后重试")
             if positions:
                 from app.market_time import cn_now, cn_today
 
                 # Historical scans observe the selected day's close; live scans
                 # retain seconds for the holding deadline and fresh quote check.
-                observed_at = cn_now() if as_of == cn_today() else datetime.combine(as_of, time(15))
+                observed_at = (context.observed_at if payload.get("historical_replay") is not None else
+                               cn_now() if as_of == cn_today() else datetime.combine(as_of, time(15)))
                 results = {}
                 for sid in ids:
                     scoped = replace(context, positions=positions.get(sid), observed_at=observed_at)
+                    if sid == S05_ID and scoped.realtime and scoped.positions:
+                        from app.services.strategy_monitor_tasks import sell_context
+
+                        symbols = sorted({position["symbol"] for position in scoped.positions})
+                        quotes = svc._load_enriched_for_date(as_of)
+                        if "symbol" in quotes.columns:
+                            quotes = quotes.filter(pl.col("symbol").is_in(symbols))
+                        scoped.holding_context = sell_context(
+                            svc, as_of, quotes, {"rows": scoped.positions}, observed_at)
                     results[sid] = asdict(engine.run(
                         sid, scoped, pool=payload.get("pool") if len(ids) == 1 else None,
                         params=payload.get("params_map", {}).get(sid),
@@ -244,7 +263,8 @@ def execute(payload: dict, private_root: Path) -> dict:
             _decode_walkforward_config,
         )
 
-        service = StrategyBacktestService(backtest_engine, engine)
+        service = StrategyBacktestService(
+            backtest_engine, engine, s05_selection_archive=payload.get("s05_selection_archive"))
         def progress(message):
             emit("progress", payload=message)
 

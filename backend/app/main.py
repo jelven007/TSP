@@ -17,8 +17,8 @@ from app.api import (
     analysis,
     backtest,
     data,
-    ext_data,
     events,
+    ext_data,
     factors,
     financials,
     indices,
@@ -278,10 +278,9 @@ async def _application_lifespan(app: FastAPI):
     app.state.watchdog = start_watchdog(app.state, repo)
 
     # 策略引擎
-    from app.strategy.engine import StrategyEngine
+    from app.services.screener import ScreenerService
     from app.strategy import config as strategy_config
     from app.strategy.monitor import StrategyMonitorService
-    from app.services.screener import ScreenerService
 
     _screener_svc = ScreenerService(repo)
     strategy_dirs = [
@@ -290,14 +289,17 @@ async def _application_lifespan(app: FastAPI):
         store.data_dir / "strategies" / "ai",
         store.data_dir / "strategies" / "composite",
     ]
-    strategy_engine = StrategyEngine(
+    from app.strategy.routed_engine import RoutedStrategyEngine
+
+    strategy_engine = RoutedStrategyEngine(
         strategy_dirs=strategy_dirs,
         override_loader=lambda sid: strategy_config.load_override(store.data_dir, sid),
     )
     app.state.strategy_engine = strategy_engine
-    from app.services.daily_selections import DailySelections
-    strategy_engine._selection_loader = lambda sid, day: DailySelections(store.data_dir).read(sid, day)
     from app.market_time import cn_now, cn_today
+    from app.services.daily_selections import DailySelections
+    strategy_engine._selection_loader = lambda sid, day: DailySelections(store.data_dir).read(
+        sid, day, live_entry=day == cn_today())
     from app.services.strategy_monitor_tasks import task_receipt
     strategy_engine._monitor_receipt_loader = lambda sid: task_receipt(store.data_dir, sid, cn_today())
     repair_service = getattr(app.state, "monitor_input_repair", None)
@@ -409,9 +411,9 @@ async def _application_lifespan(app: FastAPI):
         _schedule_matrix_cache_prewarm()
 
     # 通用监控规则引擎: 启动时 reload 规则到内存态 (修复重启后告警失效)
-    from app.strategy.monitor import MonitorRuleEngine
-    from app.strategy import monitor_rules as mr_store
     from app.services.sector_monitor import SectorMonitorService
+    from app.strategy import monitor_rules as mr_store
+    from app.strategy.monitor import MonitorRuleEngine
     monitor_engine = MonitorRuleEngine()
     sector_monitor_service = SectorMonitorService(repo)
     monitor_engine.set_strategy_engine(strategy_engine)

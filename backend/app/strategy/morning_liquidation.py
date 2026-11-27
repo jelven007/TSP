@@ -273,7 +273,10 @@ def evaluate(
         if status == "suspended":
             result.diagnostics.append(f"早盘清仓: {symbol} 已确认停牌, 持有至复牌直接卖出")
             continue
-        if sell_day != day and status != "resume":
+        deferred = sell_day < day and (
+            position.get("s05_branch_deferred") is True
+            or (roster is None and position.get("s05_capacity_deferred") is True))
+        if sell_day != day and status != "resume" and not deferred:
             continue
         if status == "resume":
             result.hits.append({

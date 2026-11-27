@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { lazy, Suspense, useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
 import { ScanSearch, Clock, TrendingUp, Star, Filter, Layers, Network, Sparkles, RefreshCw, Settings2, Store, RotateCcw, X, SlidersHorizontal } from 'lucide-react'
 import { api, type ScreenerStrategy, type ScreenerResult } from '@/lib/api'
 import { selectionWindow } from '@/lib/selection-clock'
@@ -21,13 +20,6 @@ import { StrategyCard, CardSize, loadCardSize, cardWrapCls } from '@/components/
 import { StrategyMonitorTasks } from '@/components/screener/StrategyMonitorTasks'
 import { ScreenerTable } from '@/components/screener/ScreenerTable'
 import { ScreenerFilter as ScreenerFilterType, defaultFilter, filterActive, countActiveFilters, applyFilter, FilterPanel } from '@/components/screener/ScreenerFilter'
-import { StrategySettingsDialog } from '@/components/screener/StrategySettingsDialog'
-import { DefaultStrategyParamsDialog } from '@/components/screener/DefaultStrategyParamsDialog'
-import { StrategyPoolDialog } from '@/components/screener/StrategyPoolDialog'
-import { StrategyBuilderDialog } from '@/components/screener/StrategyBuilderDialog'
-import { StrategyStoreDialog } from '@/components/screener/StrategyStoreDialog'
-import { CompositeStrategyDialog } from '@/components/screener/CompositeStrategyDialog'
-import { StrategyResultHistoryDialog } from '@/components/screener/StrategyResultHistoryDialog'
 import { StrategyDailyResults, StrategyDailyResultToolbar, type StrategyResultTab } from '@/components/screener/StrategyDailyResults'
 import { StrategyLotBatchDialog } from '@/components/screener/StrategyLotBatchDialog'
 import { strategyLotStocks } from '@/lib/strategyLotDraft'
@@ -46,6 +38,15 @@ import {
 
 // 获取策略为占位功能, 暂时隐藏入口; 恢复时改回 true
 const SHOW_STRATEGY_STORE = false
+const S05_ID = 'custom_mvxxcs05'
+const ARCHIVE_STALE_MS = 60_000
+const StrategySettingsDialog = lazy(() => import('@/components/screener/StrategySettingsDialog').then(m => ({ default: m.StrategySettingsDialog })))
+const DefaultStrategyParamsDialog = lazy(() => import('@/components/screener/DefaultStrategyParamsDialog').then(m => ({ default: m.DefaultStrategyParamsDialog })))
+const StrategyPoolDialog = lazy(() => import('@/components/screener/StrategyPoolDialog').then(m => ({ default: m.StrategyPoolDialog })))
+const StrategyBuilderDialog = lazy(() => import('@/components/screener/StrategyBuilderDialog').then(m => ({ default: m.StrategyBuilderDialog })))
+const StrategyStoreDialog = lazy(() => import('@/components/screener/StrategyStoreDialog').then(m => ({ default: m.StrategyStoreDialog })))
+const CompositeStrategyDialog = lazy(() => import('@/components/screener/CompositeStrategyDialog').then(m => ({ default: m.CompositeStrategyDialog })))
+const StrategyResultHistoryDialog = lazy(() => import('@/components/screener/StrategyResultHistoryDialog').then(m => ({ default: m.StrategyResultHistoryDialog })))
 
 export function Screener() {
   const assetType = 'stock' as const
@@ -53,8 +54,10 @@ export function Screener() {
   // 执行按每个策略自己声明的 timeframes 路由 (日线走盘后缓存, 分钟走本地分钟K分区)
   const [tfFilter, setTfFilter] = useState<'all' | '1d' | '1m'>('all')
   const [activeStrategy, setActiveStrategy] = useState<string | null>(null)
-  const [result, setResult] = useState<ScreenerResult | null>(null)
+  const [manualResult, setManualResult] = useState<{ value: ScreenerResult; receivedAt: number } | null>(null)
   const [asOf, setAsOf] = useState<string>('')
+  const dateIntentTimer = useRef<ReturnType<typeof setTimeout> | undefined>()
+  const datePrefetch = useRef(false)
   const followCurrentDay = useRef(true)
   const [historyStrategyId, setHistoryStrategyId] = useState<string | null>(null)
   const [nextSelectionStrategyId, setNextSelectionStrategyId] = useState<string | null>(null)
@@ -111,26 +114,21 @@ export function Screener() {
   const [intradayCapDismissed, setIntradayCapDismissed] = useState(false)
   const [showAll, setShowAll] = useState(false)
   const dailyViewKey = `${activeStrategy}-${asOf}-${showAll}`
-  const resultViewKey = `${dailyViewKey}-${result?.record_id ?? ''}`
   const [dailyView, setDailyView] = useState<{ key: string; tab: StrategyResultTab } | null>(null)
   const activeResultTab = dailyView?.key === dailyViewKey ? dailyView.tab : 'sell'
   const [signalColumnRevision, setSignalColumnRevision] = useState(0)
   const signalColumns = useMemo(() => loadStrategyResultColumns(activeStrategy),
     [activeStrategy, signalColumnRevision])
-  const signalsView = !showAll && result?.section_mode === 'signals'
   const handleSignalColumnsChange = useCallback((next: ColumnConfig[]) => {
-    saveStrategyResultColumns({ ...signalColumns, [activeResultTab]: next })
+    saveStrategyResultColumns(activeResultTab, next, activeStrategy)
     setSignalColumnRevision(previous => previous + 1)
-  }, [activeResultTab, signalColumns])
+  }, [activeResultTab, activeStrategy])
   const [holdingDraft, setHoldingDraft] = useState<{
     key: string; strategyId: string | null; recordId?: string; rows: Record<string, unknown>[]
   } | null>(null)
   useEffect(() => {
     setDailyView(null)
   }, [dailyViewKey])
-  useEffect(() => {
-    setHoldingDraft(null)
-  }, [resultViewKey])
   const [showFilter, setShowFilter] = useState(false)
   const [filter, setFilter] = useState<ScreenerFilterType>(defaultFilter)
   const filterMap = useRef<Map<string, ScreenerFilterType>>(new Map())
@@ -174,13 +172,6 @@ export function Screener() {
     setFilter(filterMap.current.get(strategyId) ?? { ...defaultFilter })
   }, [])
 
-  // 对原始结果应用过滤 (memo: 否则每次渲染都对全部结果行过滤,
-  // 且新数组身份会击穿下游 displayRows 的 memo)
-  const filteredRows = useMemo(
-    () => (result ? applyFilter(result.rows, filter) : []),
-    [result, filter],
-  )
-
   const { data: prefs } = usePreferences()
   const dataStatus = useDataStatus({ staleTime: 0 })
   const quoteStatus = useQuoteStatus()
@@ -205,6 +196,7 @@ export function Screener() {
   const activeSignalStrategy = activeStrategyTimeframe === '1m'
     && strategies.data?.presets.find(strategy => strategy.id === activeStrategy)?.result_sections === 'signals'
   const historicalSignals = isHistoricalDate && activeSignalStrategy
+  const todaySignals = !!activeSignalStrategy && asOf === calendarToday
 
   // 卡片首屏只读取轻量摘要；明细在点击策略或“全部”时按需加载。
   // 摘要读取当前日期的股票日线/分钟保存记录。
@@ -222,20 +214,56 @@ export function Screener() {
     enabled: !!asOf && showAll,
   })
 
-  const singleCachedQuery = useQuery({
-    queryKey: historicalSignals
-      ? QK.screenerDayView(activeStrategy ?? '', asOf, assetType, activeStrategyTimeframe)
-      : QK.screenerCachedResult(activeStrategy ?? '', asOf, extColumnsParam, assetType, activeStrategyTimeframe),
-    queryFn: () => historicalSignals
-      ? api.screenerDayView(activeStrategy!, asOf, assetType, activeStrategyTimeframe)
-      : api.screenerCachedResult(activeStrategy!, extColumnsParam || undefined, asOf, assetType, activeStrategyTimeframe),
-    enabled: !!asOf && !showAll
-      && !!activeStrategy
-      && (activeSignalStrategy || summaryQuery.data?.results[activeStrategy]?.as_of === asOf),
-    staleTime: historicalSignals ? 60_000 : 0,
+  const detailEnabled = !!asOf && !showAll && !!activeStrategy
+  const currentDetail = useQuery({
+    queryKey: QK.screenerCachedResult(activeStrategy ?? '', asOf, extColumnsParam, assetType, activeStrategyTimeframe),
+    queryFn: () => api.screenerCachedResult(activeStrategy!, extColumnsParam || undefined, asOf, assetType, activeStrategyTimeframe),
+    enabled: detailEnabled && !historicalSignals,
+    staleTime: 5_000,
     refetchInterval: false,
     refetchOnWindowFocus: false,
   })
+  const savedDetail = useQuery({
+    queryKey: QK.screenerDayView(activeStrategy ?? '', asOf, assetType, activeStrategyTimeframe),
+    queryFn: () => api.screenerDayView(activeStrategy!, asOf, assetType, activeStrategyTimeframe),
+    enabled: detailEnabled && (historicalSignals || (todaySignals && !currentDetail.data)),
+    staleTime: ARCHIVE_STALE_MS,
+    refetchOnWindowFocus: false,
+  })
+  const singleCachedQuery = historicalSignals ? savedDetail : currentDetail
+  const result = useMemo(() => {
+    if (!detailEnabled) return null
+    const matches = (value: ScreenerResult | null | undefined): value is ScreenerResult =>
+      !!value && value.strategy === activeStrategy && value.as_of === asOf
+    if (manualResult && matches(manualResult.value) && manualResult.receivedAt > singleCachedQuery.dataUpdatedAt) {
+      return manualResult.value
+    }
+    const cached = singleCachedQuery.data?.result
+    if (matches(cached)) return cached
+    const saved = savedDetail.data?.result
+    if (todaySignals && cached === undefined && matches(saved)) return saved
+    if (!activeSignalStrategy || cached !== null) return null
+    const reason = '该交易日归档尚未生成'
+    return {
+      as_of: asOf, strategy: activeStrategy!, rows: [], total: 0, elapsed_ms: 0,
+      section_mode: 'signals', sections: { sell: [], select: [], buy: [] },
+      section_statuses: { sell: 'unavailable', select: 'unavailable', buy: 'unavailable' },
+      section_errors: { sell: reason, select: reason, buy: reason },
+    } satisfies ScreenerResult
+  }, [detailEnabled, activeStrategy, asOf, activeSignalStrategy, todaySignals,
+    singleCachedQuery.data, singleCachedQuery.dataUpdatedAt, savedDetail.data, manualResult])
+  const showingSavedPreview = todaySignals && !!result && !currentDetail.data
+    && result === savedDetail.data?.result
+  const resultViewKey = `${dailyViewKey}-${result?.record_id ?? ''}`
+  const signalsView = !showAll && result?.section_mode === 'signals'
+  useEffect(() => {
+    setHoldingDraft(null)
+  }, [resultViewKey])
+
+  const filteredRows = useMemo(
+    () => (result && !signalsView ? applyFilter(result.rows, filter) : []),
+    [result, filter, signalsView],
+  )
 
   const realtimeRunning = quoteStatus.data?.running ?? false
   const currentTradeDate = quoteStatus.data?.is_trading_day === true
@@ -265,7 +293,7 @@ export function Screener() {
     setPendingRun(null)
     setHitCounts({})
     setExpiredCounts({})
-    setResult(null)
+    setManualResult(null)
   }, [currentTradeDate, asOf])
 
   const marketTime = quoteStatus.data?.market_time
@@ -429,7 +457,7 @@ export function Screener() {
         setPendingRun(rest.length ? { ...pendingRun, ids: rest } : null)
       }
     }
-  }, [summaryQuery.data, asOf, pendingRun, strategyMap])
+  }, [summaryQuery.data, asOf, pendingRun])
 
   // 渐进式兜底: 后台计算最长等 8 分钟, 防止异常时无限轮询
   useEffect(() => {
@@ -438,24 +466,12 @@ export function Screener() {
     return () => clearTimeout(t)
   }, [pendingRun])
 
-  // 当前单策略缓存更新后同步明细；参数保存的强制重算结果仍由 run 直接覆盖。
+  // 不再经 effect 复制明细；切回相同日期和策略时直接绘制命中的查询缓存。
   useEffect(() => {
     const cached = singleCachedQuery.data?.result
-    if (activeSignalStrategy && !showAll && activeStrategy
-      && singleCachedQuery.data && cached === null) {
-      const reason = '该交易日归档尚未生成'
-      setResult({ as_of: asOf, strategy: activeStrategy, rows: [], total: 0, elapsed_ms: 0,
-        section_mode: 'signals', sections: { sell: [], select: [], buy: [] },
-        section_statuses: { sell: 'unavailable', select: 'unavailable', buy: 'unavailable' },
-        section_errors: { sell: reason, select: reason, buy: reason } })
-      return
-    }
-    if (!cached || showAll || cached.strategy !== activeStrategy || cached.as_of !== asOf) return
-    setResult(cached)
-    if (activeStrategy) {
-      setHitCounts(prev => ({ ...prev, [activeStrategy]: cached.total }))
-    }
-  }, [singleCachedQuery.data, showAll, activeStrategy, asOf, historicalSignals, activeSignalStrategy])
+    if (!cached || !detailEnabled || !activeStrategy || cached.strategy !== activeStrategy || cached.as_of !== asOf) return
+    setHitCounts(prev => prev[activeStrategy] === cached.total ? prev : { ...prev, [activeStrategy]: cached.total })
+  }, [singleCachedQuery.data, detailEnabled, activeStrategy, asOf])
 
   const effectiveResults = useMemo(() => {
     if (fullCachedQuery.data?.as_of !== asOf) return null
@@ -633,7 +649,9 @@ export function Screener() {
       qc.invalidateQueries({ queryKey: ['screener-cached'] })
       if (vars.date !== viewRef.current.asOf || (vars.asset ?? assetType) !== viewRef.current.assetType) return
       if (data.as_of !== viewRef.current.asOf) return
-      if (vars.id === viewRef.current.activeStrategy) setResult({ ...data, strategy: vars.id })
+      if (vars.id === viewRef.current.activeStrategy) {
+        setManualResult({ value: { ...data, strategy: vars.id }, receivedAt: Date.now() })
+      }
       // 同步更新卡片上的命中数
       setHitCounts(prev => ({ ...prev, [vars.id]: data.total }))
     },
@@ -644,7 +662,7 @@ export function Screener() {
     setActiveStrategy(s.id)
     viewRef.current.activeStrategy = s.id
     setShowAll(false)
-    if (result?.strategy !== s.id || result.as_of !== asOf) setResult(null)
+    if (activeStrategy !== s.id) setManualResult(null)
   }
 
   // 日期变化仅查询对应归档；次日预选不触发计算或改写当日记录。
@@ -656,7 +674,7 @@ export function Screener() {
     setPendingRun(null)
     setHitCounts({})
     setExpiredCounts({})
-    setResult(null)
+    setManualResult(null)
   }
 
   const minDate = useMemo(() => {
@@ -666,6 +684,24 @@ export function Screener() {
     if (day.getUTCMonth() !== month) day.setUTCDate(0)
     return day.toISOString().slice(0, 10)
   }, [calendarToday])
+  const cancelDateIntent = useCallback(() => clearTimeout(dateIntentTimer.current), [])
+  useEffect(() => cancelDateIntent, [activeStrategy, asOf, showAll, cancelDateIntent])
+  const handleDateIntent = useCallback((day: string | null) => {
+    cancelDateIntent()
+    if (!activeStrategy || !activeSignalStrategy || showAll || !day || day === asOf
+      || day >= calendarToday || !maxDate || day > maxDate || day < minDate) return
+    dateIntentTimer.current = setTimeout(() => {
+      if (datePrefetch.current) return
+      datePrefetch.current = true
+      void qc.prefetchQuery({
+        queryKey: QK.screenerDayView(activeStrategy, day, assetType, activeStrategyTimeframe),
+        queryFn: () => api.screenerDayView(activeStrategy, day, assetType, activeStrategyTimeframe),
+        staleTime: ARCHIVE_STALE_MS,
+        retry: false,
+      }).finally(() => { datePrefetch.current = false })
+    }, 140)
+  }, [cancelDateIntent, activeStrategy, activeSignalStrategy, showAll, asOf, calendarToday,
+    maxDate, minDate, qc, assetType, activeStrategyTimeframe])
 
   const batchAdd = useWatchlistBatchAdd()
 
@@ -723,6 +759,15 @@ export function Screener() {
     refetchInterval: false,
     refetchOnWindowFocus: false,
   })
+  const datedMonitorEnabled = activeStrategy === S05_ID && !!asOf
+  const datedMonitor = useQuery({
+    queryKey: QK.strategyMonitoringDay(S05_ID, asOf),
+    queryFn: () => api.strategyMonitoringDay(S05_ID, asOf),
+    enabled: datedMonitorEnabled,
+  })
+  const selectedMonitor = activeStrategy === S05_ID
+    ? datedMonitor.data?.as_of === asOf && datedMonitor.data.strategy_id === S05_ID ? datedMonitor.data : undefined
+    : monitorTasks.data?.strategies.find(s => s.strategy_id === activeStrategy)
   const strategyMonitorMap = useMemo(() => {
     const m = new Map<string, string>()
     for (const r of monitorRules.data?.rules ?? []) {
@@ -789,7 +834,7 @@ export function Screener() {
                   onClick={() => {
                     if (tfFilter === tf) return
                     setTfFilter(tf)
-                    setActiveStrategy(null); setResult(null); setShowAll(false)
+                    setActiveStrategy(null); setManualResult(null); setShowAll(false)
                   }}
                   className={`h-full px-2.5 text-xs font-medium transition-colors cursor-pointer
                     ${tfFilter === tf
@@ -820,6 +865,7 @@ export function Screener() {
                 aria-label="策略日期"
                 value={asOf}
                 onChange={handleDateChange}
+                onDateIntent={handleDateIntent}
                 min={minDate}
                 max={maxDate}
               />
@@ -1007,11 +1053,14 @@ export function Screener() {
               )
             })}
           </div>
-          {monitorTasks.data?.strategies.filter(s => s.strategy_id === activeStrategy).map(value => (
-            <StrategyMonitorTasks key={value.strategy_id} value={value}
-              pending={monitorPendingIds.includes(value.strategy_id)}
-              onToggle={() => void toggleStrategyMonitor(value.strategy_id)} />
-          ))}
+          {selectedMonitor && <StrategyMonitorTasks key={selectedMonitor.strategy_id} value={selectedMonitor}
+            pending={monitorPendingIds.includes(selectedMonitor.strategy_id)}
+            onToggle={selectedMonitor.historical ? undefined : () => void toggleStrategyMonitor(selectedMonitor.strategy_id)} />}
+          {datedMonitorEnabled && !selectedMonitor && (datedMonitor.isError
+            ? <p role="alert" className="text-xs text-danger">
+                {asOf} 定时任务读取失败。 <button className="underline" onClick={() => void datedMonitor.refetch()}>重试</button>
+              </p>
+            : <p role="status" className="text-xs text-muted">正在读取 {asOf} 的定时任务…</p>)}
           {isFutureQuery && (showAll || !result || result.section_mode !== 'signals') && (
             <p role="status" className="text-xs text-muted">
               {asOf} · 下一交易日归档查询：可查看已保存的卖／选／买，选名单在前一交易日
@@ -1030,13 +1079,13 @@ export function Screener() {
           )}
 
           {(showAll ? allRows.length > 0 : !!result) && (
-            <motion.div
+            <div
               key={showAll ? `all-${asOf}` : `${result!.as_of}-${result!.strategy}`}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
               className="space-y-3"
             >
+              {showingSavedPreview && <p role="status" className="text-xs text-muted">
+                {currentDetail.isError ? '已保存结果 · 当日最新状态读取失败' : '已保存结果 · 正在读取当日最新状态'}
+              </p>}
               <div role={inlineDailyToolbar ? 'group' : undefined}
                 aria-label={inlineDailyToolbar ? '每日策略工具栏' : undefined}
                 className={inlineDailyToolbar
@@ -1122,7 +1171,7 @@ export function Screener() {
                       key={resultViewKey}
                       allowCreate
                       onSelect={handleBatchAdd}
-                      disabled={batchAdd.isPending}
+                      disabled={batchAdd.isPending || showingSavedPreview}
                       align="right"
                       title="批量加自选"
                       ariaLabel="批量加入自选"
@@ -1134,6 +1183,7 @@ export function Screener() {
                       {batchAdd.isPending ? '添加中…' : '批量加自选'}
                     </WatchlistAddMenu>
                     <button type="button" aria-label="批量加持仓" title="将当前页股票加入持仓提醒批次"
+                      disabled={showingSavedPreview}
                       onClick={() => setHoldingDraft({
                         key: resultViewKey, strategyId: showAll ? null : result?.strategy ?? activeStrategy,
                         recordId: showAll ? undefined : result?.record_id, rows: [...bulkRows],
@@ -1242,7 +1292,7 @@ export function Screener() {
                   />
                 </>
               )}
-            </motion.div>
+            </div>
           )}
 
           {!showAll && !result && !run.isPending && (
@@ -1288,6 +1338,7 @@ export function Screener() {
         navList={previewNavList}
         onNavigate={(sym, n) => { setPreviewSymbol(sym); setPreviewName(n ?? '') }}
       />
+      <Suspense fallback={null}>
       {nextSelectionStrategyId && currentTradeDate && <StrategyResultHistoryDialog
         strategyId={nextSelectionStrategyId} nextSelectionAfter={currentTradeDate}
         onClose={() => setNextSelectionStrategyId(null)} />}
@@ -1299,15 +1350,16 @@ export function Screener() {
         />
       )}
 
-      <DefaultStrategyParamsDialog
+      {showDefaultParams && <DefaultStrategyParamsDialog
         show={showDefaultParams}
         onClose={() => setShowDefaultParams(false)}
-      />
+      />}
 
-      <StrategySettingsDialog
+      {settingsStrategyId && <StrategySettingsDialog
         strategyId={settingsStrategyId}
         onClose={() => setSettingsStrategyId(null)}
         onSaved={(limit) => {
+          if (settingsStrategyId === S05_ID) void qc.invalidateQueries({ queryKey: QK.strategyMonitoring })
           if (settingsStrategyId) {
             setStrategyLimits(prev => ({ ...prev, [settingsStrategyId]: limit }))
             // 次日查询只刷新归档，参数保存不能计算未来行情。
@@ -1344,7 +1396,7 @@ export function Screener() {
             qc.invalidateQueries({ queryKey: ['screener-strategies'] })
           }
         }}
-      />
+      />}
 
       {holdingDraft?.key === resultViewKey && <StrategyLotBatchDialog
         strategyId={holdingDraft.strategyId} recordId={holdingDraft.recordId} rows={holdingDraft.rows}
@@ -1359,7 +1411,7 @@ export function Screener() {
           onClose={() => setShowPoolDialog(false)}
         />
       )}
-      <StrategyBuilderDialog
+      {showBuilder && <StrategyBuilderDialog
         open={showBuilder}
         onClose={() => setShowBuilder(false)}
         mode={builderMode}
@@ -1376,21 +1428,22 @@ export function Screener() {
           }
           await addToPool(id)
         }}
-      />
+      />}
 
-      <CompositeStrategyDialog
+      {showComposite && <CompositeStrategyDialog
         open={showComposite}
         onClose={() => setShowComposite(false)}
         onSavedId={async id => {
           await qc.fetchQuery({ queryKey: QK.screenerStrategies('all'), queryFn: () => api.screenerStrategies(), staleTime: 0 })
           await addToPool(id)
         }}
-      />
+      />}
 
-      <StrategyStoreDialog
+      {showStore && <StrategyStoreDialog
         open={showStore}
         onClose={() => setShowStore(false)}
-      />
+      />}
+      </Suspense>
     </>
   )
 }

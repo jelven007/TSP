@@ -46,3 +46,27 @@ it('shows independent phase receipts and keeps candidates distinct from final bu
   } }} />)
   expect(rejected).toContain('最终买 0')
 })
+
+it.each([1, 2, 3, 4] as const)('shows S05 integer branch %s and matching schedules', code => {
+  const value: StrategyMonitoring = {
+    strategy_id: 'custom_mvxxcs05', enabled: true, as_of: '2026-11-27', branch_code: code,
+    tasks: {
+      select: { state: 'waiting', windows: [{ start: '22:00:00', end: '23:00:00' }] },
+      buy: { state: code === 4 ? 'rejected' : 'waiting', windows: code === 4 ? [] : [
+        { start: '14:17:00', end: '14:28:00', signal_name: 'S05对应入场信号' }] },
+      sell: { state: 'waiting', windows: [
+        { start: '10:11:00', end: '11:40:00', signal_name: 'S05对应出场信号' }] },
+    },
+  }
+  const html = renderToStaticMarkup(<StrategyMonitorTasks value={value} />)
+  expect(html).toContain(`分支参数：${code}`)
+  expect(html).toContain(['尾段加速', '低缺口资金趋势', '板块强势综合', '均不满足'][code - 1])
+  expect(html).toContain('S05盘后“选”任务')
+  if (code === 4) expect(html).toContain('不安排买入')
+  else {
+    expect(html).toContain('14:17:00～14:28:00')
+  }
+  expect(html).toContain('10:11:00～11:40:00')
+  expect(html).toContain('S05对应出场信号')
+  expect(html).toContain('按前一交易日买入分支匹配出场信号')
+})

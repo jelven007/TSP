@@ -24,6 +24,8 @@ export function customExecutionDescription(
     ((overrides[`${kind}_signals`] ?? detail?.[`${kind}_signals`] ?? []) as string[]).includes(customSignalColumn(signal)))
   const late = hasTemplate('entry', 'late_session_strength')
   const morning = hasTemplate('exit', 'morning_liquidation')
+  const originalBranch = morning && detail?.s05_exit_policy === 'carry_entry_branch_v2'
+  const carry = originalBranch || (morning && detail?.s05_exit_policy === 'carry_next_branch_v1')
   return {
     entries, exits,
     entryLabel: !entries.length ? '未选择入场触发器' : late
@@ -33,10 +35,16 @@ export function customExecutionDescription(
     entry: minute
       ? `${late ? '尾盘走强' : '分钟入场'}信号确认后，从下一根完整且可成交的分钟开始${late ? '持续买入至信号结束时间' : '按所选信号的成交窗口撮合'}，按每分钟K线的最高价成交；买足提前结束，到期撤余单。`
       : '建仓按所选日线口径确定成交时点，取各分钟K线最高价并受建仓分钟参与率限制；次日开盘从首根分钟起做5分钟容量撮合，信号日收盘使用收盘分钟。',
-    exit: morning
+    exit: originalBranch
+      ? '从买入后的下一交易日起，按该笔买入分支的清仓信号卖出；当天分支4也照常安排清仓。触发后，从下一根可成交分钟按最低价和分钟参与率撮合。兜底到点撤余单，余股在后续交易日继续按原买入分支判断。'
+      : carry
+      ? '从买入后的下一交易日起，按当日有效分支观察清仓信号；分支4不卖出。触发后，从下一根可成交分钟按最低价和分钟参与率撮合。兜底到点撤余单，余股保留至后续交易日，按当日有效分支重新判断。'
+      : morning
       ? '按实际买入日期，在下一交易日观察所选清仓信号；确认后从下一根完整且可成交分钟持续卖出，按每分钟K线的最低价成交，兜底时间到点立即停止，余单撤销、余股保留并报告失败。兜底未设置时，成交截止为当日收盘。'
       : '清仓按所选口径及当前出场信号、风控和持有期限确定时点，取各分钟K线最低价并受清仓分钟参与率限制；未选出场信号时不产生信号卖出。',
-    missing: minute && (morning || detail?.minute_execution)
+    missing: carry
+      ? '每天的卖出截止不延长。期末未卖完按未平仓展示，按有效收盘价估值；缺必要行情时回测失败。'
+      : minute && (morning || detail?.minute_execution)
       ? '缺整日分钟K分区直接失败；窗口内缺某分钟跳过该分钟，尝试后续可成交分钟，截止不延长；截止仍有余股保留实际成交并报告失败。'
       : minute ? '逐日核验分钟K覆盖，缺数据的日期及原因随回测记录；仅用已完成行情撮合。'
       : '日线条件只使用已完成数据；分钟成交需要对应历史分钟K。',

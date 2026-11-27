@@ -678,6 +678,8 @@ class StrategyBacktestConfig:
     regime_filter: dict | None = None
     # Exploratory legacy runs remain available with explicit quality warnings.
     strict_research: bool = False
+    # Missing in old frozen inputs; only a new local S05 task sets this.
+    s05_exit_policy: Literal["carry_next_branch_v1", "carry_entry_branch_v2"] | None = None
 
     def __post_init__(self) -> None:
         for value in (self.entry_participation_pct, self.exit_participation_pct):
@@ -900,9 +902,12 @@ class StrategyBacktestService:
         self,
         engine: BacktestEngine,
         strategy_engine: StrategyEngine,
+        *,
+        s05_selection_archive: dict | None = None,
     ) -> None:
         self.engine = engine
         self.strategy_engine = strategy_engine
+        self.s05_selection_archive = s05_selection_archive
 
     @staticmethod
     def _matrix_prepare_signature(config: StrategyBacktestConfig) -> tuple:
@@ -1299,10 +1304,15 @@ class StrategyBacktestService:
         except ValueError as exc:
             return _err(str(exc))
         from app.strategy.morning_liquidation import selected_definitions
+        from app.strategy.s02_173004552 import enabled as routed_s02
 
         morning = selected_definitions(
             self.strategy_engine, self._effective_signals(overrides, "exit_signals", s.exit_signals),
         )
+        if self.s05_selection_archive is not None and not morning:
+            return _err("S05归档回测需要已启用的分支卖出信号")
+        if routed_s02(s) and not morning:
+            return _err("S02 173004552收益回测需要匹配分支的卖出触发器")
         if morning and not optional_triggers(s):
             if s.execution_backend != "minute_filter" or s.meta.get("minute_execution"):
                 return _err("早盘清仓收益回测仅支持通用分钟策略, 请使用带买入日期的盘中信号回放")
@@ -2908,6 +2918,7 @@ class StrategyBacktestService:
             "minute_price_rule": c.minute_price_rule,
             "entry_participation_pct": c.entry_participation_pct,
             "exit_participation_pct": c.exit_participation_pct,
+            **({"s05_exit_policy": c.s05_exit_policy} if c.s05_exit_policy is not None else {}),
             "timing_mode": (
                 "strict"
                 if c.entry_fill == "open_t+1" and c.exit_fill == "open_t+1"

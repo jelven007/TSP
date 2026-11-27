@@ -7,11 +7,16 @@ from datetime import datetime, time, timedelta
 import polars as pl
 
 from app.backtest.engine import MatcherConfig
-from app.backtest.entry_execution import execute_entry_window, expected_trading_minutes
+from app.backtest.entry_execution import (
+    execute_entry_window,
+    expected_trading_minutes,
+    minute_capacity,
+)
 from app.market_time import CN_TZ
 from app.multitenancy.paper_storage import PaperSession, paper_lock, paper_operation
 from app.services.daily_close_validation import require_final_daily_rows
 from app.strategy import morning_liquidation, paper
+from app.strategy import s02_173004552 as routed
 from app.strategy.basic_filter import previous_session
 
 MODE = "s02_minute"
@@ -85,7 +90,9 @@ def create_entry(data, rule, event, repo, now, account_id=paper.DEFAULT_ACCOUNT_
             raise ValueError("S02分钟数据服务尚未接入")
         now = _clock(now)
         policy = dict(event.get("entry_policy") or {})
-        if policy.get("strategy_id") != "custom_mvxxcp88" or policy.get("as_of") != str(now.date()):
+        is_routed = policy.get("execution_policy") == routed.POLICY
+        accepted = (routed.SID,) if is_routed else ("custom_mvxxcp88", routed.SID)
+        if policy.get("strategy_id") not in accepted or policy.get("as_of") != str(now.date()):
             raise ValueError("S02入场政策或交易日不匹配")
         signal = _clock(policy.get("signal_datetime"))
         available = _clock(policy.get("entry_evaluated_at"))
@@ -96,12 +103,34 @@ def create_entry(data, rule, event, repo, now, account_id=paper.DEFAULT_ACCOUNT_
         from app.strategy.late_session_strength import execution_end
         end_at = (execution_end(entry_definition, now.date()) if entry_definition
                   else expected_trading_minutes(start)[-1])
+        if is_routed:
+            if not isinstance(entry_definition, dict):
+                raise ValueError("缺少S02分支入场定义")
+            branch, at, confirmed = routed.branch_clock(entry_definition, now.date())
+            if branch != policy.get("entry_branch") or at != signal or available < confirmed:
+                raise ValueError("S02入场时钟或成交分支不匹配")
+            start, end_at = routed.entry_window(signal, signal=entry_definition)
         window = tuple(moment for moment in expected_trading_minutes(start, count=240) if moment <= end_at)
         if not window or now > end_at or now.time() > time(14, 55):
             raise ValueError("S02新入场或买入结束时间已截止")
         sig = policy.get("exit_definition")
         if not isinstance(sig, dict) or sig.get("template") != morning_liquidation.TEMPLATE:
             raise ValueError("缺少S02早盘清仓定义")
+        if is_routed and (sig.get("id") != routed.EXIT_IDS[branch]
+                          or sig.get("enabled") is not True):
+            raise ValueError("缺少同一S02分支的有效卖出定义")
+        if not is_routed and policy.get("strategy_id") == routed.SID:
+            from app.strategy.late_session_strength import bar_time, evaluation_time, parameters
+            if not isinstance(entry_definition, dict) or entry_definition.get("enabled") is not True:
+                raise ValueError("缺少S05有效入场定义")
+            parameters(entry_definition)
+            branch = next((name for name, sid in routed.ENTRY_IDS.items()
+                           if sid == entry_definition.get("id")), None)
+            at, confirmed = bar_time(entry_definition, now.date()), evaluation_time(entry_definition, now.date())
+            if (branch is None or sig.get("id") != routed.EXIT_IDS[branch] or not sig.get("enabled")
+                    or (at is not None and at != signal)
+                    or (confirmed is not None and available < confirmed)):
+                raise ValueError("S05入场时钟或对应出场定义不匹配")
         morning_liquidation.parameters(sig)
         acc = paper.get_account(data, account_id)
         matcher = matcher_for_account(acc)
@@ -135,6 +164,7 @@ def create_entry(data, rule, event, repo, now, account_id=paper.DEFAULT_ACCOUNT_
             "not_before": _ceil_minute(now).isoformat(), "budget": amount,
             "prior_close": prior, "costs": _cost_snapshot(acc), "target_fixed": False,
             "rule_signature": [rule["match_id"], rule["side"], rule["execution_mode"]],
+            **({"execution_policy": routed.POLICY} if is_routed else {}),
         }
         paper.save_order(data, order, account_id)
         return order, None
@@ -215,7 +245,9 @@ def _commit(data, order, moment, qty, price, fee, account_id):
 
 def _buy(data, order, frame, now, account_id):
     meta = order["strategy_execution"]
-    if now > _clock(meta["end_at"]):
+    is_routed = meta.get("execution_policy") == routed.POLICY
+    end = _clock(meta["end_at"])
+    if not is_routed and now > end:
         order.update(status="cancelled", reason=f"S02买入结束时间已到, 撤销余量{paper.remaining_qty(order)}股")
         paper.save_order(data, order, account_id)
         return
@@ -227,7 +259,9 @@ def _buy(data, order, frame, now, account_id):
         budget=meta["budget"],
         size_order=lambda price: order["qty"] if meta["target_fixed"] else matcher.buy_quantity(meta["budget"], price, order["symbol"]),
         buy_value=matcher.buy_value,
-        end_at=_clock(meta["end_at"]),
+        end_at=end,
+        **({"participation_pct": routed.PARTICIPATION, "first_executable": True,
+            "slippage_bps": matcher.slippage_bps} if is_routed else {}),
     )
     existing = _sync(data, order, account_id)
     if not meta["target_fixed"] and plan.target_shares:
@@ -251,22 +285,28 @@ def _buy(data, order, frame, now, account_id):
         if not _commit(data, order, fragment.datetime, fragment.shares, fragment.price, fragment.fee, account_id):
             paper._expire(data, order, "S02买入资金或仓位校验失败, 保留实际成交", account_id)
             return
-    meta["processed_through"] = min(now, _clock(meta["end_at"])).isoformat()
+    seen = eligible.filter((pl.col("symbol") == order["symbol"]) & pl.col("datetime").is_between(
+        start, end))["datetime"].max() if is_routed else min(now, end)
+    if seen is not None:
+        meta["processed_through"] = max(seen, _clock(meta.get("processed_through", seen))).isoformat()
     paper.save_order(data, order, account_id)
-    if now >= _clock(meta["end_at"]) and order["status"] == "pending":
+    if (now >= end and order["status"] == "pending"
+            and (not is_routed or seen == end or now >= end + timedelta(minutes=1))):
         order.update(status="cancelled", reason=f"S02买入结束时间已到, 撤销余量{paper.remaining_qty(order)}股")
         paper.save_order(data, order, account_id)
 
 
 def _sell(data, order, frame, now, account_id):
     meta = order["strategy_execution"]
-    if now >= _clock(meta["end_at"]):
+    is_routed = meta.get("execution_policy") == routed.POLICY
+    end = _clock(meta["end_at"])
+    if not is_routed and now >= end:
         paper._expire(data, order, f"S02清仓截止后仍有余股{paper.remaining_qty(order)}股, 保留实际成交和持仓", account_id)
         return
     existing = _sync(data, order, account_id)
     rows = frame.filter(
         (pl.col("symbol") == order["symbol"]) & (pl.col("datetime") >= _clock(meta["not_before"]))
-        & (pl.col("datetime") < _clock(meta["end_at"]))
+        & ((pl.col("datetime") <= end) if is_routed else (pl.col("datetime") < end))
     )
     if rows["datetime"].n_unique() != rows.height:
         raise ValueError("S02清仓成交窗口含重复分钟")
@@ -281,17 +321,30 @@ def _sell(data, order, frame, now, account_id):
             continue
         if next_at.time() == time(11, 31):
             next_at = datetime.combine(now.date(), time(13, 1))
-        if moment != next_at:
+        if moment != next_at and not is_routed:
             raise ValueError("S02清仓成交窗口缺失分钟")
         meta["processed_through"] = moment.isoformat()
         next_at = moment + timedelta(minutes=1)
         price, volume = row["close"], row["volume"]
+        if is_routed and (not paper.valid_price(price) or volume is None
+                          or not math.isfinite(volume) or volume < 0):
+            continue
         if not paper.valid_price(price) or not math.isfinite(volume) or volume < 0:
             raise ValueError("S02清仓成交分钟无效")
         _, lower = paper.limit_prices(meta["prior_close"], order["symbol"], "stock", trade_date=now.date())
-        if not volume or price <= lower + 1e-9:
+        if is_routed:
+            if not paper.valid_price(row["high"]) or not paper.valid_price(row["low"]):
+                continue
+            if row["high"] <= lower + 1e-9:
+                continue
+            price = max(lower, row["low"] * (1 - matcher.slippage_bps / 10000))
+            qty = min(paper.remaining_qty(order), minute_capacity(volume, routed.PARTICIPATION, 100))
+        else:
+            if not volume or price <= lower + 1e-9:
+                continue
+            qty = min(paper.remaining_qty(order), math.floor(volume * 100))
+        if qty <= 0:
             continue
-        qty = min(paper.remaining_qty(order), math.floor(volume * 100))
         fee_before = notional - matcher.sell_value(notional, now.date())
         after = notional + qty * price
         fee = after - matcher.sell_value(after, now.date()) - fee_before
@@ -300,7 +353,8 @@ def _sell(data, order, frame, now, account_id):
         else:
             raise ValueError("S02清仓可卖量或公司行为校验失败")
     paper.save_order(data, order, account_id)
-    if now >= _clock(meta["end_at"]) and order["status"] == "pending":
+    if (now >= end and order["status"] == "pending"
+            and (not is_routed or rows["datetime"].max() == end or now >= end + timedelta(minutes=1))):
         paper._expire(data, order, f"S02清仓截止后仍有余股{paper.remaining_qty(order)}股, 保留实际成交和持仓", account_id)
 
 
@@ -349,6 +403,9 @@ def advance(data, repo, now, account_id=paper.DEFAULT_ACCOUNT_ID):
                 if not result.hits:
                     continue
                 hit = result.hits[0]
+                is_routed = policy.get("execution_policy") == routed.POLICY
+                if is_routed and (linked or hit["reason"] == "resume"):
+                    continue
                 if linked and hit["reason"] != "resume":
                     continue
                 exit_params = morning_liquidation.parameters(policy["exit_definition"])
@@ -356,7 +413,11 @@ def advance(data, repo, now, account_id=paper.DEFAULT_ACCOUNT_ID):
                 execution_end = exit_params.get("fallback_time") or (
                     exit_params["time"] if "amplitude_pct" in exit_params else "15:00:00")
                 deadline = time(15) if hit["reason"] == "resume" else time.fromisoformat(execution_end)
-                if now >= datetime.combine(now.date(), deadline):
+                first = _clock(hit["trigger_time"])
+                last = datetime.combine(now.date(), deadline)
+                if is_routed:
+                    first, last = routed.exit_window(first)
+                if now > last or (not is_routed and now == last):
                     continue
                 order, error = paper.create_order(
                     data, symbol, "sell", account_id=account_id,
@@ -366,11 +427,12 @@ def advance(data, repo, now, account_id=paper.DEFAULT_ACCOUNT_ID):
                 if order is None:
                     raise ValueError(error)
                 order["strategy_execution"] = {
-                    "mode": MODE, "not_before": max(_ceil_minute(now), _clock(hit["trigger_time"])).isoformat(),
-                    "end_at": datetime.combine(now.date(), deadline).isoformat(),
+                    "mode": MODE, "not_before": max(_ceil_minute(now), first).isoformat(),
+                    "end_at": last.isoformat(),
                     "exit_reason": hit["reason"], "cycle_id": pos["cycle_id"],
                     "prior_close": previous[symbol], "costs": _cost_snapshot(acc),
                     "rule_signature": [rule["match_id"], rule["side"], rule["execution_mode"]],
+                    **({"execution_policy": routed.POLICY} if is_routed else {}),
                 }
                 paper.save_order(data, order, account_id)
                 active.append(order)
@@ -388,6 +450,8 @@ def advance(data, repo, now, account_id=paper.DEFAULT_ACCOUNT_ID):
             _sync(data, order, account_id)
             if order["status"] != "pending":
                 continue
+            if meta.get("execution_policy") == routed.POLICY:
+                frame = frame.unique(["symbol", "datetime"], keep="last", maintain_order=True)
             try:
                 if _clock(meta["not_before"]).date() != now.date():
                     paper._expire(data, order, "S02成交窗口交易日已结束, 保留实际成交和余股", account_id)

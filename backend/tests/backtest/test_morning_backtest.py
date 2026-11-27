@@ -1,5 +1,7 @@
 """真实通用分钟入场与次交易日早盘清仓的连续资金回归。"""
+import json
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from threading import Event
 
 import polars as pl
@@ -134,6 +136,58 @@ def test_no_signal_is_valid_zero_trade_result(tmp_path):
     assert result.stats["n_trades"] == 0
     assert result.stats["final_equity"] == 10000
     assert not result.fills
+
+
+def test_173004552_replay_executes_only_saved_branch_with_high_low_price_and_capacity(tmp_path, monkeypatch):
+    from app.services import s02_173004552_selection
+    from app.strategy import s02_173004552 as routed
+    from app.strategy.routed_engine import RoutedStrategyEngine
+
+    days = _trading_days(105, start=date(2026, 4, 27))
+    panel = _daily_panel(days, [SYMBOL]).with_columns(
+        pl.lit(10.).alias("close"), pl.lit(10.).alias("raw_close"), pl.lit(2e8).alias("amount"))
+    service, _, _ = service_fixture(tmp_path, panel=panel, frames={
+        BUY: _minute_frame(BUY, [(SYMBOL, stamp, price) for stamp, price in (
+            ("13:50", 10.), ("14:00", 10.05), ("14:05", 10.1),
+            ("14:06", 10.8), ("14:07", 10.2), ("14:08", 10.3),
+        )]).with_columns(pl.lit(100.).alias("volume")),
+        SELL: _minute_frame(SELL, [(SYMBOL, stamp, 10.5) for stamp in ("09:49", "09:50")])
+        .with_columns(pl.lit(100.).alias("volume")),
+    })
+    definition = Path(__file__).resolve().parents[3] / "examples/strategies/s02_173004552"
+    (tmp_path / "strategies/s02.py").write_text((definition / "strategy.py").read_text())
+    service.strategy_engine = RoutedStrategyEngine([tmp_path / "strategies"])
+    service.strategy_engine._user_data_dir = lambda: tmp_path
+    for signal in json.loads((definition / "signals.json").read_text()):
+        custom_signals.save_one(tmp_path, signal)
+
+    def selection(_repo, snapshot, _source, day, _observed):
+        return {**snapshot, "entry_routing": routed.POLICY, "entry_branch": "tail",
+                "market_breadth": [{"date": str(d), "up": .55, "above_ma20": .48}
+                                   for d in routed.sessions_until(day)],
+                "rows": [{"symbol": SYMBOL, "reference_close": 10., "s02_rank": 1, "s02_score": 82.}]
+                        if day == BUY else [],
+                "score_coverage": {}, "score_provenance": {}}
+
+    from app.services import s05_scoring
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("S05 replay delegated to the legacy scorer")
+
+    monkeypatch.setattr(s02_173004552_selection, "compute_selection", forbidden)
+    monkeypatch.setattr(s05_scoring, "compute_selection", selection)
+    result = service.run(configuration(strategy_id=routed.SID, max_positions=1, overrides={
+        "basic_filter": {"enabled": False},
+    }))
+    assert not result.error, result.error
+    assert result.stats["n_trades"] == 1
+    buy, sell = result.fills
+    assert [buy["datetime"], sell["datetime"]] == [f"{BUY} 14:07:00", f"{SELL} 09:50:00"]
+    assert buy["price"] == pytest.approx(10.21)
+    assert sell["price"] == pytest.approx(10.48)
+    assert buy["participation"] <= .1 and sell["participation"] <= .1
+    assert next(signal for signal in result.signals if signal["side"] == "sell")["signal_id"] == (
+        "csgi_" + routed.EXIT_IDS["tail"])
 
 
 def test_generic_custom_morning_entry_exit_caps_and_high_low_prices(tmp_path):

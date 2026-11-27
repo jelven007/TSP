@@ -11,6 +11,10 @@ x-business-defaults-volume: &business-defaults-volume
     create_host_path: false
 
 services:
+  platform:
+    environment:
+      TSP_PLATFORM_BUSINESS_DEFAULTS_DIR: /business-defaults
+    volumes: [*business-defaults-volume]
   api:
     environment: *business-defaults
     volumes: [*business-defaults-volume]

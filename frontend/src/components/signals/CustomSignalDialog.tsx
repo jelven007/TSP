@@ -9,7 +9,7 @@ import { ArrowRight, Loader2, Plus, Save, Search, Sparkles, X } from 'lucide-rea
 import { api, type CustomSignal, type CustomSignalCondition, type CustomSignalFieldGroup, type LateSessionStrengthParams, type MorningLiquidationParams } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { LATE_SESSION_DEFAULTS, MORNING_LIQUIDATION_DEFAULTS, morningLiquidationDraft, lateSessionBarTime, lateSessionCheckTime, lateSessionLatestStartTime } from '@/lib/customSignals'
-import { isS01Signal, s01ExitDraft } from '@/lib/customSignals'
+import { isS01Signal, s01ExitDraft, lateSessionDraft } from '@/lib/customSignals'
 import { S01SignalParamsEditor } from './S01SignalParamsEditor'
 import { EntryGroupsEditor } from './EntryGroupsEditor'
 import { validateEntryGroups } from '@/lib/entryGroups'
@@ -61,8 +61,7 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
   const morning = draft.template === 'morning_liquidation'
   const s01 = isS01Signal(draft)
   const specialized = lateSession || morning || s01
-  const storedLate = draft.params as Partial<LateSessionStrengthParams> | undefined
-  const lateParams = { ...LATE_SESSION_DEFAULTS, ...storedLate }
+  const lateParams = lateSessionDraft(draft)
   const lateDelaySeconds = lateParams.evaluation_delay_minutes == null ? null : lateParams.evaluation_delay_minutes * 60
   const morningParams = morningLiquidationDraft(draft)
 
@@ -142,10 +141,17 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
           throw new Error('结束时间须为 09:30:00～11:30:00、13:00:00～15:00:00')
         if (p.time != null && p.end_time != null && p.end_time < lateSessionCheckTime(p))
           throw new Error('结束时间不得早于确认时间')
-        if (![p.change_min_pct, p.change_max_pct, p.pool_up_min_pct, p.amount_min_100m,
-          p.turnover_min_pct, p.amplitude_max_pct, p.volume_ratio_min].every(value =>
+        if (p.change_min_pct != null && (!Number.isFinite(p.change_min_pct)
+          || p.change_min_pct < -10 || p.change_min_pct > 100))
+          throw new Error('当日涨幅下限须为-10.0～100.0')
+        if (![p.change_max_pct, p.pool_up_min_pct, p.amount_min_100m,
+          p.turnover_min_pct, p.amplitude_max_pct, p.volume_ratio_min,
+          p.position_min_pct, p.gap_max_pct].every(value =>
           value == null || (Number.isFinite(value) && value >= .1 && value <= 100)))
           throw new Error('数值参数须为0.1～100.0')
+        if (![p.return_5m_min_pct, p.return_15m_min_pct].every(value =>
+          value == null || (Number.isFinite(value) && value >= -10 && value <= 100)))
+          throw new Error('最近5/15分钟涨幅下限须为-10.0～100.0')
         if (p.change_min_pct != null && p.change_max_pct != null && p.change_min_pct > p.change_max_pct)
           throw new Error('当日涨幅下限不得大于上限')
         if (![p.ma5_1m_count, p.ma5_5m_count].every(value =>
@@ -307,7 +313,8 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                           params: { ...lateParams, time: time || null } }))}
                         className="w-full" buttonClassName="h-9 w-full justify-start" />
                       <p className="text-[10px] leading-4 text-muted">
-                        交易时段09:30～11:30、13:00～15:00；K线截止 {lateSessionBarTime(lateParams.time)}。留空按当前已完成分钟。
+                        交易时段09:30～11:30、13:00～15:00；
+                        K线截止 {lateSessionBarTime(lateParams.time)}。留空按当前已完成分钟。
                       </p>
                     </label>
                     <label className="space-y-1.5">
@@ -333,8 +340,8 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                         '启动分钟的当日累计换手率，不低于此值。'],
                       ['amplitude_max_pct', '当日振幅上限（%）', 0.1, 100, 0.1,
                         '启动分钟的当日振幅，不高于此值。'],
-                      ['change_min_pct', '当日涨幅下限（%）', 0.1, 100, 0.1,
-                        '启动分钟相对昨收的涨幅，不低于此值。'],
+                      ['change_min_pct', '当日涨幅下限（%）', -10, 100, 0.1,
+                        '启动分钟相对昨收的涨幅，不低于此值；可填 -10.0～100.0。'],
                       ['change_max_pct', '当日涨幅上限（%）', 0.1, 100, 0.1,
                         '启动分钟相对昨收的涨幅，不高于此值。'],
                       ['volume_ratio_min', '当日量比下限', 0.1, 100, 0.1,
@@ -365,6 +372,26 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                         留空不设模板截止，实时新入场最晚14:55。
                       </p>
                     </label>
+                    {([
+                      ['return_5m_min_pct', '最近5分钟涨幅下限（%）', -10,
+                        '截至启动分钟的收盘价相对5分钟前收盘价；缺少对应分钟不通过。'],
+                      ['return_15m_min_pct', '最近15分钟涨幅下限（%）', -10,
+                        '截至启动分钟的收盘价相对15分钟前收盘价；缺少对应分钟不通过。'],
+                      ['position_min_pct', '日内位置下限（%）', .1,
+                        '（现价−当日最低价）÷（当日最高价−最低价）×100%；仅用已完成分钟，平价为50%。'],
+                      ['gap_max_pct', '开盘缺口上限（%）', .1,
+                        '（当日开盘价÷昨收−1）×100%；使用09:31首根分钟开盘价。'],
+                    ] as const).map(([key, label, min, help]) => (
+                      <label key={key} className="space-y-1.5">
+                        <span className="text-[11px] text-muted">{label}</span>
+                        <input type="number" aria-label={label} min={min} max={100} step="any"
+                          value={lateParams[key] ?? ''} placeholder="为空不生效"
+                          onChange={e => setDraft(d => ({ ...d, params: { ...lateParams,
+                            [key]: e.target.value === '' ? null : Number(e.target.value) } }))}
+                          className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs text-foreground" />
+                        <p className="text-[10px] leading-4 text-muted">{help}</p>
+                      </label>
+                    ))}
                   </div>
                   <EntryGroupsEditor value={lateParams.entry_groups}
                     onChange={entry_groups => setDraft(d => ({ ...d, params: { ...lateParams, entry_groups } }))} />

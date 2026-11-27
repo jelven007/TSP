@@ -3177,7 +3177,9 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed, initialization
               {settingsTab === 'entry' && (
                 <ConfigSection
                   title="入场触发器"
-                  hint={detail.optional_triggers ? '可多选或取消；所有已选入场点同时满足才进入候选，不选时按基础选股结果入场' : '所有已选入场点同时满足才进入候选'}
+                  hint={detail.entry_signal_match === 'any'
+                    ? '任一入场点满足即触发入场。'
+                    : detail.optional_triggers ? '可多选或取消；所有已选入场点同时满足才进入候选，不选时按基础选股结果入场' : '所有已选入场点同时满足才进入候选'}
                   actions={<SignalTriggerActions selectExisting kind="entry" signals={entrySignals} onChange={next => updateOverride('entry_signals', next)} s01Template={detail.parameter_signals || detail.optional_triggers ? 's01_late_entry' : undefined} allowIntraday={isMinuteStrategy} />}
                 >
                   <SignalPicker

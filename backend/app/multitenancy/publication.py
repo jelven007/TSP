@@ -36,6 +36,15 @@ DAILY_COVERAGE_DIRS = (
     ("stock", "kline_daily", "kline_daily_enriched"),
     ("index", "kline_index_daily", "kline_index_enriched"),
 )
+MINUTE_FAST_WINDOWS = (
+    (clock_time(10), clock_time(10, 30)),  # S03 fixed minute and repair window.
+    (clock_time(14, 25), clock_time(14, 55)),
+)
+
+
+def _minute_fast_window(wall: datetime) -> bool:
+    clock = wall.time()
+    return wall.weekday() < 5 and any(start <= clock <= end for start, end in MINUTE_FAST_WINDOWS)
 
 
 def _strip_volatile(config: dict) -> None:
@@ -86,7 +95,7 @@ class PublicPublisher:
                 if completed_at.tzinfo else completed_at)
         with self.metadata_lock:
             self.minute_completed_at = wall.replace(tzinfo=CN_TZ).timestamp()
-        if wall.weekday() < 5 and clock_time(14, 25) <= wall.time() <= clock_time(14, 55):
+        if _minute_fast_window(wall):
             self.minute_changed.set()
 
     def publish_priority(self, completed_at):
@@ -101,7 +110,7 @@ class PublicPublisher:
                 if completed_at.tzinfo else completed_at)
         with self.metadata_lock:
             self.minute_priority_completed_at = wall.replace(tzinfo=CN_TZ).timestamp()
-        if wall.weekday() < 5 and clock_time(14, 25) <= wall.time() <= clock_time(14, 55):
+        if _minute_fast_window(wall):
             try:
                 return self.publish_minute(wall.date())
             except Exception:
@@ -504,8 +513,7 @@ class PublicPublisher:
                 minute_at = max(self.minute_completed_at or 0, self.minute_priority_completed_at or 0)
             wall = datetime.fromtimestamp(minute_at, CN_TZ) if minute_at else None
             now = cn_now()
-            if (not wall or wall.date() != now.date() or now.weekday() >= 5
-                    or not clock_time(14, 25) <= now.time().replace(tzinfo=None) <= clock_time(14, 55)):
+            if not wall or wall.date() != now.date() or not _minute_fast_window(now):
                 continue
             try:
                 self.publish_minute(wall.date())

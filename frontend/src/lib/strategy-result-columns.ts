@@ -5,6 +5,15 @@ export type StrategyResultTab = 'sell' | 'select' | 'buy'
 const common = [['symbol', '股票代码'], ['name', '名称']] as const
 const live = [['live_price', '现价'], ['live_change_pct', '涨跌幅'], ['live_turnover', '换手率'],
   ['live_vol_ratio', '量比'], ['live_signals', '信号']] as const
+const s05Id = 'custom_mvxxcs05'
+const s05SelectionScores = [
+  ['s02_score', '综合分'], ['s02_rank', '排名'], ['s02_tech_score', '技术分'],
+  ['s02_fund_score', '资金分'], ['s02_emotion_score', '情绪分'], ['s02_fundamental_score', '基本面分'],
+] as const
+const s05SelectionReplaced = new Set([
+  'builtin:selection_rank', 'builtin:score', 'builtin:atr14_previous_close', 'builtin:atr_rank',
+  'builtin:atr_rank_score', ...s05SelectionScores.map(([key]) => `builtin:${key}`),
+])
 const definitions = {
   sell: [...common, ['entry_date', '买入信号日期'], ['last_datetime', '触发时间'],
     ['close', '触发价'], ['change_pct', '触发时涨幅'],
@@ -36,6 +45,18 @@ export const STRATEGY_RESULT_WIDTHS: Record<string, number> = {
 export function resolveStrategyResultColumns(
   tab: StrategyResultTab, strategyId: string | null | undefined, columns: ColumnConfig[],
 ): ColumnConfig[] {
+  if (strategyId === s05Id && tab === 'select') {
+    const scores: ColumnConfig[] = s05SelectionScores.map(([key, label]) => {
+      const id = `builtin:${key}`
+      return { id, source: { type: 'builtin', key }, label,
+        visible: columns.find(col => col.id === id)?.visible ?? true, pinned: false, align: 'right' }
+    })
+    const remaining = columns.filter(col => !s05SelectionReplaced.has(col.id))
+    const cap = remaining.findIndex(col => col.id === 'builtin:reference_float_cap')
+    remaining.splice(cap >= 0 ? cap + 1 : 2, 0, ...scores)
+    return remaining
+  }
+  if (strategyId === s05Id) return columns.filter(col => !col.id.startsWith('builtin:atr'))
   if (strategyId === 'custom_mvxxcs03') {
     columns = columns.filter(col => !col.id.startsWith('builtin:atr'))
     if (tab !== 'select') return columns
@@ -101,11 +122,13 @@ export function strategyResultGroups(tab: StrategyResultTab, strategyId?: string
   ]
 }
 export type StrategyResultColumnConfig = Record<StrategyResultTab, ColumnConfig[]>
+const s05Preferences = { sell: 's05Sell', select: 's05Select', buy: 's05Buy' } as const
 export function loadStrategyResultColumns(strategyId?: string | null): StrategyResultColumnConfig {
   const saved = storage.strategySignalColumns.get({})
   return Object.fromEntries((['sell', 'select', 'buy'] as const).map(tab => {
     const defaults = defaultStrategyResultColumns(tab, strategyId)
-    const items = Array.isArray(saved?.[tab]) ? saved[tab] : []
+    const preference = strategyId === s05Id ? saved?.[s05Preferences[tab]] ?? saved?.[tab] : saved?.[tab]
+    const items = Array.isArray(preference) ? preference : []
     const seen = new Set<string>()
     const columns: ColumnConfig[] = []
     for (const item of items) {
@@ -124,7 +147,8 @@ export function loadStrategyResultColumns(strategyId?: string | null): StrategyR
     return [tab, resolveStrategyResultColumns(tab, strategyId, columns)]
   })) as StrategyResultColumnConfig
 }
-export function saveStrategyResultColumns(columns: StrategyResultColumnConfig) {
-  storage.strategySignalColumns.set(Object.fromEntries(Object.entries(columns)
-    .map(([tab, cols]) => [tab, cols.map(({ id, visible }) => ({ id, visible }))])))
+export function saveStrategyResultColumns(tab: StrategyResultTab, columns: ColumnConfig[], strategyId?: string | null) {
+  const preference = columns.map(({ id, visible }) => ({ id, visible }))
+  const key = strategyId === s05Id ? s05Preferences[tab] : tab
+  storage.strategySignalColumns.set({ ...storage.strategySignalColumns.get({}), [key]: preference })
 }

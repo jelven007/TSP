@@ -12,6 +12,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.multitenancy.business_defaults import Snapshot, canonical, load_snapshot
+from app.services.fs_utils import atomic_write_text
 
 
 class Bundle(BaseModel):
@@ -77,11 +78,37 @@ def load_bundle(root: Path) -> tuple[Snapshot, dict[str, bytes]]:
         raise ValueError("defaults bundle incomplete or unreadable") from exc
 
 
-def install_extensions(root: Path, data_dir: Path, *, apply: bool = False) -> dict:
-    """Preview by default; exclusive creation preserves existing platform configurations."""
+def _platform_preferences(snapshot: Snapshot, path: Path) -> tuple[dict, dict, bool]:
+    if any(part.is_symlink() for part in (path, *path.parents)):
+        raise ValueError("platform preference symlink rejected")
+    exists = path.exists()
+    current = json.loads(path.read_bytes()) if exists else {}
+    if not isinstance(current, dict):
+        raise ValueError("platform preferences must be an object")
+    defaults = snapshot.payload.schedules.platform.model_dump(exclude_none=True)
+    # Older installs can have the minute on/off and interval keys without a
+    # kline_sync_1m document. The new period document must preserve those values.
+    if "kline_sync_1m" in defaults and "kline_sync_1m" not in current:
+        period = defaults["kline_sync_1m"]
+        for key, alias in (("enabled", "minute_refresh_enabled"), ("interval_seconds", "minute_refresh_interval")):
+            if alias in current:
+                period[key] = current[alias]
+    missing = {key: value for key, value in defaults.items() if key not in current}
+    return current, missing, exists
+
+
+def install_extensions(
+    root: Path, data_dir: Path, *, platform_config: Path | None = None, apply: bool = False,
+) -> dict:
+    """Preview and install missing Platform configuration before collectors start."""
     snapshot, configs = load_bundle(root)
     receipt = {"snapshot_id": snapshot.snapshot_id, "applied": apply,
                "creates": [], "matching": [], "preserved": []}
+    prefs_path = None
+    if snapshot.payload.schedules is not None and platform_config is not None:
+        prefs_path = platform_config / "preferences.json"
+        current, additions, exists = _platform_preferences(snapshot, prefs_path)
+        receipt["schedule_preferences"] = sorted(additions)
     for config_id, raw in configs.items():
         path = data_dir / "ext_data" / config_id / "config.json"
         if any(part.is_symlink() for part in (path, *path.parents)):
@@ -91,12 +118,17 @@ def install_extensions(root: Path, data_dir: Path, *, apply: bool = False) -> di
         else:
             receipt["creates"].append(config_id)
     if apply:
+        if prefs_path is not None and additions:
+            prefs_path.parent.mkdir(parents=True, exist_ok=True)
+            atomic_write_text(
+                prefs_path, json.dumps({**current, **additions}, ensure_ascii=False, indent=2),
+                overwrite=exists,
+            )
         for config_id in list(receipt["creates"]):
             path = data_dir / "ext_data" / config_id / "config.json"
             path.parent.mkdir(parents=True, exist_ok=True)
             try:
-                with path.open("xb") as stream:
-                    stream.write(configs[config_id])
+                atomic_write_text(path, configs[config_id].decode(), overwrite=False)
             except FileExistsError:
                 receipt["creates"].remove(config_id)
                 receipt["preserved"].append(config_id)
@@ -107,12 +139,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("bundle", type=Path)
     parser.add_argument("--platform-data", type=Path)
+    parser.add_argument("--platform-config", type=Path)
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
-    if args.apply and args.platform_data is None:
-        parser.error("--apply requires --platform-data")
+    if (args.apply or args.platform_config is not None) and args.platform_data is None:
+        parser.error("--apply and --platform-config require --platform-data")
     if args.platform_data is not None:
-        receipt = install_extensions(args.bundle, args.platform_data, apply=args.apply)
+        receipt = install_extensions(
+            args.bundle, args.platform_data, platform_config=args.platform_config, apply=args.apply,
+        )
     else:
         snapshot, configs = load_bundle(args.bundle)
         receipt = {"snapshot_id": snapshot.snapshot_id, "extensions": len(configs),

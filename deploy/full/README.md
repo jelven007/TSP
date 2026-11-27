@@ -2,20 +2,22 @@
 
 ## 可复用的管理员业务初始化
 
-管理员的私有策略、覆盖、完整因子目录、自定义信号、策略池、监控绑定和
-回测首次默认通过受控业务清单预置。部署者保存经核验的目录包：
+管理员的私有策略、覆盖、完整因子目录、自定义信号、策略池、监控绑定、
+回测首次默认及后台任务设置通过受控业务清单预置。部署者保存经核验的目录包：
 `manifest.json`、`bundle.json` 和 `ext_data/<id>/config.json`；
 目录与受控运行配置、行情及业务归档一起保留，私有源码不提交到仓库。
 
-先在候选源码验证目录包并预览扩展配置：
+先在候选源码验证目录包，并预览扩展和平台调度配置：
 
 ```bash
 PYTHONPATH=backend python -m app.multitenancy.business_defaults_bundle "$TSP_BUSINESS_DEFAULTS_DIR"
 PYTHONPATH=backend python -m app.multitenancy.business_defaults_bundle \
-  "$TSP_BUSINESS_DEFAULTS_DIR" --platform-data "$TSP_PLATFORM_DATA_DIR"
+  "$TSP_BUSINESS_DEFAULTS_DIR" --platform-data "$TSP_PLATFORM_DATA_DIR" \
+  --platform-config "$TSP_PLATFORM_CONFIG_DIR"
 ```
 
-核对预览后追加 `--apply` 仅创建缺失的扩展配置，已有配置继续保留。
+使用覆盖文件启动时，Platform 在启动采集器前自动加载目录包并补齐缺失设置。
+也可在 Platform 停止时核对预览后追加 `--apply`，已有设置和值继续保留。
 扩展行情通过原 Platform 发布链生成公共只读版本，先确认完整因子目录和数据依赖，
 再启动消费者。真实行情、历史结果和完成回测沿原受控数据恢复流程保留；
 初始化包不生成历史成交、不恢复旧执行租约，也不自动发起回测。
@@ -30,10 +32,15 @@ docker compose --env-file "$TSP_DEPLOY_ENV_FILE" \
   -f deploy/full/compose.yml -f deploy/full/compose.business-defaults.yml up -d
 ```
 
-覆盖文件为 API 及全部业务 Worker 挂载只读清单；目录缺失时不创建空挂载。
+覆盖文件为 Platform、API 及全部业务 Worker 挂载只读清单；目录缺失时不创建空挂载。
 仅指定管理员的首次业务空间写入默认值，数据与初始化标记同事务提交。
 重复启动保留用户随后修改或删除的资源；当前已用空间更新安装清单不会重灌配置。
 回测已有浏览器设置优先，首次默认从管理员初始化接口读取，不自动运行。
+格式 2 将六周期 K 线、盘口定版和同步开关交给 Platform 原有调度，
+复盘和挖掘使用新租户自己的执行授权；监控时点跟随已保存的策略和信号。
+固定调度仍由应用负责：北京时间个股维表 09:00，盘后补缺 15:35，
+相关市场数据维护 20:30，财务五表 21:00。退役的 S02 专用调度不恢复，
+也不移植运行历史、最后同步时间、凭据或通知目的地址。格式 1 仍可读取。
 
 生产开发与六类文档追踪见[工程规范](../../docs/reference/engineering.md#engineering)、
 [本地变更映射](../../docs/reference/engineering.md#trace)。

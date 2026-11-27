@@ -284,25 +284,39 @@ class StrategyMonitoringModel(BaseModel):
 @router.get("/strategies/monitoring")
 def strategy_monitoring(request: Request):
     from app.api.strategy import _get_engine
-    from app.services.strategy_monitor_tasks import monitoring_summary
+    from app.services.routed_strategy_monitor import monitoring_summary
     engine = _get_engine(request)
     if engine is None:
         raise HTTPException(503, "策略引擎未初始化")
     return monitoring_summary(engine, _data_dir(request))
 
 
+@router.get("/strategies/{strategy_id}/monitoring")
+def strategy_monitoring_day(strategy_id: str, as_of: date, request: Request):
+    from app.api.strategy import _get_engine
+    from app.services.routed_strategy_monitor import s05_monitoring_day
+    from app.services.selection_clock import S05_ID
+
+    engine = _get_engine(request)
+    if strategy_id != S05_ID or not engine.has(strategy_id):
+        raise HTTPException(404, "未找到支持按日查询的策略")
+    return s05_monitoring_day(engine, _data_dir(request), as_of)
+
+
 @router.post("/strategies/{strategy_id}/monitoring")
 def set_strategy_monitoring(strategy_id: str, req: StrategyMonitoringModel, request: Request):
     from app.api.strategy import _get_engine
     from app.services.strategy_monitor_tasks import set_monitoring
+    from app.strategy.config import load_override
 
     engine = _get_engine(request)
     if engine is None:
         raise HTTPException(503, "策略引擎未初始化")
     try:
         strategy = engine.get(strategy_id)
-        state = set_monitoring(_data_dir(request), strategy_id,
-                               strategy.meta.get("name", strategy_id), req.enabled)
+        storage = _data_dir(request)
+        name = load_override(storage, strategy_id).get("name") or strategy.meta.get("name", strategy_id)
+        state = set_monitoring(storage, strategy_id, name, req.enabled)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     _sync_engine(request)

@@ -7,6 +7,18 @@ vi.mock('./storage', () => ({ storage: { strategySignalColumns: { get, set } } }
 const inserted = ['builtin:volume', 'builtin:amount', 'builtin:suggested_sell_price']
 beforeEach(() => { get.mockReset().mockReturnValue({}); set.mockReset() })
 
+it('removes saved ATR columns from both S05 signal pages without changing shared preferences', () => {
+  for (const tab of ['sell', 'buy'] as const) {
+    get.mockReturnValue({ [tab]: [{ id: 'builtin:atr14_previous_close', visible: true },
+      { id: 'builtin:atr_rank', visible: true }, { id: 'builtin:score', visible: false }] })
+    const columns = loadStrategyResultColumns('custom_mvxxcs05')[tab]
+    expect(columns.some(col => col.id.startsWith('builtin:atr'))).toBe(false)
+    expect(columns.find(col => col.id === 'builtin:score')?.visible).toBe(false)
+    saveStrategyResultColumns(tab, columns, 'custom_mvxxcs05')
+    expect(set.mock.lastCall?.[0][tab][0].id).toBe('builtin:atr14_previous_close')
+  }
+})
+
 it('places all three preselection ATR columns immediately after the existing selection score', () => {
   const ids = loadStrategyResultColumns().select.filter(col => col.visible).map(col => col.id)
   expect(ids.slice(ids.indexOf('builtin:score'), ids.indexOf('builtin:score') + 4))
@@ -38,7 +50,7 @@ it('preserves a subsequently customized position and visibility of the new colum
   const config = loadStrategyResultColumns()
   const amount = config.sell.splice(config.sell.findIndex(col => col.id === 'builtin:amount'), 1)[0]
   config.sell.push({ ...amount, visible: false })
-  saveStrategyResultColumns(config)
+  saveStrategyResultColumns('sell', config.sell)
   get.mockReturnValue(set.mock.calls[0][0])
   expect(loadStrategyResultColumns().sell).toEqual(config.sell)
 })

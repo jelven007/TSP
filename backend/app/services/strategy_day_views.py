@@ -134,6 +134,7 @@ def publish(store, conn, strategy_id, day, asset_type="stock", timeframe="1m", *
         v["summary"].get("computed_at") or 0, v["record_id"],
     ))
     result = copy.deepcopy(chosen["result"])
+    original_buy = chosen["result"]
     if (strategy_id == "custom_mvxxcp88"
             and (result.get("repair_provenance") or {}).get("kind") in (
                 "post_close_signal_review_v1", "s02_manual_signal_review_v1")):
@@ -165,6 +166,7 @@ def publish(store, conn, strategy_id, day, asset_type="stock", timeframe="1m", *
             ))
             # Project only the reviewed entry; later sell/selection and raw attempts stay intact.
             entry = reviewed["result"]
+            original_buy = entry
             if strategy_id == "custom_mvxxcp88":
                 from app.services.s02_run_evidence import review_provenance
                 result.update(review_provenance(
@@ -184,12 +186,24 @@ def publish(store, conn, strategy_id, day, asset_type="stock", timeframe="1m", *
     by_id = {v["record_id"]: v for v in values}
     frozen = selection_record(strategy_id, day, by_id.get)
     selected = (frozen or {}).get("result", {}).get("selection_snapshot")
-    from app.services.selection_clock import S03_ID
-    if selected is not None and (strategy_id == S03_ID or not result.get("selection_snapshot")):
+    from app.services.selection_clock import S03_ID, S05_ID
+    if selected is not None and (strategy_id in (S03_ID, S05_ID) or not result.get("selection_snapshot")):
         result["selection_snapshot"] = selected
         result["sections"]["select"] = selected["rows"]
         result["section_errors"] = {k: v for k, v in (result.get("section_errors") or {}).items()
                                     if k != "select"}
+    if strategy_id == S05_ID:
+        from app.strategy.s02_173004552 import (
+            MARKET_ROUTE,
+            project_daily_buys,
+            project_no_market_route,
+        )
+
+        if selected and "entry_route" in selected:
+            result["section_statuses"] = {**(result.get("section_statuses") or {}), "select": "success"}
+            if selected["entry_route"]["schema"] != MARKET_ROUTE:
+                project_no_market_route(result, selected)
+        result = project_daily_buys(result, selected)
     if store.tenant:
         from app.strategy.execution_status import with_zero_completion
 
@@ -201,6 +215,13 @@ def publish(store, conn, strategy_id, day, asset_type="stock", timeframe="1m", *
     result = store._with_previous_buy(conn, identity, result, str(day))
     from app.services.custom_status_refresh import result as status_result
     result = status_result(store, strategy_id, result, conn=conn)
+    if strategy_id == S05_ID and timeframe == "1m":
+        from app.services.s05_signal_scores import apply_to_view
+
+        # Status projection is allowed to remove members; score only the visible buys.
+        apply_to_view(store, conn, result, {
+            **original_buy, "sections": {"buy": result["sections"]["buy"]},
+        }, selected)
     if strategy_id == "custom_mvxxcp88":
         from app.services.s02_run_evidence import annotate_diagnostic
         annotate_diagnostic(result)
@@ -215,6 +236,8 @@ def publish(store, conn, strategy_id, day, asset_type="stock", timeframe="1m", *
         "strategy_ids_by_symbol": {}, "updated_at": chosen["summary"]["computed_at"],
         "view_schema": 1,
     }
+    if strategy_id == S05_ID and "total" in result and result["total"] != chosen["result"].get("total"):
+        payload["summary"] = {**payload["summary"], "total": result["total"]}
     raw = _encode(payload).encode("utf-8")
     body = gzip.compress(raw, mtime=0)
     token = hashlib.sha256(body).hexdigest()

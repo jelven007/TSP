@@ -118,6 +118,10 @@ class ResearchJobs:
         if payload.get("tenant_id") != self.context.tenant_id:
             raise AccessError(403, "任务租户不一致")
         kind = payload["kind"]
+        if kind == "backtest":
+            from app.backtest.s05_exit_policy import freeze_manual_policy
+
+            freeze_manual_policy(payload, source)
         execution_runtime = None
         if kind in {"backtest", "optimize", "walkforward"}:
             from app.services.research_snapshot import _runtime_identity

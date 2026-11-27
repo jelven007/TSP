@@ -121,6 +121,35 @@ def test_other_accounts_never_read_or_receive_admin_defaults(env, unprovisioned_
     assert response.json() == {"snapshot_id": None, "backtest": None}
 
 
+def test_schedules_are_seeded_with_the_new_owner_and_visible_to_the_api(env, unprovisioned_admin, defaults):
+    path, snapshot, _ = defaults
+    uid = unprovisioned_admin["id"]
+    mining = {"mining_schedule_enabled": True, "mining_schedule_weekday": 2,
+              "mining_budget_profile": "strict"}
+    review = {"enabled": True, "hour": 16, "minute": 23}
+    payload = {**snapshot["payload"], "schedules": {"mining": mining, "review": review,
+                                                   "review_push_mode": "manual", "platform": {}}}
+    path.write_text(json.dumps({**pack(payload), "format_version": 2}))
+    assert env["identity"].ensure_admin_tenant(uid)
+    saved = {(r["namespace"], r["id"]): r["value"] for r in rows(env, uid)}
+    tenant = env["control"].execute("SELECT * FROM control.users WHERE id=%s", (uid,)).fetchone()
+    owner = {"user_id": uid, "auth_version": tenant["auth_version"],
+             "policy_version": 1, "routing_epoch": 1}
+    assert saved["mining_schedule", "default"] == {**mining, **owner}
+    assert saved["review_schedule", "default"] == {**review, **owner}
+    assert "critical_strategy_schedule" not in {ns for ns, _ in saved}
+    from app.api.mining import router as mining_router
+    from app.multitenancy.notifications import router as notifications_router
+
+    env["client"].app.include_router(mining_router)
+    env["client"].app.include_router(notifications_router)
+    env["client"].cookies.set("tf_session", env["identity"]._session(uid)[0])
+    assert env["client"].get("/api/backtest/mining/config").json() == mining
+    assert env["client"].get("/api/monitor-rules/notifications/review-schedule").json() == review
+    env["identity"].provision(uid)
+    assert saved == {(r["namespace"], r["id"]): r["value"] for r in rows(env, uid)}
+
+
 def test_designated_admin_reads_installed_defaults_without_rewriting_existing_data(
     env, unprovisioned_admin, defaults,
 ):

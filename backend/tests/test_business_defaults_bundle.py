@@ -8,7 +8,7 @@ import pytest
 from app.multitenancy.business_defaults import canonical
 
 
-def write_bundle(root, *, extension=True):
+def write_bundle(root, *, extension=True, schedules=None):
     root.mkdir(exist_ok=True)
     config = {
         "id": "ext_flow", "label": "资金", "mode": "timeseries",
@@ -30,9 +30,11 @@ def write_bundle(root, *, extension=True):
         "target_username": "admin", "source": {}, "documents": [], "monitor_rules": [],
         "factor_catalog": catalog, "code_hashes": {}, "backtest": {},
     }
+    if schedules is not None:
+        payload["schedules"] = schedules
     snapshot = hashlib.sha256(canonical(payload)).hexdigest()
     (root / "manifest.json").write_bytes(canonical({
-        "format_version": 1, "snapshot_id": snapshot, "payload": payload,
+        "format_version": 2 if schedules is not None else 1, "snapshot_id": snapshot, "payload": payload,
     }))
     files["manifest.json"] = hashlib.sha256((root / "manifest.json").read_bytes()).hexdigest()
     (root / "bundle.json").write_bytes(canonical({
@@ -102,3 +104,50 @@ def test_bundle_without_extensions_remains_supported(tmp_path):
 
     write_bundle(tmp_path, extension=False)
     assert load_bundle(tmp_path)[1] == {}
+
+
+def schedules(platform):
+    return {"platform": platform, "review_push_mode": "manual",
+            "review": {"enabled": False, "hour": 15, "minute": 40},
+            "mining": {"mining_schedule_enabled": False, "mining_schedule_weekday": 4,
+                       "mining_budget_profile": "balanced"}}
+
+
+def test_platform_defaults_preserve_saved_switches_including_legacy_minute_alias(tmp_path, monkeypatch):
+    from app.multitenancy.business_defaults_bundle import install_extensions
+    from app.services import kline_periods, preferences
+
+    pack, market, config = (tmp_path / p for p in ("pack", "market", "config"))
+    write_bundle(pack, schedules=schedules({
+        "data_sync_auto_enabled": True,
+        "depth_finalize_time": {"hour": 16, "minute": 0},
+        "kline_sync_1m": {"enabled": True, "interval_seconds": 60,
+                          "windows": kline_periods.PERIOD_WINDOWS["1m"], "time": "16:00"},
+    }))
+    config.mkdir()
+    path = config / "preferences.json"
+    path.write_text('{"data_sync_auto_enabled": false, "minute_refresh_enabled": false}')
+    monkeypatch.setattr(preferences, "_path", lambda: path)
+    install_extensions(pack, market, platform_config=config, apply=True)
+    assert not preferences.get_data_sync_auto_enabled()
+    assert not kline_periods.get_configs()["1m"]["enabled"]
+    assert preferences.get_depth_finalize_time() == {"hour": 16, "minute": 0}
+    previous = path.read_bytes()
+    install_extensions(pack, market, platform_config=config, apply=True)
+    assert path.read_bytes() == previous
+
+
+@pytest.mark.parametrize("prefs", [
+    {"financial_sync_times": {"income": "2026-11-27"}},
+    {"depth_finalize_time": {"hour": 24, "minute": 0}},
+    {"kline_sync_1d": {"enabled": True, "interval_seconds": 60,
+                      "windows": [["09:30", "11:30"], ["13:00", "15:00"]], "time": "16:00"}},
+])
+def test_invalid_schedule_aborts_before_installing_any_files(tmp_path, prefs):
+    from app.multitenancy.business_defaults_bundle import install_extensions
+
+    pack, market, config = (tmp_path / p for p in ("pack", "market", "config"))
+    write_bundle(pack, schedules=schedules(prefs))
+    with pytest.raises(ValueError):
+        install_extensions(pack, market, platform_config=config, apply=True)
+    assert not market.exists() and not config.exists()

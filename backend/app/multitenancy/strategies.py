@@ -17,6 +17,7 @@ from app.strategy.engine import (
     StrategyEngine,
     StrategyResult,
 )
+from app.strategy.routed_engine import RoutedStrategyEngine
 
 DEFINITION_FIELDS = (
     "meta", "basic_filter", "entry_signals", "exit_signals", "stop_loss",
@@ -44,7 +45,7 @@ def metadata_definition(value: dict) -> StrategyDef:
     )
 
 
-class TenantStrategyEngine(StrategyEngine):
+class TenantStrategyEngine(RoutedStrategyEngine):
     # ScreenerService lets the container load its own public market window,
     # avoiding private signal/factor columns in shared repository caches.
     remote_context = True
@@ -107,6 +108,19 @@ class TenantStrategyEngine(StrategyEngine):
                 if lifecycle.get("deleted"):
                     raise AccessError(409, "策略已删除，请刷新策略列表")
                 values["strategy_generation"] = int(lifecycle.get("generation", 0))
+            if kind == "backtest":
+                from app.services.selection_clock import S05_ID
+                from app.strategy.s02_173004552 import enabled
+
+                if sid == S05_ID and not enabled(self.get(sid)):
+                    from app.services.s05_backtest_inputs import freeze_backtest_selections
+
+                    config = values["config"]
+                    try:
+                        values["s05_selection_archive"] = freeze_backtest_selections(
+                            session, config["start"], config["end"], strict=config.get("strict_research", False))
+                    except ValueError as exc:
+                        raise AccessError(409, str(exc)) from exc
             signals = session.values("custom_signals")
             if kind == "strategy" and values.get("as_of") and values.get("strategy_ids"):
                 values = {**values, "positions": self._holding_positions(
@@ -128,10 +142,12 @@ class TenantStrategyEngine(StrategyEngine):
             }
 
     def _saved_selections(self, session, task):
+        from app.market_time import cn_today
         from app.services.daily_selections import DailySelections, signal_strategy
         store = DailySelections(session)
+        live = str(task["as_of"]) == str(cn_today()) and not task.get("historical_replay")
         return {sid: saved for sid in task["strategy_ids"] if signal_strategy(self.get(sid))
-                and (saved := store.read(sid, task["as_of"])) is not None}
+                and (saved := store.read(sid, task["as_of"], live_entry=live)) is not None}
 
     def _saved_pools(self, session, task):
         from app.services.daily_stock_pools import DailyStockPools

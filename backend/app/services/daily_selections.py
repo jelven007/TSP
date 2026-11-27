@@ -8,9 +8,19 @@ from dataclasses import replace
 from datetime import date, datetime, timedelta
 from datetime import time as clock_time
 
+import polars as pl
+
 from app.cell.context import AccessError
 from app.market_time import as_cn_datetime, cn_now, published_trading_days
-from app.services.selection_clock import S03_ID, SELECTION_TIME, SELECTION_TIME_TEXT, window_for
+from app.services.selection_clock import (
+    S03_ID,
+    S05_ID,
+    SELECTION_TIME,
+    SELECTION_TIME_TEXT,
+    job_key,
+    selection_group,
+    window_for,
+)
 from app.services.strategy_results import ResultIdentity, StrategyResults, _encode
 
 DEFINITION_VERSION = "postclose_selection_v1"
@@ -33,8 +43,10 @@ def due_window(now=None, *, monitored_only=False, strategy_id=None):
         from app.strategy.overnight_runtime import next_market_day
 
         start, end = window_for(strategy_id)
+        clock = now.time().replace(tzinfo=None)
         if (published_trading_day(now.date()) is not True
-                or not start <= now.time().replace(tzinfo=None) <= end):
+                or not start <= clock <= end
+                or (strategy_id == S05_ID and clock == end)):
             return None
         return now.date(), next_market_day(now.date())
     days = sorted(day for year in (now.year - 1, now.year, now.year + 1)
@@ -73,17 +85,79 @@ def valid_selection(snapshot, day, *, strategy_id=None):
         from app.services.s03_selection import POLICY
         if snapshot.get("scoring_policy") != POLICY or len(snapshot["rows"]) > 30:
             return False
+    if strategy_id == S05_ID:
+        from app.services.s05_selection import POLICY, WEIGHTS
+        if (snapshot.get("scoring_policy") != POLICY
+                or snapshot.get("scoring_weights") != WEIGHTS or len(snapshot["rows"]) > 50):
+            return False
     coverage = snapshot.get("coverage") or {}
     if not isinstance(coverage, dict):
         return False
     return not (coverage.get("scope_total") and coverage.get("available_daily") == 0)
 
 
-def selection_record(strategy_id, day, load):
+def selection_policy(strategy):
+    from app.strategy.s02_173004552 import enabled
+    if enabled(strategy):
+        from app.services.s05_selection import NUMERIC_POLICY
+        return NUMERIC_POLICY
+    if strategy.meta.get("id") == S05_ID:
+        from app.services.s05_selection import COMMON_BRANCH_POLICY
+        return COMMON_BRANCH_POLICY
+    return None
+
+
+def selection_record(strategy_id, day, load, *, policy=None):
     """S03先读五维口径槽, 再读原槽中的兼容归档; 不接受仅ID匹配的旧口径。
 
     专用槽只区分预选记录, 不改变策略逻辑身份; 读取不迁移或覆盖历史记录。
     """
+    from app.strategy.s02_173004552 import POLICY as S02_POLICY
+    from app.strategy.s02_173004552 import SID, frozen_route
+    if strategy_id == S05_ID and policy != S02_POLICY:
+        from app.services.s05_selection import (
+            COMMON_BRANCH_POLICY,
+            COMMON_POLICY,
+            NUMERIC_POLICY,
+            POLICY,
+            ROUTED_POLICY,
+        )
+        slots = (COMMON_BRANCH_POLICY, COMMON_POLICY, NUMERIC_POLICY, ROUTED_POLICY, POLICY)
+        for slot in slots if policy is None else (policy,):
+            if slot not in slots:
+                continue
+            saved = load(selection_identity(strategy_id, policy=slot).record_id(str(day)))
+            snapshot = (saved or {}).get("result", {}).get("selection_snapshot")
+            if not valid_selection(snapshot, day, strategy_id=S05_ID):
+                continue
+            if slot in (COMMON_BRANCH_POLICY, NUMERIC_POLICY, ROUTED_POLICY):
+                try:
+                    if "entry_route" not in snapshot:
+                        continue
+                    if slot == COMMON_BRANCH_POLICY:
+                        from app.strategy.s02_173004552 import frozen_daily_branch
+                        frozen_daily_branch(snapshot, date.fromisoformat(str(day)))
+                    else:
+                        frozen_route(snapshot, date.fromisoformat(str(day)))
+                    if slot == NUMERIC_POLICY and type(snapshot.get("branch_code")) is not int:
+                        continue
+                except ValueError:
+                    continue
+            return saved
+        if policy is not None:
+            return None
+    if strategy_id == SID and policy in (None, S02_POLICY):
+        saved = load(selection_identity(strategy_id, policy=S02_POLICY).record_id(str(day)))
+        if saved:
+            snapshot = saved.get("result", {}).get("selection_snapshot")
+            try:
+                frozen_route(snapshot, date.fromisoformat(str(day)))
+                if valid_selection(snapshot, day):
+                    return saved
+            except ValueError:
+                pass
+        if policy is not None:
+            return None
     if strategy_id != S03_ID:
         return load(selection_identity(strategy_id).record_id(str(day)))
     policies = [""]
@@ -104,9 +178,23 @@ class DailySelections:
     def __init__(self, storage):
         self.results = StrategyResults(storage)
 
-    def read(self, strategy_id, day):
+    def read(self, strategy_id, day, *, policy=None, live_entry=False):
         """读取目标日有效冻结预选, 并沿既有状态证据刷新展示, 缺归档返回 None。"""
-        saved = selection_record(strategy_id, day, lambda key: self.results.detail(strategy_id, key))
+        def load(key):
+            value = self.results.detail(strategy_id, key)
+            if live_entry and strategy_id == S05_ID and value:
+                from app.services.s05_selection import nightly_entry_symbols
+
+                try:
+                    archived_at = value["summary"]["computed_at"]
+                    if type(archived_at) is not int:
+                        return None
+                    nightly_entry_symbols(value["result"].get("selection_snapshot"), day, archived_at_ms=archived_at)
+                except (KeyError, ValueError):
+                    return None
+            return value
+
+        saved = selection_record(strategy_id, day, load, policy=policy)
         snapshot = (saved or {}).get("result", {}).get("selection_snapshot")
         from app.services.custom_status_refresh import selection
         return selection(self.results, strategy_id, snapshot) if valid_selection(
@@ -125,6 +213,39 @@ class DailySelections:
         if not valid_selection(snapshot, target):
             raise ValueError("盘后预选证据异常, 需要修复重试")
         policy = ""
+        from app.strategy.s02_173004552 import POLICY as S02_POLICY
+        from app.strategy.s02_173004552 import SID, frozen_route
+        if identity.strategy_id == S05_ID and snapshot.get("scoring_policy"):
+            from app.services.s05_selection import (
+                COMMON_BRANCH_POLICY,
+                COMMON_POLICY,
+                NUMERIC_POLICY,
+                POLICY,
+                ROUTED_POLICY,
+            )
+            if not valid_selection(snapshot, target, strategy_id=S05_ID):
+                raise ValueError("S05归档不符合当前四维评分口径")
+            from app.strategy.s02_173004552 import MARKET_ROUTE
+            numeric = (snapshot.get("entry_route") or {}).get("schema") == MARKET_ROUTE
+            policy = (COMMON_BRANCH_POLICY if numeric and snapshot.get("entry_execution") == "common_template_v1"
+                      else COMMON_POLICY if snapshot.get("entry_execution") == "common_template_v1"
+                      else NUMERIC_POLICY if numeric else ROUTED_POLICY if "entry_route" in snapshot else POLICY)
+            if policy == COMMON_BRANCH_POLICY:
+                from app.strategy.s02_173004552 import frozen_daily_branch
+                frozen_daily_branch(snapshot, target)
+            elif policy in (NUMERIC_POLICY, ROUTED_POLICY):
+                frozen_route(snapshot, target)
+            existing = selection_record(S05_ID, target,
+                lambda key: self.results.detail(S05_ID, key), policy=policy)
+            if existing is not None:
+                return existing
+        elif identity.strategy_id == SID and snapshot.get("entry_routing") == S02_POLICY:
+            frozen_route(snapshot, target)
+            existing = selection_record(SID, target, lambda key: self.results.detail(SID, key),
+                                        policy=S02_POLICY)
+            if existing is not None:
+                return existing
+            policy = S02_POLICY
         if identity.strategy_id == S03_ID and snapshot.get("scoring_policy"):
             from app.services.s03_selection import POLICY
             if not valid_selection(snapshot, target, strategy_id=S03_ID):
@@ -136,14 +257,19 @@ class DailySelections:
         frozen = {**snapshot, "identity": identity.fingerprint,
                   "definition_version": DEFINITION_VERSION}
         reference = frozen.pop("price_suggestion_reference", None)
-        return self.results.save(replace(identity, daily_record=True, selection_policy=policy), {
+        result = {
             "as_of": str(target), "strategy_id": identity.strategy_id,
             "rows": [], "total": 0, "elapsed_ms": 0, "section_mode": "signals",
             "selection_only": True, "selection_snapshot": frozen,
             "price_suggestion_reference": reference,
             "sections": {"sell": [], "select": snapshot["rows"], "buy": []},
             "section_errors": {"buy": "仅已生成盘后选名单, 目标交易日买入信号尚未计算"},
-        }, started_at=started_at, input_generation=input_generation)
+        }
+        if identity.strategy_id == S05_ID and "entry_route" in frozen:
+            from app.strategy.s02_173004552 import project_no_market_route
+            project_no_market_route(result, frozen)
+        return self.results.save(replace(identity, daily_record=True, selection_policy=policy), result,
+                                 started_at=started_at, input_generation=input_generation)
 
     def job(self, key, value=None):
         """按调用方作业键读写调度回执; 无回执返回{}, 不作为预选成功证据。"""
@@ -166,7 +292,7 @@ class DailySelections:
 
 
 def compute_selections(engine, service, source, target, ids, overrides, *, now=None,
-                       source_selection=None):
+                       source_selection=None, historical_replay=None):
     """从完成源日计算目标日资格; 各策略保存异常/覆盖, 有效成员继续预选。
 
     共享预选内核应用范围与精确前日数值条件, 策略源码可补评分或ATR。
@@ -180,6 +306,20 @@ def compute_selections(engine, service, source, target, ids, overrides, *, now=N
     from app.strategy.signal_price_suggestions import price_reference
     from app.strategy.signal_sections import select_rows
     results, errors = {}, {}
+    if S05_ID in ids:
+        from app.services.s05_selection import compute_selection
+        from app.strategy.s01_signals import stored_definitions
+        from app.strategy.s02_173004552 import enabled, market_thresholds
+
+        try:
+            results[S05_ID] = compute_selection(
+                service, source, target, source_selection, now or cn_now(),
+                thresholds=market_thresholds(stored_definitions(engine)),
+                common=engine is not None and not enabled(engine.get(S05_ID)),
+                historical_replay=historical_replay)
+        except (ValueError, OSError, pl.exceptions.PolarsError) as exc:
+            errors[S05_ID] = str(exc)
+        ids = [sid for sid in ids if sid != S05_ID]
     if S03_ID in ids:
         from app.services.s03_selection import compute_selection
         try:
@@ -199,8 +339,6 @@ def compute_selections(engine, service, source, target, ids, overrides, *, now=N
     instruments = service.repo.get_instruments_asset(service.asset_type)
     scope_context = None
     if instruments is not None and not instruments.is_empty():
-        import polars as pl
-
         from app.price_limits import parse_listing_date
 
         if "listing_date" in instruments.columns:
@@ -253,9 +391,14 @@ def compute_selections(engine, service, source, target, ids, overrides, *, now=N
                             "coverage": coverage, "warnings": warnings,
                             "generated_at": as_cn_datetime(now or cn_now()).isoformat(),
                             "scheduled_for": scheduled_for(source, SELECTION_TIME_TEXT)}
+            if selection_policy(engine.get(sid)):
+                from app.services.s02_173004552_selection import compute_selection
+                results[sid] = compute_selection(service.repo, results[sid], source, target,
+                                                 as_cn_datetime(now or cn_now()))
             if not engine.get(sid).meta.get("minute_execution"):
                 results[sid]["price_suggestion_reference"] = reference
-        except (ValueError, OSError) as exc:
+        except (ValueError, OSError, pl.exceptions.PolarsError) as exc:
+            results.pop(sid, None)
             errors[sid] = str(exc)
     return {"selections": results, "errors": errors}
 
@@ -274,7 +417,7 @@ def generate_scheduled_local(engine, service, storage, *, now=None, repair=None)
             "state": "failed", "errors": refreshed["errors"],
             "observed_at": as_cn_datetime(now or cn_now()).isoformat()})
     responses = [_generate_scheduled_group(engine, service, storage, now=now, repair=repair,
-                                          strategy_id=sid) for sid in (None, S03_ID)]
+                                          strategy_id=sid) for sid in (None, S05_ID, S03_ID)]
     return {"saved": [sid for response in responses for sid in response["saved"]],
             "errors": {sid: error for response in responses for sid, error in response["errors"].items()},
             "status_refresh": refreshed,
@@ -320,16 +463,17 @@ def _generate_scheduled_group(engine, service, storage, *, now=None, repair=None
         lifecycles = {sid: monitoring_state(storage, sid) for sid in active}
         ids = [sid for sid, strategy in engine._strategies.items() if sid in active and signal_strategy(strategy)
                and not strategy.meta.get("research_only")
-               and (sid == S03_ID) == (strategy_id == S03_ID)]
-        job_key = str(target) + (":s03" if strategy_id == S03_ID else "")
+               and selection_group(sid) == strategy_id]
+        key = job_key(target, strategy_id)
         # 有效目标日归档才证明资格完成; 单独作业成功状态不能替代归档。
-        pending = [sid for sid in ids if store.read(sid, target) is None and
+        pending = [sid for sid in ids if store.read(sid, target,
+                   policy=selection_policy(engine.get(sid))) is None and
                    (not expired or not finished(
                        task_receipt(storage, sid, source).get("tasks", {}).get("select", {})))]
         if expired and pending:
             job = {"source_date": str(source), "as_of": str(target), "state": "expired",
                    "errors": {sid: "盘后选股时段已结束, 尚无成功归档" for sid in pending}}
-            store.job(job_key, job)
+            store.job(key, job)
             selection_receipts(storage, job, now)
             return {"saved": [], "errors": job["errors"]}
         if not pending:
@@ -339,35 +483,35 @@ def _generate_scheduled_group(engine, service, storage, *, now=None, repair=None
                 try:
                     receipt = sync_archived_selection(storage, selected, now)
                 except WatchlistSyncError as exc:
-                    failed = {**store.job(job_key), "source_date": str(source), "as_of": str(target),
+                    failed = {**store.job(key), "source_date": str(source), "as_of": str(target),
                               "state": "failed", "completed": [], "errors": {S03_ID: str(exc)},
                               "watchlist_sync": {"state": "failed", "error": str(exc)}}
-                    store.job(job_key, failed)
+                    store.job(key, failed)
                     selection_receipts(storage, failed, now)
                     return {"saved": [], "errors": failed["errors"]}
                 if receipt:
-                    recovered = {**store.job(job_key), "source_date": str(source), "as_of": str(target),
+                    recovered = {**store.job(key), "source_date": str(source), "as_of": str(target),
                                  "state": "succeeded", "completed": [S03_ID], "errors": {},
                                  "selections": {S03_ID: selected}, "watchlist_sync": receipt}
-                    store.job(job_key, recovered)
+                    store.job(key, recovered)
                     selection_receipts(storage, recovered, now)
                     return {"saved": [], "errors": {}, "watchlist_changed": True}
             return {"saved": [], "errors": {}}
         identities = capture_identities(engine, storage, pending, overrides_map=overrides, timeframe="all")
         marker = digest({sid: identity.fingerprint for sid, identity in identities.items()})
-        old = store.job(job_key)
+        old = store.job(key)
         repairs = {sid: value for sid, value in (old.get("repairs") or {}).items() if sid in pending}
         blocked = pending_selection_repairs(repair, repairs) if repair else set()
         all_pending = set(pending)
         pending = [sid for sid in pending if sid not in blocked]
         if not pending:
-            store.job(job_key, {**old, "repairs": repairs})
+            store.job(key, {**old, "repairs": repairs})
             return {"saved": [], "errors": old.get("errors", {})}
         blocked_errors = {sid: old.get("errors", {}).get(sid, "等待输入修复完成") for sid in blocked}
         started_at = time.time_ns()
         job = {**old, "source_date": str(source), "as_of": str(target), "signature": marker,
                "state": "running", "started_at": started_at, "attempts": old.get("attempts", 0) + 1}
-        store.job(job_key, job)
+        store.job(key, job)
         def repair_errors(errors):
             errors = {sid: message for sid, message in errors.items()
                       if not message.startswith("S03自选分组更新失败")}
@@ -375,12 +519,15 @@ def _generate_scheduled_group(engine, service, storage, *, now=None, repair=None
                 repair, service.repo, "standalone", {sid: lifecycles[sid]["generation"] for sid in pending},
                 job, errors, engine=engine, storage=storage, overrides=overrides)} if repair else repairs
         try:
-            if strategy_id == S03_ID:
-                from app.services.s03_selection import freeze_source
+            if strategy_id in (S03_ID, S05_ID):
+                if strategy_id == S05_ID:
+                    from app.services.s05_selection import freeze_source
+                else:
+                    from app.services.s03_selection import freeze_source
                 from app.services.selection_clock import S02_ID
                 dependency = job.get("source_selection") or freeze_source(store.read(S02_ID, target), source, target)
                 job["source_selection"] = dependency
-                store.job(job_key, job)
+                store.job(key, job)
             ready = json.loads((service.repo.store.data_dir / "settlement_ready.json").read_text())
             if ready.get("day") != str(source):
                 raise ValueError(f"等待{source}盘后完整数据")
@@ -390,14 +537,14 @@ def _generate_scheduled_group(engine, service, storage, *, now=None, repair=None
             errors = {sid: str(exc) for sid in pending}
             failed = {**job, "state": "waiting_data", "errors": {**blocked_errors, **errors},
                       "repairs": repair_errors(errors), "finished_at": time.time_ns()}
-            store.job(job_key, failed)
+            store.job(key, failed)
             selection_receipts(storage, failed, now)
             return {"saved": [], "errors": {sid: str(exc) for sid in pending}}
         except Exception as exc:
             errors = {sid: f"盘后预选计算失败: {exc}" for sid in pending}
             failed = {**job, "state": "failed", "errors": {**blocked_errors, **errors},
                       "repairs": repair_errors(errors), "finished_at": time.time_ns()}
-            store.job(job_key, failed)
+            store.job(key, failed)
             selection_receipts(storage, failed, now)
             return {"saved": [], "errors": errors}
         saved, errors = [], dict(response["errors"])
@@ -431,7 +578,7 @@ def _generate_scheduled_group(engine, service, storage, *, now=None, repair=None
             completed["watchlist_sync"] = watchlist_sync
         elif S03_ID in errors and errors[S03_ID].startswith("S03自选分组更新失败"):
             completed["watchlist_sync"] = {"state": "failed", "error": errors[S03_ID]}
-        store.job(job_key, completed)
+        store.job(key, completed)
         selection_receipts(storage, completed, now)
         return {"saved": saved, "errors": errors,
                 **({"watchlist_changed": True} if watchlist_sync else {})}
