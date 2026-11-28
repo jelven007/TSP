@@ -60,6 +60,7 @@ dev.sh
 dev.ps1
 scripts/*
 !scripts/build_manifest.py
+!scripts/release/package_transfer.py
 
 # ===== 密钥(防止误打进公开镜像) =====
 .env
