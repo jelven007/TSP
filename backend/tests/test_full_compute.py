@@ -360,10 +360,7 @@ def test_compute_scan_keeps_holding_context_scoped_and_clock_explicit(
         def run_all(self, *_args, **_kwargs):
             pytest.fail("holding snapshots require separate strategy contexts")
 
-    # Load the backtest module before replacing the engine for this transport
-    # test, so its module-level import cannot retain the temporary substitute.
-    monkeypatch.setattr("app.backtest.strategy.StrategyEngine", StrategyEngine)
-    monkeypatch.setattr("app.strategy.engine.StrategyEngine", Engine)
+    monkeypatch.setattr("app.strategy.routed_engine.RoutedStrategyEngine", Engine)
     monkeypatch.setattr("app.backtest.engine.BacktestEngine", lambda _repo: None)
     monkeypatch.setattr("app.tickflow.repository.DataStore", lambda *_args, **_kw:
                         SimpleNamespace(db=SimpleNamespace(close=lambda: None)))

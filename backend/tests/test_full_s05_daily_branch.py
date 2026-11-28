@@ -37,7 +37,7 @@ def test_integer_branch_is_private_atomic_and_stored_in_next_day_selection(env):
 
 
 @pytest.mark.parametrize("code", [1, 2, 3, 4])
-def test_common_branch_archive_and_enabled_monitor_schedule_are_tenant_private(env, code):
+def test_common_branch_archive_and_enabled_monitor_schedule_are_tenant_private(env, code, monkeypatch):
     from datetime import datetime
 
     from test_s05_common_daily_branch import common_selection, common_strategy, engine, signals
@@ -50,7 +50,10 @@ def test_common_branch_archive_and_enabled_monitor_schedule_are_tenant_private(e
 
     _, documents = own(env)
     _, other = own(env)
-    snapshot = {**common_selection(code), "scoring_policy": POLICY, "scoring_weights": WEIGHTS}
+    archived = datetime(2026, 11, 26, 22, 16, tzinfo=CN_TZ)
+    monkeypatch.setattr("app.services.strategy_results.time.time", archived.timestamp)
+    snapshot = {**common_selection(code), "scoring_policy": POLICY, "scoring_weights": WEIGHTS,
+                "generated_at": archived.isoformat()}
     identity = ResultIdentity(SID, "s05", "saved", "{}", "{}", "null", "stock", "1m")
     with pytest.raises(ValueError), documents.transaction() as unit:
         DailySelections(unit).save(identity, snapshot, started_at=1)
@@ -69,3 +72,4 @@ def test_common_branch_archive_and_enabled_monitor_schedule_are_tenant_private(e
     assert row["tasks"]["sell"]["windows"] == []
     assert row["tasks"]["sell"]["state"] == "waiting"
     assert DailySelections(documents).read(SID, DAY)["branch_code"] == code
+    assert DailySelections(documents).read(SID, DAY, live_entry=True)["branch_code"] == code

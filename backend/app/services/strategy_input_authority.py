@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import threading
 import time
@@ -17,15 +18,19 @@ from pathlib import Path
 
 from app.services.fs_utils import atomic_write_text
 from app.services.strategy_input_manifest import (
+    S01_ID,
+    S01_PRIORITY_MAX_SYMBOLS,
     canonical,
     common_identity,
     common_key,
     digest,
     minute_bounds,
+    s01_seal_target,
     validate_manifest,
 )
 
 KEY = re.compile(r"^[0-9a-f]{64}$")
+logger = logging.getLogger(__name__)
 
 
 class InputStore:
@@ -117,16 +122,22 @@ class S02InputService:
     """
 
     def __init__(self, state, *, mirror=None):
+        from app.services.strategy_minute_live import ShadowMinuteProbe
+
         self.state, self.mirror = state, mirror
         self.store = InputStore(Path(state.repo.store.data_dir) / "s02_inputs")
         self.pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="s02-input")
         self.lock = threading.RLock()
         self.active, self.next_at, self.status, self.source_cache = set(), {}, {}, {}
         self.stopped = False
+        self.stop_wait = threading.Event()
+        self.shadow_minute_probe = ShadowMinuteProbe()
 
     def close(self):
         """停止新推进和未启动任务, 并关闭镜像客户端; 在途任务仍检查停止状态。"""
         self.stopped = True
+        self.stop_wait.set()
+        self.shadow_minute_probe.close()
         self.pool.shutdown(wait=False, cancel_futures=True)
         if self.mirror:
             self.mirror.close()
@@ -164,7 +175,9 @@ class S02InputService:
             if not status and saved_status.exists():
                 status = json.loads(saved_status.read_text())
             return {"state": "ready", "manifest": existing, "key": key,
-                    "mirror_confirmed_at": status.get("mirror_confirmed_at")}
+                    "mirror_confirmed_at": status.get("mirror_confirmed_at"),
+                    **{field: status[field] for field in (
+                        "sealed_at", "seal_target_at", "sealed_before_target") if field in status}}
         if self.expired(request, phase):
             return {"state": "expired_input", "key": key, "reason": "实时输入接收期限已结束"}
         if not self.mirror and (not request["pool"].get("symbols")
@@ -174,21 +187,66 @@ class S02InputService:
             return {"state": "waiting_input", "key": key, "reason": "等待精确日期预选归档"}
         job = (key, phase)
         with self.lock:
-            if job not in self.status:
-                status_path = self.store.path(key, phase).with_suffix(".status.json")
-                if status_path.exists():
-                    self.status[job] = json.loads(status_path.read_text())
-            if not self.stopped and job not in self.active and time.monotonic() >= self.next_at.get(job, 0):
-                self.active.add(job)
-                self.pool.submit(self._advance, request, phase)
+            if (request["strategy_id"] == S01_ID and phase == "breadth" and now < s01_seal_target(request)
+                    and not self.store.path(key, "stocks").is_file()):
+                # Prepare the second input, not an early stocks Compute action.
+                self._submit(request, key, "stocks")
+            self._submit(request, key, phase)
             return {"key": key, **self.status.get(job, {
                 "state": "waiting_input", "reason": "输入未同步" if self.mirror else "等待必需输入"})}
+
+    def _submit(self, request, key, phase):
+        job = (key, phase)
+        if job not in self.status:
+            status_path = self.store.path(key, phase).with_suffix(".status.json")
+            if status_path.exists():
+                self.status[job] = json.loads(status_path.read_text())
+        if not self.stopped and job not in self.active and time.monotonic() >= self.next_at.get(job, 0):
+            self.active.add(job)
+            self.pool.submit(self._advance, request, phase)
 
     def _advance(self, request, phase):
         """Publisher采集/验证后封存; Receiver校验权威包, 迟到只留诊断。"""
         from app.market_time import cn_now
+
+        key = common_key(request)
+        job = key, phase
+        target = s01_seal_target(request) if request["strategy_id"] == S01_ID and self.mirror is None else None
+        # The publisher can finish even if the Worker is busy with another task.
+        # Use a monotonic budget as well so a backward wall-clock step cannot prolong it.
+        until = time.monotonic() + max(0., (target - cn_now()).total_seconds()) if target else 0.
+        try:
+            while not self.stopped:
+                self._advance_once(request, phase, key)
+                if (not target or cn_now() >= target or time.monotonic() >= until
+                        or self.status.get(job, {}).get("state") != "waiting_input"
+                        or self.stop_wait.wait(min(1.0, max(0., until - time.monotonic())))):
+                    break
+                if cn_now() >= target or time.monotonic() >= until:
+                    break
+            if target and cn_now() >= target:
+                with self.lock:
+                    status = self.status.get(job, {})
+                    if status.get("state") != "ready" and "sealed_before_target" not in status:
+                        logger.warning("s01_input_seal_target_missed phase=%s target=%s",
+                                       phase, target.isoformat())
+                        status.update(seal_target_at=target.isoformat(), sealed_before_target=False)
+                        self._save_status(job, status)
+        finally:
+            with self.lock:
+                self.active.discard(job)
+                self.next_at[job] = time.monotonic() + 3
+
+    def _save_status(self, job, status):
+        self.status[job] = status
+        path = self.store.path(*job).with_suffix(".status.json")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(path, canonical(status).decode())
+
+    def _advance_once(self, request, phase, key):
+        from app.market_time import cn_now
         from app.services.strategy_input_manifest import build_manifest
-        key, job = common_key(request), (common_key(request), phase)
+        job = (key, phase)
         try:
             if self.expired(request, phase):
                 with self.lock:
@@ -221,6 +279,13 @@ class S02InputService:
                         atomic_write_text(path, canonical({**value, "diagnostic_only": True}).decode())
                     elif not self.stopped:
                         self.store.seal(value)
+                        if request["strategy_id"] == S01_ID:
+                            target = s01_seal_target(request)
+                            now = cn_now()
+                            status.update(sealed_at=now.isoformat(), seal_target_at=target.isoformat(),
+                                          sealed_before_target=now < target)
+                            logger.info("s01_input_sealed phase=%s target=%s sealed_at=%s before_target=%s",
+                                        phase, target.isoformat(), now.isoformat(), now < target)
                 elif value["state"] == "waiting_input":
                     prior = self.status.get(job, {}).get("repairs", [])
                     repairs = {repair["id"]: repair for repair in prior + self._repair(request, phase, value)}
@@ -228,26 +293,19 @@ class S02InputService:
                 else:
                     status["reason"] = "完整成员中无有效输入"
             with self.lock:
-                self.status[job] = status
-                path = self.store.path(key, phase).with_suffix(".status.json")
-                path.parent.mkdir(parents=True, exist_ok=True)
-                atomic_write_text(path, canonical(status).decode())
+                prior = self.status.get(job, {})
+                for field in ("seal_target_at", "sealed_before_target"):
+                    if field in prior:
+                        status.setdefault(field, prior[field])
+                self._save_status(job, status)
         except Exception as exc:
             import httpx
             transient = isinstance(exc, (OSError, httpx.HTTPError))
             with self.lock:
-                self.status[job] = {
+                self._save_status(job, {
                     **self.status.get(job, {}),
                     "state": "waiting_input" if self.mirror or transient else "invalid_input",
-                    "reason": f"{'输入未同步' if self.mirror or transient else '输入证据异常'}: {exc}"}
-                path = self.store.path(key, phase).with_suffix(".status.json")
-                path.parent.mkdir(parents=True, exist_ok=True)
-                atomic_write_text(path, canonical(self.status[job]).decode())
-        finally:
-            # 一次推进结束后至少3秒再试; 不是保证3秒内完成或重开已ready输入。
-            with self.lock:
-                self.active.discard(job)
-                self.next_at[job] = time.monotonic() + 3
+                    "reason": f"{'输入未同步' if self.mirror or transient else '输入证据异常'}: {exc}"})
 
     def _inputs(self, request, phase):
         """从有租约的不可变公共发布读原始证据及必要分钟, 合并实际修复证明。
@@ -318,7 +376,22 @@ class S02InputService:
             symbols = (request["pool"]["symbols"] if phase == "breadth"
                        else [row["symbol"] for row in request["selection"]["rows"]])
             required = required_minutes(request, phase)
-            minutes = repo.get_minute_inputs(symbols, *minute_bounds(request, phase))
+            start, end = minute_bounds(request, phase)
+            from app.services.strategy_minute_live import live_mode, merge_minutes, shadow_report
+            collector = getattr(self.state, "minute_refresh", None)
+            minutes = repo.get_minute_inputs(symbols, start, end)
+            live = collector.live_minutes(symbols, start, end) if collector is not None else pl.DataFrame()
+            if not live.is_empty() and live_mode() == "active":
+                minutes = merge_minutes(minutes, live)
+            if not live.is_empty() and live_mode() == "shadow":
+                def report():
+                    logger.info(
+                        "strategy minute shadow sid=%s phase=%s target=%s observed_at=%s release=%s comparison=%s",
+                        request["strategy_id"], phase, end.isoformat(), read_started, marker["id"],
+                        shadow_report(minutes, live, symbols, required),
+                    )
+
+                self.shadow_minute_probe.submit(report)
             from app.services.monitor_input_repair import merge_proof
             from app.services.strategy_input_binding import execution_environment
             coverage = {symbol: deepcopy(saved.get("proof", {})) for symbol, saved in
@@ -336,6 +409,8 @@ class S02InputService:
                             "collector_completed_at": marker.get("minute_completed_at"),
                             "priority_collector_completed_at": marker.get("minute_priority_completed_at"),
                             "market_publication_available_at": marker.get("published_at"),
+                            "live_minute_mode": live_mode(),
+                            "live_minute_rows": live.height,
                             "publisher_runtime": execution_environment(),
                         })
         finally:
@@ -352,22 +427,33 @@ class S02InputService:
         if now > deadline or (phase == "breadth" and now >= deadline):
             return []
         required = required_minutes(request, phase)
+        fast = request["strategy_id"] == S01_ID and now < s01_seal_target(request)
         groups = {}
         for symbol, state in pending.items():
             # 只修复缺失依赖; available、已证实不可用或非法成员不重复请求。
             dates = set(state.get("missing_daily_dates", []))
             if state["missing_reference"]:
                 dates.add(request["reference_date"])
+            if fast and (dates or required[-1].isoformat() not in state["missing_minutes"]):
+                continue
             dependency = (bool(state["missing_minutes"]), tuple(sorted(dates)))
             groups.setdefault(dependency, []).append(symbol)
         repairs = []
         for (minute, daily_dates), symbols in groups.items():
-            repair = self.state.monitor_input_repair.request({
+            if fast and len(symbols) > S01_PRIORITY_MAX_SYMBOLS:
+                # The live collector already reads the broad market. A second
+                # full sweep would compete with it and the small critical repair.
+                continue
+            from app.services.strategy_minute_live import live_mode
+            service = self.state.monitor_input_repair
+            submit = (getattr(service, "request_if_available", service.request)
+                      if live_mode() == "active" else service.request)
+            repair = submit({
                 "owner": f"s02-{key}", "strategy_id": request["strategy_id"],
                 "generation": 1, "day": request["as_of"], "phase": phase,
                 "attempt": 1, "symbols": sorted(symbols),
                 "daily_dates": list(daily_dates),
-                "minute_start": required[0].time().isoformat() if minute else None,
+                "minute_start": required[-1 if fast else 0].time().isoformat() if minute else None,
                 "minute_end": required[-1].time().isoformat() if minute else None,
                 "retry_until": request["retry_until"], "certify_coverage": True})
             if repair:

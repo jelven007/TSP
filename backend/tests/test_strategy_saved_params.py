@@ -149,6 +149,41 @@ def test_patch_basic_filter_merges_fields_and_preserves_target_scope(tmp_path):
     assert saved["params"] == {"min_value": 2}
 
 
+@pytest.mark.parametrize("method", ["save_config", "patch_config"])
+def test_s03_repeated_scope_save_retains_runtime_identity_with_implicit_nulls(tmp_path, method):
+    from app.services.selection_clock import S03_ID
+    from app.strategy.version import runtime_identity
+
+    engine, _ = _make_engine()
+    strategy = engine._strategies.pop("saved_params")
+    strategy.meta["id"] = S03_ID
+    strategy.basic_filter.update(float_cap_min=None, float_cap_max=None,
+                                 change_pct_min=None, change_pct_max=None, price_min=5)
+    engine._strategies[S03_ID] = strategy
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(
+        strategy_engine=engine, repo=SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path)),
+    )))
+    scope = {"target_mode": "selected", "boards": ["沪主板", "深主板"],
+             "exclude_st": True, "include_custom": False, "watchlist_group_ids": []}
+    expanded = {**scope, "float_cap_min": None, "float_cap_max": None,
+                "change_pct_min": None, "change_pct_max": None, "price_min": None}
+    strategy_config.save_override(tmp_path, S03_ID, {"basic_filter": expanded})
+    before = runtime_identity(strategy, strategy_config.load_override(tmp_path, S03_ID))
+
+    operation = getattr(strategy_api, method)
+    operation(strategy_api.SaveConfigRequest(strategy_id=S03_ID, overrides={
+        "basic_filter": {**scope, "price_min": None},
+    }), request)
+    after = strategy_config.load_override(tmp_path, S03_ID)
+    assert runtime_identity(strategy, after) == before
+    assert after["basic_filter"]["price_min"] is None
+
+    operation(strategy_api.SaveConfigRequest(strategy_id=S03_ID, overrides={
+        "basic_filter": {**scope, "price_min": 8},
+    }), request)
+    assert strategy_config.load_override(tmp_path, S03_ID)["basic_filter"]["price_min"] == 8
+
+
 @pytest.mark.parametrize("bf", [
     {"price_min": -1}, {"price_min": 20, "price_max": 10},
     {"turnover_min": float("nan")}, {"amount_max": True},

@@ -197,6 +197,8 @@ class StrategyDataContext:
     independent_entry_phase: str | None = None
     # Local repository callback, never serialized into a task or result.
     holding_history_loader: Callable | None = None
+    # Explicit sell inputs, collected separately from the frozen buy cohort.
+    holding_context: StrategyDataContext | None = None
     # 权威阶段输入摘要绑定计算身份; 不可用成员只隔离计算帧, 完整池仍保留。
     source_input_sha256: str | None = None
     unavailable_input_symbols: dict[str, dict] = field(default_factory=dict)
@@ -1048,8 +1050,10 @@ class StrategyEngine:
         self, strategy_id: str, context: StrategyDataContext,
         pool: list[str] | None = None, params: dict | None = None, overrides: dict | None = None,
     ) -> StrategyResult:
+        from app.services.selection_clock import S05_ID
         from app.strategy.daily_pool import DEFINITION_VERSION, build_pool, scope_context
         self.validate_context(self.get(strategy_id), context)
+        s05_entry = strategy_id == S05_ID and context.realtime and context.timeframe == "1m"
         has_rows = any(frame is not None and not frame.is_empty()
                        for frame in (context.current, context.pool_history, context.daily_history,
                                      context.history, context.pool_universe))
@@ -1070,7 +1074,8 @@ class StrategyEngine:
                 raise ValueError("当日股票池身份、日期或完整成员数量不匹配")
             if context.realtime and daily_pool.get("definition_version") != DEFINITION_VERSION:
                 daily_pool = None
-        if daily_pool is None and has_rows and context.asset_type == "stock" and not independent_stocks:
+        if daily_pool is None and has_rows and context.asset_type == "stock" and not (
+                independent_stocks or s05_entry):
             try:
                 daily_pool = build_pool(self, strategy_id, context, overrides=overrides)
             except ValueError as exc:
@@ -1079,8 +1084,8 @@ class StrategyEngine:
         from app.strategy.signal_sections import pending_entry_time, supports_signal_sections
 
         signal_sections = supports_signal_sections(strategy)
-        pending = pending_entry_time(self, strategy, overrides, context) if signal_sections else None
         selection, selection_error = None, None
+        entry_symbols = []
         if signal_sections:
             from app.market_time import cn_today
             from app.strategy.basic_filter import previous_session
@@ -1094,6 +1099,13 @@ class StrategyEngine:
                     or selection.get("source_date") != str(previous_session(context.as_of))):
                 selection = None
                 selection_error = f"缺少{context.as_of}已保存的盘后选名单, 买入信号暂不可确认"
+            if s05_entry:
+                from app.services.s05_selection import nightly_entry_symbols
+
+                try:
+                    entry_symbols = nightly_entry_symbols(selection, context.as_of)
+                except ValueError as exc:
+                    selection, selection_error = None, str(exc)
         execution_overrides = {**(overrides or {}), "display_limit": None} if signal_sections else overrides
         execution_context = replace(context, intraday_errors=[], intraday_data_quality={},
                                     reference_errors=dict(context.reference_errors),
@@ -1104,8 +1116,17 @@ class StrategyEngine:
             execution_context.signal_task_scope = (
                 context.signal_task_scope or f"{strategy_id}:{runtime_identity(strategy, overrides)}")
         holding_context = execution_context
-        if daily_pool is not None and strategy.execution_backend != "composite":
+        if s05_entry and context.holding_context is not None:
+            execution_context.exit_errors.extend(context.holding_context.exit_errors)
+            holding_context = replace(context.holding_context, exit_errors=execution_context.exit_errors)
+        entry_pool = daily_pool
+        if s05_entry:
+            execution_context = scope_context(execution_context, entry_symbols)
+            entry_pool = {"symbols": entry_symbols}
+        elif daily_pool is not None and strategy.execution_backend != "composite":
             execution_context = scope_context(execution_context, daily_pool["symbols"])
+        pending = pending_entry_time(
+            self, strategy, overrides, execution_context if s05_entry else context) if signal_sections else None
         if signal_sections:
             from app.strategy.selection_order import for_strategy
             selection = for_strategy(selection, strategy.meta)
@@ -1121,7 +1142,7 @@ class StrategyEngine:
         try:
             result = self._run_strategy(
                 strategy_id, execution_context, pool=pool, params=params,
-                overrides=execution_overrides, daily_pool=daily_pool, holding_context=holding_context,
+                overrides=execution_overrides, daily_pool=entry_pool, holding_context=holding_context,
             )
         except Exception as exc:
             if not signal_sections:
@@ -1164,7 +1185,7 @@ class StrategyEngine:
                     attempted = evaluate(
                         execution_context.history, sig, day=context.as_of,
                         completed_through=context.observed_at or context.completed_through,
-                        pool_symbols=daily_pool["symbols"] if daily_pool else None,
+                        pool_symbols=entry_pool["symbols"] if entry_pool else None,
                         prev_close={}, diagnostic_symbols=[
                             row["symbol"] for row in (selection or {"rows": []})["rows"]],
                         task_state=state, input_error=reason, selection=selection,
@@ -1176,7 +1197,7 @@ class StrategyEngine:
                         or progress["observed_at"] >= progress["steps"]["breadth"]["scheduled_at"]):
                     failed_progress(progress, reason)
                 execution_context.intraday_data_quality[column] = self._missing_entry_quality(
-                    progress, daily_pool["symbols"] if daily_pool else None,
+                    progress, entry_pool["symbols"] if entry_pool else None,
                 )
                 self._log_entry_progress(column, progress)
         result.entry_data_quality = execution_context.intraday_data_quality or None
@@ -1226,7 +1247,7 @@ class StrategyEngine:
                 result.section_errors["buy"] = "; ".join(context.input_errors)
                 result.section_statuses["buy"] = "failed"
             elif not pending_buy and (context.history is None or context.history.is_empty()) and not (
-                    independent_stocks and selection is not None and selection.get("rows") == []):
+                    (independent_stocks or s05_entry) and selection is not None and selection.get("rows") == []):
                 result.section_errors["buy"] = "缺少指定交易日分钟行情。买入信号暂不可确认"
                 result.section_statuses["buy"] = "waiting"
             if execution_context.exit_errors:

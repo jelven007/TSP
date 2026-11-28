@@ -424,7 +424,8 @@ def test_risk_warning_new_release_reaches_readonly_consumer(env, monkeypatch):
         reader.db.close()
 
 
-def test_partial_market_pages_are_durable_and_not_reported_as_coverage(env, monkeypatch):
+@pytest.mark.parametrize("retry_minutes", [1, 15])
+def test_partial_market_pages_are_durable_and_not_reported_as_coverage(env, monkeypatch, retry_minutes):
     saved = {"begin": str(env.clock[0].date() - timedelta(days=3)),
              "end": str(env.clock[0].date() + timedelta(days=1)),
              "page": 1, "total": 51, "first_keys": [], "seen": [], "notices": []}
@@ -443,10 +444,36 @@ def test_partial_market_pages_are_durable_and_not_reported_as_coverage(env, monk
     assert first["status"] == "failed" and first["scans"]["SZ"] == saved
     assert suspension_sync.summary(env.repo)["pending_symbols"] == ["000635.SZ"]
     monkeypatch.setattr(pipeline_jobs, "job_store", pipeline_jobs.JobStore(store_dir=env.store._store_dir))
-    env.clock[0] += timedelta(minutes=1)
+    env.clock[0] += timedelta(minutes=retry_minutes)
     second = suspension_sync.request_sync(env.repo, lookup=env.lookup)
     assert second["status"] == "succeeded" and second["scans"] == {}
     assert attempts == [None, saved]
+
+
+def test_exhausted_attempt_budget_does_not_poison_unread_notice(env, monkeypatch):
+    from app.data_providers.suspension_announcements import AnnouncementLookup
+
+    verify_later = AnnouncementLookup(check_cancelled=lambda: None, max_requests=0)
+    original = env.lookup.verify_notice
+    calls = []
+
+    def run(item, **kwargs):
+        calls.append(item["symbol"])
+        verify_later._request("GET", URL)
+
+    monkeypatch.setattr(env.lookup, "verify_notice", run)
+    try:
+        first = suspension_sync.request_sync(env.repo, lookup=env.lookup)
+    finally:
+        verify_later.close()
+    assert first["status"] == "queued"
+    assert first["notice_retries"] == {} and first["errors"] == {}
+    assert calls == [SYMBOL] and first["pending"][0]["symbol"] == SYMBOL
+    summary = suspension_sync.summary(env.repo)
+    assert summary["budget_paused_phase"] == "verify_notices" and not summary["coverage_complete"]
+    env.clock[0] += timedelta(seconds=30)
+    monkeypatch.setattr(env.lookup, "verify_notice", original)
+    assert suspension_sync.request_sync(env.repo, lookup=env.lookup)["status"] == "succeeded"
 
 
 def test_new_status_policy_refreshes_once_without_old_failure_backoff(env, monkeypatch):

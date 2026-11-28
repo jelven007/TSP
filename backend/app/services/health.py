@@ -7,10 +7,11 @@ import threading
 import time as clock_time
 from collections.abc import Callable
 from datetime import UTC, date, datetime, time, timedelta
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from app.market_time import cn_now, published_trading_days
+from app.market_time import cn_now, published_trading_days, trading_calendar_provenance
 from app.services.data_integrity import cached_trading_calendar
 from app.services.data_release import collect_dataset_snapshot, release_health
 from app.services.provider_audit import audit_provider_routes
@@ -137,6 +138,35 @@ def _check_scheduler(app_state: object) -> dict[str, Any]:
     }
 
 
+@lru_cache(maxsize=1)
+def _official_calendar_identity() -> dict[str, Any]:
+    return trading_calendar_provenance()
+
+
+def official_calendar_health(today: date) -> dict[str, Any]:
+    """Warn about upcoming coverage gaps without treating cached dates as official."""
+    identity = _official_calendar_identity()
+    years = set(identity["covered_years"])
+    missing = today.year
+    while missing in years:
+        missing += 1
+    unknown_from = date(missing, 1, 1)
+    days = max(0, (unknown_from - today).days)
+    if today.year not in years:
+        band = "expired" if today.year > max(years, default=0) else "unknown"
+    else:
+        band = next((f"{threshold}_days" for threshold in (7, 14, 30) if days <= threshold),
+                    "normal")
+    remaining_trading_days = sum(
+        day >= today for year in range(today.year, missing)
+        for day in (published_trading_days(year) or ())
+    )
+    return {"status": "ok" if band == "normal" else "warning", "warning_band": band,
+            "calendar_version": identity["version"], "calendar_sha256": identity["sha256"],
+            "first_uncovered_date": unknown_from.isoformat(), "remaining_natural_days": days,
+            "remaining_trading_days": remaining_trading_days}
+
+
 def _check_data_freshness(data_dir: Path) -> dict[str, Any]:
     snapshot = collect_dataset_snapshot(data_dir)
     now = cn_now()
@@ -185,6 +215,7 @@ def _check_data_freshness(data_dir: Path) -> dict[str, Any]:
         "observed_trading_lag": sum(day > latest for day in completed) if latest else None,
         "reference_trading_date": reference.isoformat() if reference else None,
         "calendar_coverage": "complete" if covered else "unknown",
+        "official_calendar": official_calendar_health(today),
         "freshness_cutoff": cutoff.isoformat(),
         "stale_datasets": stale,
         "missing_datasets": missing,

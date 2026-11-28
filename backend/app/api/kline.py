@@ -1253,7 +1253,7 @@ async def sync_period_job(request: Request, body: dict):
     if not isinstance(period, str) or period not in kline_periods.TABLES:
         raise HTTPException(status_code=422, detail="不支持的K线周期")
     range_keys = {"start_date", "end_date", "mode"}
-    if period in ("1m", "1d") and range_keys.intersection(body):
+    if range_keys.intersection(body):
         if not range_keys.issubset(body):
             raise HTTPException(status_code=400, detail="起始日期、结束日期和获取方式均为必填")
         return await _start_kline_range_job(request, body)

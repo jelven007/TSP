@@ -37,6 +37,8 @@ cp -n .env.example .env
 
 ## 3. 本地源码开发
 
+源码演练使用独立工作树及单独的数据目录。已有受控本地 Full 环境使用[运维手册的本地控制入口](operations.md#configuration)；不要用开发演练脚本操作正在运行的实例。先核对当前分支与[冻结依赖](version-baseline.md)，再安装。
+
 单机开发在 `.env` 中设置：
 
 ```dotenv

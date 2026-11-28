@@ -902,9 +902,12 @@ class StrategyBacktestService:
         self,
         engine: BacktestEngine,
         strategy_engine: StrategyEngine,
+        *,
+        s05_selection_archive: dict | None = None,
     ) -> None:
         self.engine = engine
         self.strategy_engine = strategy_engine
+        self.s05_selection_archive = s05_selection_archive
 
     @staticmethod
     def _matrix_prepare_signature(config: StrategyBacktestConfig) -> tuple:
@@ -1306,6 +1309,8 @@ class StrategyBacktestService:
         morning = selected_definitions(
             self.strategy_engine, self._effective_signals(overrides, "exit_signals", s.exit_signals),
         )
+        if self.s05_selection_archive is not None and not morning:
+            return _err("S05归档回测需要已启用的分支卖出信号")
         if routed_s02(s) and not morning:
             return _err("S02 173004552收益回测需要匹配分支的卖出触发器")
         if morning and not optional_triggers(s):

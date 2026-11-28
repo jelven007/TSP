@@ -35,6 +35,56 @@ def test_official_risk_events_have_effective_and_actual_public_dates(monkeypatch
         lookup.close()
 
 
+def test_qinghai_spring_halt_resume_and_warning_removal_are_distinct(monkeypatch, tmp_path):
+    from app.services.announced_stock_status import confirmed_status, merge_risk_events
+
+    symbol = "600381.SH"
+    notice = {
+        "symbol": symbol, "title": "青海春天撤销退市风险警示及其他风险警示的公告",
+        "formal_date": "2026-11-27", "announced_at": "2026-11-26T18:49:57", "url": URL,
+    }
+    # The issuer uses a typed A-share table and a separately labelled removal date.
+    text = (
+        "证券代码\uff1a600381 证券简称\uff1a*ST春天。"
+        "600381 *ST春天 A股停牌 2026/11/27 全天 2026/11/27 2026/11/30。"
+        "(四)撤销退市风险警示及其他风险警示的起始日\uff1a2026年11月30日。"
+        "公司股票于2025年4月30日起被实施退市风险警示。"
+        "公司股票将于2026年11月27日停牌一天,自2026年11月30日起复牌交易,"
+        "公司股票撤销退市风险警示及其他风险警示。"
+    )
+    lookup = AnnouncementLookup(check_cancelled=lambda: None)
+    monkeypatch.setattr(lookup, "_pdf", lambda url: text)
+    try:
+        result = lookup.verify_notice(notice, cutoff=datetime(2026, 11, 28, 6, 30))
+    finally:
+        lookup.close()
+    assert result["diagnostics"] == []
+    assert [(e["effective_date"], e["is_suspended"]) for e in result["events"]] == [
+        (date(2026, 11, 27), True), (date(2026, 11, 30), False),
+    ]
+    repo = SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path))
+    assert merge_risk_events(repo, result["risk_warning_events"]) == 1
+    assert merge_risk_events(repo, result["risk_warning_events"]) == 0
+    assert confirmed_status(repo, date(2026, 11, 30), observed_at=datetime(2026, 11, 26, 18, 49, 56))[
+        "risk_removed"] == []
+    assert confirmed_status(repo, date(2026, 11, 27), observed_at=datetime(2026, 11, 26, 18, 49, 57))[
+        "risk_removed"] == []
+    assert confirmed_status(repo, date(2026, 11, 30), observed_at=datetime(2026, 11, 26, 18, 49, 57))[
+        "risk_removed"] == [symbol]
+
+
+def test_conflicting_explicit_warning_removal_dates_fail_closed():
+    from app.services.issuer_st_status import parse_issuer_st_events
+
+    text = (
+        "证券代码:600381。撤销退市风险警示及其他风险警示的起始日:2026年11月30日。"
+        "公司股票自2026年12月1日起撤销退市风险警示及其他风险警示。"
+    )
+    with pytest.raises(ValueError, match="日期冲突"):
+        parse_issuer_st_events("关于撤销退市风险警示及其他风险警示的公告",
+                               text, "600381.SH", date(2026, 11, 26))
+
+
 def test_risk_status_merge_is_idempotent_and_conflicts_preserve_original(tmp_path):
     from app.services import announced_stock_status as status
     repo = SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path))

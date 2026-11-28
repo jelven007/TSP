@@ -77,10 +77,10 @@ def input_request(payload, sid, action):
     identity = payload["daily_identities"][sid]
     definition = {key: identity[key] for key in (
         "strategy_version", "params_json", "overrides_json", "asset_type", "timeframe", "runtime_identity")}
-    if sid == S01_ID:
-        # runtime_identity覆盖S01自身逻辑; 全局目录版本还包含无关策略信号。
+    if sid in (S01_ID, S02_ID):
+        # runtime_identity covers this strategy; the catalog includes unrelated signals.
         definition.pop("strategy_version")
-        definition["schema"] = "s01_bound_definition_v2"
+        definition["schema"] = "s01_bound_definition_v2" if sid == S01_ID else "s02_bound_definition_v2"
     from app.services.strategy_input_manifest import normalize_request
     return normalize_request({
         "strategy_id": sid, "as_of": str(day), "reference_date": str(previous_session(day)),
@@ -177,6 +177,14 @@ def frozen_context(manifest):
     target = datetime.fromisoformat(frozen["bar_at"])
     current = history.filter(pl.col("datetime") == target)
     selected = deepcopy(frozen["selection"])
+    # Minute frames carry prices only; keep historical display names from the
+    # same sealed selection, without adding daily values to minute calculations.
+    if sid == S02_ID and "name" not in current.columns:
+        names = pl.DataFrame(
+            [{"symbol": row["symbol"], "name": row.get("name")} for row in selected["rows"]],
+            schema={"symbol": pl.String, "name": pl.String},
+        )
+        current = current.join(names, on="symbol", how="left", validate="m:1")
     context = StrategyDataContext(
         "stock", "1m", date.fromisoformat(frozen["as_of"]), current=current, history=history,
         observed_at=cn_now(), completed_through=target, realtime=True,

@@ -1,6 +1,6 @@
 # Tick Stock Platform（TSP）文档中心
 
-核对日期：2026-11-22。本文保留现行契约，源码及运行身份统一见[版本基线](version-baseline.md)。
+本页按开发和生产交付的职责提供入口。源码、质量门、发行与安装身份见[版本基线](version-baseline.md)。
 本工作区源码基点的应用语义版本为 `0.4.75`，以VERSION为准；
 固定正式SHA、产物与双端切换结果见当次验收交付。
 
@@ -19,6 +19,8 @@
 | 维护文档或查找必要证据 | [文档维护](maintenance.md) → [成果与审计](../deliverables/README.md) |
 
 ## 项目文档地图
+
+找代码先看[工程目录](reference/engineering.md#layout)，找当前数据与上线问题看[运维手册](operations.md)；已完成核验按主题归档到证据目录，原始用户成果通过[交付目录](../deliverables/README.md)查找。
 
 ```text
 README.md                         项目介绍与入口
@@ -48,17 +50,20 @@ docs/
     factor-system.md              因子实现及明确标记的后续设计
     trading-ai.md                 模拟账务、公司行为与AI协议
     integrations.md               Provider、HTTP源与开放授权
-  rustdx-task-routing.md           三组连接、额度与窗口核验
+    rustdx-task-routing.md         三组连接、额度与窗口核验
   planning/
     phase2-implementation-plan.md  阶段工作包与待签收能力
     current-validation.md          当前待修复与待验收项
+    archive/                      带日期与基线的历史方案
 ```
 
 ## 六类主手册
 
+同一功能按「业务验收条件 → 真实调用链 → 开发接口 → 可重复验证 → 发布运营 → 运行排障」维护。详细参数和金融口径仍由对应专题正文维护。
+
 | 生命周期 | 唯一主入口 | 维护内容 |
 | --- | --- | --- |
-| 需求 | [需求基线](requirements.md) | 角色、对象、八业务模块、167 条 FR、42 条 NFR、状态与验收条件 |
+| 需求 | [需求基线](requirements.md) | 角色、对象、八业务模块、168 条 FR、42 条 NFR、状态与验收条件 |
 | 方案 | [系统技术方案](architecture.md) | 当前运行拓扑、源码事实源、数据和缓存链路、明确标记的目标架构 |
 | 开发 | [贡献规范](../CONTRIBUTING.md) | 分层、金融口径、Provider、并发、兼容、质量门和 PR 复审 |
 | 测试 | [测试与验收](testing.md) | 隔离环境、定向回归、工程检查、平台与生产签收 |
@@ -88,6 +93,8 @@ docs/
 
 <a id="maintenance"></a>
 ## 事实源与维护
+
+本文中的源码导航以本工作树为准。应用到同版本热补丁的能力，须以该端当次回执标注适用范围；工作树中正在开发的变更、远程主线和正在运行的版本不能互相代替。
 
 当前行为以源码、配置读取规则和相邻契约测试为依据；生产状态必须附固定提交、
 产物哈希或 digest、schema 和实际切换证据。代码实现、测试通过、发布和部署分别判断。

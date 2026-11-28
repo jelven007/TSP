@@ -128,6 +128,7 @@ def freeze_task_history(payload, sid, saved, generation, contract):
 class FullWorker:
     def __init__(self, db, repo, market, executor=None):
         from app.multitenancy.monitor_phase_inbox import PhaseInbox
+        from app.services.strategy_minute_live import ShadowMinuteProbe
 
         self.db, self.repo, self.market = db, repo, market
         self.identity = AccountIdentity(db)
@@ -136,9 +137,11 @@ class FullWorker:
         self.stop = threading.Event()
         self.pool = ThreadPoolExecutor(max_workers=db.settings.worker_concurrency)
         self.phase_inbox = PhaseInbox()
+        self.shadow_minute_probe = ShadowMinuteProbe()
 
     def close(self):
         self.stop.set()
+        self.shadow_minute_probe.close()
         self.phase_inbox.close()
         self.pool.shutdown(wait=True, cancel_futures=True)
 
@@ -265,7 +268,7 @@ class FullWorker:
             from app.services.daily_selections import DailySelections
             payload["selection_snapshots"] = {
                 sid: selected for sid in {r.get("strategy_id") for r in rules} if sid
-                and (selected := DailySelections(unit).read(sid, cn_today())) is not None
+                and (selected := DailySelections(unit).read(sid, cn_today(), live_entry=True)) is not None
             }
             payload["daily_pool_snapshots"] = {}
             if self.db.settings.schema_version >= 7:
@@ -432,15 +435,36 @@ class FullWorker:
             payload["_configuration_fingerprint"] = fingerprint(conn, include_state=False)
         # Platform calls may wait on HTTP. Release both authorization and
         # tenant binding locks first; commit still verifies all frozen guards.
+        from app.services.strategy_minute_live import (
+            fetch_scoped_packets,
+            live_mode,
+            prioritize_collection,
+        )
+        from app.services.strategy_monitor_tasks import wait_for_repairs
+
+        minute_observed_at = cn_now()
+        if live_mode() == "shadow":
+            self.shadow_minute_probe.offer(payload, self.market, minute_observed_at)
         if priority_plan is not None:
             try:
+                if live_mode() == "active":
+                    priority_plan = prioritize_collection(priority_plan, payload, minute_observed_at)
                 self.market.minute_priority(tenant_id, priority_plan)
             except AccessError:
                 logger.warning("minute priority bridge unavailable; ordinary collection retained")
-        from app.services.strategy_monitor_tasks import wait_for_repairs
         for sid, planning in payload["strategy_task_plans"].items():
-            wait_for_repairs(planning, payload["strategy_task_receipts"][sid], self.market,
+            packets = fetch_scoped_packets(payload, self.market, sid, minute_observed_at)
+            if packets:
+                payload.setdefault("strategy_minute_packets", {})[sid] = packets
+                payload["strategy_minute_observed_at"] = minute_observed_at.isoformat()
+            # Only a complete scoped packet can bypass a repair of the same action.
+            ready_actions = [action for action in planning["actions"] if action["kind"] in packets
+                             and (action["kind"], action["phase"]) in (("buy", "stocks"), ("sell", "observe"))]
+            pending_repairs = {**planning, "actions": [a for a in planning["actions"] if a not in ready_actions]}
+            wait_for_repairs(pending_repairs, payload["strategy_task_receipts"][sid], self.market,
                              current_release=payload.get("public_release_id"))
+            planning["actions"] = [a for a in planning["actions"]
+                                   if a in ready_actions or a in pending_repairs["actions"]]
             next_at = planning["next_at"]
             if next_at and (payload["next_evaluation_at"] is None or next_at < payload["next_evaluation_at"]):
                 payload["next_evaluation_at"] = next_at
@@ -568,7 +592,9 @@ class FullWorker:
                     timer.start()
                     try:
                         try:
-                            ordinary_result = self.executor.execute(payload, cancel=cancelled)
+                            ordinary_payload = {key: value for key, value in payload.items()
+                                                if key != "strategy_minute_packets"}
+                            ordinary_result = self.executor.execute(ordinary_payload, cancel=cancelled)
                         except Exception as exc:
                             if result is None:
                                 raise

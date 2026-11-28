@@ -7,6 +7,7 @@ import { PICKER_BUTTON_CLASS, PICKER_POPOVER_CLASS, usePickerPopover, type Picke
 interface DatePickerProps extends PickerButtonProps {
   value: string          // YYYY-MM-DD
   onChange: (v: string) => void
+  onDateIntent?: (v: string | null) => void
   min?: string
   max?: string
   placeholder?: string
@@ -37,6 +38,7 @@ function viewDate(value: string, min?: string, max?: string) {
 export function DatePicker({
   value,
   onChange,
+  onDateIntent,
   min,
   max,
   placeholder = '选择日期',
@@ -49,6 +51,9 @@ export function DatePicker({
 }: DatePickerProps) {
   const { btnRef, popRef, pos, open, toggle, close, portalContainer } = usePickerPopover({ align, disabled })
   const [showYearPicker, setShowYearPicker] = useState(false)
+  useEffect(() => {
+    if (!open) onDateIntent?.(null)
+  }, [open, onDateIntent])
 
   // 当前显示的月份
   const [viewYear, setViewYear] = useState(() => viewDate(value, min, max).year)
@@ -209,6 +214,10 @@ export function DatePicker({
                     type="button"
                     aria-label={c.dateStr}
                     disabled={c.disabled}
+                    onPointerEnter={onDateIntent && !c.disabled ? event => {
+                      if (event.pointerType === 'mouse') onDateIntent(c.dateStr)
+                    } : undefined}
+                    onPointerLeave={onDateIntent ? () => onDateIntent(null) : undefined}
                     onClick={() => {
                       if (!c.disabled) {
                         onChange(c.dateStr)

@@ -240,6 +240,78 @@ async def wait_for_job(job_id):
             await asyncio.sleep(0.01)
     return pipeline_jobs.job_store.get(job_id)
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("period", ["5m", "10m", "15m", "1w"])
+async def test_derived_range_job_bounds_rows_and_preserves_base_and_outside_data(app, monkeypatch, period):
+    from app.services import instrument_sync
+
+    repo = app.state.repo
+    base = "1d" if period == "1w" else "1m"
+    column = "date" if base == "1d" else "datetime"
+    days = [date(2026, 10, day) for day in (12, 19, 21, 23, 26)]
+    frame = pl.DataFrame({
+        "symbol": ["600000.SH"] * len(days),
+        column: days if base == "1d" else [
+            datetime.combine(day, datetime.min.time()).replace(hour=15) for day in days
+        ],
+        "open": [10.] * len(days), "high": [40.] * len(days), "low": [9.] * len(days),
+        "close": [12., 19., 21., 23., 26.], "volume": [100.] * len(days), "amount": [1000.] * len(days),
+    })
+    kline_periods.persist_period(repo, base, frame)
+    outside = frame.head(1).with_columns(pl.lit(99.).alias("close"))
+    outside = kline_periods.aggregate_weekly(outside) if period == "1w" else kline_periods.aggregate_minute_period(outside, period)
+    kline_periods.persist_period(repo, period, outside)
+    base_before = repo.execute_all(f"SELECT * FROM {kline_periods.TABLES[base]} ORDER BY {column}")
+    monkeypatch.setattr(
+        instrument_sync, "load_current_stock_pool",
+        lambda *args, **kwargs: SimpleNamespace(symbols=["600000.SH"]),
+    )
+    monkeypatch.setattr(kline_periods, "_period_provider", lambda *args: pytest.fail("range generation must stay local"))
+    monkeypatch.setattr(app.state.capabilities, "has", lambda cap: False)
+    body = {"period": period, "start_date": "2026-10-21", "end_date": "2026-10-21", "mode": "full"}
+    started = await kline.sync_period_job(SimpleNamespace(app=app), body)
+    job = await wait_for_job(started["job_id"])
+    assert job["status"] == "succeeded", job
+    assert job["request"] == body
+    assert job["result"]["source"] == base
+    assert job["result"]["rows"] == 1
+    rows = repo.execute_all(f"SELECT {column}, close, volume FROM {kline_periods.TABLES[period]} ORDER BY {column}")
+    assert len(rows) == 2
+    assert rows[0][1] == 99.
+    assert rows[1][1] == 21.
+    assert rows[1][2] == (200. if period == "1w" else 100.)
+    assert rows[1][0].isoformat().startswith("2026-10-19" if period == "1w" else "2026-10-21")
+    assert repo.execute_all(f"SELECT * FROM {kline_periods.TABLES[base]} ORDER BY {column}") == base_before
+
+
+@pytest.mark.parametrize("period", ["5m", "10m", "15m", "1w"])
+@pytest.mark.parametrize("override", [
+    {"end_date": "2026-10-20"},
+    {"end_date": "2026-10-29"},
+    {"start_date": ""},
+    {"start_date": "20261021"},
+    {"mode": "invalid"},
+    {"mode": None},
+])
+def test_derived_range_rejects_invalid_input_before_creating_jobs(app, monkeypatch, period, override):
+    monkeypatch.setattr(kline, "cn_today", lambda: date(2026, 10, 28))
+    body = {"period": period, "start_date": "2026-10-21", "end_date": "2026-10-23", "mode": "full", **override}
+    with TestClient(app) as client:
+        response = client.post("/api/kline/sync_period", json=body)
+    assert response.status_code in {400, 422}
+    assert pipeline_jobs.job_store.list_recent() == []
+
+
+@pytest.mark.parametrize("period", ["5m", "10m", "15m", "1w"])
+@pytest.mark.parametrize("key", ["start_date", "end_date", "mode"])
+def test_derived_range_requires_all_range_fields(app, period, key):
+    body = {"period": period, "start_date": "2026-10-21", "end_date": "2026-10-23", "mode": "full"}
+    body.pop(key)
+    with TestClient(app) as client:
+        response = client.post("/api/kline/sync_period", json=body)
+    assert response.status_code == 400
+    assert pipeline_jobs.job_store.list_recent() == []
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(("period", "mode"), [("1m", "full"), ("1m", "missing"), ("1d", "full"), ("1d", "missing")])

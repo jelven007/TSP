@@ -259,6 +259,12 @@ def fresh_frame(frame, now=None):
     return frame.filter(age.is_between(-2, 15))
 
 
+class _ScopedMonitorEngine(MonitorRuleEngine):
+    def _history_loader_for(self, rule):
+        return getattr(self, "_strategy_history_loaders", {}).get(
+            rule.get("strategy_id")) or super()._history_loader_for(rule)
+
+
 def evaluate_snapshot(payload, repo, strategy_engine=None, private_root=None):
     """沙箱计算冻结快照; 租户定义/预选/任务窗口只来自本次 payload。
 
@@ -266,7 +272,8 @@ def evaluate_snapshot(payload, repo, strategy_engine=None, private_root=None):
     该入口服务个股/卖及普通监控, 可信广度另有不加载策略源码的入口。
     """
     snapshot = payload["snapshot"]
-    engine = MonitorRuleEngine(groups={key: frozenset(value) for key, value in payload.get("groups", {}).items()})
+    engine_type = _ScopedMonitorEngine if payload.get("strategy_minute_packets") else MonitorRuleEngine
+    engine = engine_type(groups={key: frozenset(value) for key, value in payload.get("groups", {}).items()})
     previous = payload.get("state", {})
     engine.restore_state(previous.get("engine"))
     engine._late_session_tasks = {
@@ -299,6 +306,18 @@ def evaluate_snapshot(payload, repo, strategy_engine=None, private_root=None):
         engine.set_strategy_engine(strategy_engine)
         engine.set_data_dir(private_root)
         engine.set_history_loader(ScreenerService(repo)._load_enriched_history)
+        if payload.get("strategy_minute_packets") and payload.get("strategy_minute_observed_at"):
+            from app.services.strategy_minute_live import ScopedMinuteRepository, scoped_windows
+
+            observed = datetime.fromisoformat(payload["strategy_minute_observed_at"])
+            engine._strategy_history_loaders = {
+                sid: ScreenerService(ScopedMinuteRepository(
+                    repo, packets, payload.get("public_release_id"),
+                    scoped_windows(payload, sid, observed),
+                ))._load_enriched_history
+                for sid, packets in payload["strategy_minute_packets"].items()
+                if sid in payload.get("strategy_task_ids", [])
+            }
     engine.set_sector_monitor_service(SectorSnapshots(snapshot.get("sectors", {})))
     intraday = IntradaySignalEvaluator()
     intraday._last_bar = {

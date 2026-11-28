@@ -203,6 +203,8 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
         minute_execution=execution_id, minute_exit_fill=minute_exit_fill,
         volume_participation_upper_bound=max(entry_rate, exit_rate),
     )
+    if service.s05_selection_archive is not None:
+        provenance["s05_selection_policy"] = "saved_selection_v1"
     output.strategy_info = {
         "id": config.strategy_id, "name": strategy.meta.get("name", config.strategy_id),
         "execution_backend": "minute_filter", "minute_execution": execution_id,
@@ -300,6 +302,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                 overrides={**overrides, "exit_signals": []},
                 symbols=config.symbols, cancel_event=cancel_event,
                 strict_research=config.strict_research,
+                s05_selection_archive=service.s05_selection_archive,
             )
             if replay.selection_provenance:
                 key = ("s02_173004552_selection_replay" if is_routed else
@@ -344,7 +347,9 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     "signal_time": f"{day} {hit.signal_time or hit.trigger_time}",
                     "datetime": str(at), "price": hit.raw_entry_price, "score": hit.score,
                     "signal_bar": at.hour * 60 + at.minute, "reason": "entry",
-                    **({"entry_branch": hit.entry_branch} if is_routed else {}),
+                    **({"entry_branch": hit.entry_branch} if is_routed or hit.signal_score is not None else {}),
+                    **({"signal_score": hit.signal_score, "selection_rank": hit.selection_rank}
+                       if hit.signal_score is not None else {}),
                 })
             symbols = set(positions) | {h.symbol for h in entry_hits}
             history = repo.get_minute_by_dates(sorted(symbols), [day], "stock") if symbols else pl.DataFrame()
@@ -662,7 +667,10 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                 candidates = []
                 if entry_error:
                     continue
-                for hit in sorted(hits_at[(at, phase)], key=lambda h: (-h.score, h.symbol)):
+                for hit in sorted(hits_at[(at, phase)], key=lambda h: (
+                    -(h.score if h.signal_score is None else h.signal_score),
+                    h.selection_rank or 0, h.symbol,
+                )):
                     if hit.symbol in positions:
                         continue
                     if hit.symbol in sold_this_event:

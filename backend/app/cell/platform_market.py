@@ -60,6 +60,68 @@ class MinutePriorityPlan(BaseModel):
     sequence: int = Field(ge=0)
     symbols: list[str] = Field(max_length=10000)
     selected: list[str] = Field(max_length=10000)
+    breadth: list[str] = Field(default_factory=list, max_length=10000)
+    lead: list[str] = Field(default_factory=list, max_length=10000)
+
+
+class StrategyMinuteScope(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    symbols: list[str] = Field(min_length=1, max_length=384)
+    start: datetime
+    end: datetime
+
+
+class StrategyMinuteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    release_id: str = Field(pattern=r"^[a-f0-9]{32}$")
+    scope: StrategyMinuteScope
+
+
+@router.post("/strategy-minute")
+def strategy_minute(request: Request, value: StrategyMinuteRequest,
+                    authorization: Annotated[str | None, Header()] = None):
+    """Build bounded, complete strategy input against an explicitly pinned release."""
+    _authorize(authorization)
+    from app.market_time import cn_now, published_trading_day
+    from app.minute_clock import closed_minute_stamps
+    from app.multitenancy.market import encode_frame
+    from app.multitenancy.public_reader import open_public_repository
+    from app.multitenancy.publication import release_path
+    from app.services.strategy_minute_live import live_mode, shadow_report, use_scoped_minutes, wall
+
+    scope = value.scope
+    start, end, now = scope.start, scope.end, wall(cn_now())
+    stamps = closed_minute_stamps(now.date())
+    if (start != stamps[0] or end not in stamps or end > now
+            or scope.symbols != sorted(set(scope.symbols))
+            or any(not re.fullmatch(SYMBOL_PATTERN, symbol) for symbol in scope.symbols)):
+        raise HTTPException(422, "invalid_strategy_minute_scope")
+    mode = live_mode()
+    service = getattr(request.app.state, "minute_refresh", None)
+    publisher = getattr(request.app.state, "public_publisher", None)
+    if (mode not in ("active", "shadow") or service is None or publisher is None
+            or published_trading_day(now.date()) is not True):
+        return {"state": "unavailable"}
+    live = service.live_minutes(scope.symbols, start, end)
+    if live.is_empty():
+        return {"state": "waiting"}
+    try:
+        repo = open_public_repository(release_path(publisher.root, value.release_id), bounded=True)
+        try:
+            base = repo.get_minute_inputs(scope.symbols, start, end)
+            receipt = {"release_id": value.release_id, "scope": scope.model_dump(mode="json"),
+                       "published_rows": base.height, "live_rows": live.height}
+            if mode == "shadow":
+                comparison = shadow_report(base, live, scope.symbols, [stamp for stamp in stamps if start <= stamp <= end])
+                return {"state": "shadow", **receipt, "comparison": comparison}
+            merged = use_scoped_minutes(base, live, scope.model_dump(mode="json"))
+            if merged is None:
+                return {"state": "waiting"}
+            return {"state": "ready", **receipt, "frame": encode_frame(merged)}
+        finally:
+            repo.store._public_release_finalizer()
+    except (OSError, ValueError):
+        return {"state": "unavailable"}
 
 
 class MonitorRepairRequest(BaseModel):
@@ -148,7 +210,12 @@ def monitor_repair(request: Request, value: MonitorRepairRequest,
             or (end and (end > now.time().replace(tzinfo=None) or not clock_time(9, 30) <= end <= clock_time(15)))):
         raise HTTPException(422, "invalid_repair_window")
     try:
-        return _repair_service(request).request(value.model_dump(mode="json"))
+        from app.services.strategy_minute_live import live_mode
+
+        service = _repair_service(request)
+        if live_mode() == "active" and hasattr(service, "request_if_available"):
+            return service.request_if_available(value.model_dump(mode="json")) or {"state": "busy"}
+        return service.request(value.model_dump(mode="json"))
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
 
@@ -167,13 +234,14 @@ def minute_priority(
 ):
     _authorize(authorization)
     from app.market_time import cn_today
-    if (plan.day != cn_today() or not set(plan.selected).issubset(plan.symbols)
+    if (plan.day != cn_today() or not set(plan.lead).issubset(plan.selected)
+            or not set(plan.selected).union(plan.breadth).issubset(plan.symbols)
             or any(not re.fullmatch(SYMBOL_PATTERN, symbol) for symbol in plan.symbols)):
         raise HTTPException(422, "invalid_minute_priority")
     service = getattr(request.app.state, "minute_refresh", None)
     if service is None:
         raise HTTPException(503, "minute_refresh_unavailable")
-    service.set_priority(plan.owner, plan.model_dump(mode="json", exclude={"owner"}))
+    service.set_priority(plan.owner, plan.model_dump(mode="json", exclude={"owner"}, exclude_defaults=True))
     return {"ok": True}
 
 

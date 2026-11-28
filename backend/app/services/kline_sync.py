@@ -944,35 +944,23 @@ def _datetime_to_ms(dt: datetime) -> int:
     return int(dt.timestamp() * 1000)
 
 
-def _write_minute_partition(
-    df: pl.DataFrame, minute_dir, *, only_missing: bool = False,
-    request_seq: int | None = None, isolate_suspension_conflicts: bool = False,
-) -> int:
-    """按日期原子合并; 1m携带采集前序号时仅接受更新请求或缺失键。
-
-    带序号返回实际接受键数; 旧调用保留分区总行数/only_missing新增数约定。
-    """
-    from app.market_scope import filter_market_frame
-    from app.services.minute_write_order import (
-        VERSION_COLUMN,
-        accept_rows,
-        read_versions,
-        version_metadata,
-    )
-
-    ordered = minute_dir.name == "kline_minute"
-    df = filter_market_frame(df)
-    if df.is_empty():
-        return 0
-    from app.minute_clock import normalize_minute_clock
-    df = normalize_minute_clock(df)
-    df = df.with_columns(pl.col("datetime").dt.date().alias("_trade_date"))
+def _prepare_minute_rows(df, minute_dir, *, isolate_suspension_conflicts, history=None):
+    """Apply the same scope, clock and suspension rules before either handoff."""
     from datetime import time as opening_time
 
+    from app.market_scope import filter_market_frame
+    from app.minute_clock import normalize_minute_clock
+
+    df = filter_market_frame(df)
+    if df.is_empty():
+        return df
+    df = normalize_minute_clock(df)
+    df = df.with_columns(pl.col("datetime").dt.date().alias("_trade_date"))
+
     from app.instrument_suspension import _dated_events, load_suspension_history
-    history = load_suspension_history(minute_dir.parent).filter(
-        pl.col("symbol").is_in(df["symbol"].unique().implode())
-    )
+    if history is None:
+        history = load_suspension_history(minute_dir.parent)
+    history = history.filter(pl.col("symbol").is_in(df["symbol"].unique().implode()))
     if not history.is_empty():
         halted = pl.concat([
             _dated_events(history, day, observed_at=datetime.combine(day, opening_time(9, 30)))
@@ -992,6 +980,29 @@ def _write_minute_partition(
                     "_trade_date", "symbol").rows(),
             )
         df = df.join(halted, on=["symbol", "_trade_date"], how="anti")
+    return df
+
+
+def _write_minute_partition(
+    df: pl.DataFrame, minute_dir, *, only_missing: bool = False,
+    request_seq: int | None = None, isolate_suspension_conflicts: bool = False,
+) -> int:
+    """按日期原子合并; 1m携带采集前序号时仅接受更新请求或缺失键。
+
+    带序号返回实际接受键数; 旧调用保留分区总行数/only_missing新增数约定。
+    """
+    from app.market_scope import filter_market_frame
+    from app.services.minute_write_order import (
+        VERSION_COLUMN,
+        accept_rows,
+        read_versions,
+        version_metadata,
+    )
+
+    ordered = minute_dir.name == "kline_minute"
+    df = _prepare_minute_rows(df, minute_dir, isolate_suspension_conflicts=isolate_suspension_conflicts)
+    if df.is_empty():
+        return 0
     written = 0
     for day_df in df.partition_by("_trade_date"):
         trade_date = day_df["_trade_date"][0]
@@ -1510,6 +1521,8 @@ def fetch_intraday_custom_batch(
     provider: object,
     provider_name: str,
     symbols: list[str],
+    *,
+    on_verified=None,
 ) -> tuple[pl.DataFrame, int]:
     """自定义源全量分钟修复轮: 当日窗口全市场批量拉取 (不落盘)。
 
@@ -1524,10 +1537,11 @@ def fetch_intraday_custom_batch(
     from app.market_scope import filter_market_frame, removed_market_symbol
     symbols = [symbol for symbol in symbols if not removed_market_symbol(symbol)]
     counted_method = getattr(provider, "get_intraday_batch_with_count", None)
+    stream = _verified_stream(counted_method, on_verified, symbols)
     try:
         method = getattr(provider, "get_intraday_batch", None)
         if callable(counted_method):
-            df, requests = counted_method(symbols)
+            df, requests = counted_method(symbols, **stream)
         elif callable(method):
             df = method(symbols)
             requests = 1
@@ -1564,7 +1578,10 @@ def fetch_intraday_custom_batch(
             ) from e
         logger.warning("custom full_minute datetime 契约校验失败 (%s): %s", provider_name, e)
         return (pl.DataFrame(), 0)
-    return (filter_market_frame(df), requests if callable(counted_method) else max(requests, 1))
+    df = filter_market_frame(df)
+    if on_verified and not stream and not df.is_empty():
+        on_verified(df.filter(pl.col("symbol").is_in(symbols)))
+    return (df, requests if callable(counted_method) else max(requests, 1))
 
 
 def fetch_intraday_custom_latest(
@@ -1573,6 +1590,7 @@ def fetch_intraday_custom_latest(
     *,
     symbols: list[str] | None = None,
     count: int = 3,
+    on_verified=None,
 ) -> tuple[pl.DataFrame, int] | None:
     """自定义源全量分钟稳态增量轮 (不落盘)。
 
@@ -1591,13 +1609,14 @@ def fetch_intraday_custom_latest(
         if not symbols:
             return (pl.DataFrame(), 0)
     counted_method = getattr(provider, "get_intraday_latest_with_count", None)
+    stream = _verified_stream(counted_method, on_verified, symbols)
     try:
         parameters = inspect.signature(method).parameters
         accepts_symbols = "symbols" in parameters or any(
             p.kind == inspect.Parameter.VAR_KEYWORD for p in parameters.values()
         )
         if callable(counted_method):
-            df, requests = counted_method(symbols=symbols, count=count)
+            df, requests = counted_method(symbols=symbols, count=count, **stream)
         else:
             df = method(symbols=symbols, count=count) if accepts_symbols else method(count=count)
             requests = 1
@@ -1623,7 +1642,33 @@ def fetch_intraday_custom_latest(
             ) from e
         logger.warning("custom full_minute datetime 契约校验失败 (%s): %s", provider_name, e)
         return (pl.DataFrame(), 0)
-    return (filter_market_frame(df), requests)
+    df = filter_market_frame(df)
+    if on_verified and not stream and not df.is_empty():
+        on_verified(df)
+    return (df, requests)
+
+
+def _verified_stream(method, callback, symbols):
+    """Optional counted-source extension; existing provider signatures stay valid."""
+    if callback is None or not callable(method):
+        return {}
+    try:
+        if "on_verified" not in inspect.signature(method).parameters:
+            return {}
+    except (TypeError, ValueError):
+        return {}
+
+    def offer(frame):
+        from app.market_scope import filter_market_frame
+        from app.minute_clock import normalize_minute_clock
+
+        frame = normalize_minute_clock(filter_market_frame(
+            _enforce_minute_beijing_wallclock(frame, source="verified intraday batch"),
+        ))
+        if not frame.is_empty():
+            callback(frame if symbols is None else frame.filter(pl.col("symbol").is_in(symbols)))
+
+    return {"on_verified": offer}
 
 
 def fetch_minute_single(

@@ -3,6 +3,12 @@
 本页维护当前接口入口和兼容规则；字段及权限以实际路由、类型与契约测试为准。
 通用数据源和扩展协议见[接入参考](reference/integrations.md)，
 策略结果含义见[S01](reference/s01.md)、[S02](reference/s02.md)。
+
+管理员 `GET /api/pipeline/jobs` 可传 `include_readiness=true`。新增的只读摘要区分公告目标日与覆盖、
+盘后补缺和复核、下一次检查，不触发采集或重算。省略参数时保持原响应。
+`POST /api/kline/sync_period` 的六周期范围请求同时传 `start_date`、`end_date` 和 `mode`；
+旧版不传范围的周期请求保持兼容。5/10/15 分钟使用本地 1 分钟数据，周 K 从起始日所在周周一
+聚合到选定结束日，均不请求上游。
 历史查询只读持久化结果，不通过GET启动策略、行情加载或Compute。
 普通自定义策略盘后“选”窗口为21:00～22:00，S03及S05为22:00～23:00；
 状态维护通过已有池、选名单及日视图读取接口呈现。
@@ -30,6 +36,7 @@ ST戴帽／摘帽；旧缺字段回执保留。相关维护20:30优先核验下�
 `POST /api/monitor-rules/strategies/{strategy_id}/monitoring`，
 接收`{"enabled":true|false}`，所有公开策略共用此接口，返回启停世代，不立即计算策略；
 `GET /api/monitor-rules/strategies/monitoring`读取当日卖／选／买时段及保存状态。
+主线 `GET /api/monitor-rules/strategies/{strategy_id}/monitoring?as_of=YYYY-MM-DD` 按日只读，目前只支持可见的 S05（`custom_mvxxcs05`），其他策略返回 404。响应区分当日任务与历史归档来源；不由查询触发策略。
 账户权限和同源校验沿现有中间件，不因此授予Tier A访问。
 
 新入池策略默认关闭；自定义／AI策略开启后，后台按交易日执行选、买、卖三个任务。

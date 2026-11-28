@@ -72,17 +72,59 @@ it('shows the five-minute generation window and submits explicit sync settings',
   expect(mocks.save.mock.calls[0][0]).toBe('5m')
 })
 
-it.each(['5m', '10m', '15m', '1w'] as const)('generates local %s data without capability or history controls', async period => {
+async function setRange(startDate: string, endDate: string) {
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+  for (const [label, value] of [['起始日期', startDate], ['结束日期', endDate]]) {
+    const input = host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!
+    await act(async () => {
+      setValue.call(input, value)
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+  }
+}
+
+it.each(['5m', '10m', '15m', '1w'] as const)('generates local %s data in the selected range without upstream capability', async period => {
   const onStart = await render(period, vi.fn(), false)
   expect(host.textContent).toContain(period.endsWith('m') ? '本地1分K' : '本地日K')
   expect(host.textContent).not.toContain('向前扩展')
   expect(host.querySelector('input[aria-label="历史扩展数量"]')).toBeNull()
   expect(host.querySelector('select[aria-label="历史扩展单位"]')).toBeNull()
+  expect(host.querySelector<HTMLInputElement>('input[aria-label="起始日期"]')?.value).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  expect(host.querySelector<HTMLInputElement>('input[aria-label="结束日期"]')?.value).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  await setRange('2026-09-01', '2026-09-30')
   const button = [...host.querySelectorAll('button')].find(node => node.textContent === '生成数据')!
   expect(button.disabled).toBe(false)
   await act(async () => button.click())
-  expect(mocks.sync).toHaveBeenCalledWith(period)
+  expect(mocks.sync).toHaveBeenCalledWith(period, { startDate: '2026-09-01', endDate: '2026-09-30', mode: 'full' })
   expect(onStart).toHaveBeenCalledWith('offline-1')
+})
+
+it.each(['5m', '10m', '15m', '1w'] as const)('blocks empty, reversed and future %s ranges before starting a job', async period => {
+  await render(period, vi.fn(), false)
+  for (const [start, end, error] of [
+    ['', '2026-09-30', '请选择起始日期和结束日期'],
+    ['2026-09-30', '2026-09-01', '结束日期不能早于起始日期'],
+    ['2026-09-01', '2099-01-01', '结束日期不能晚于今天'],
+  ]) {
+    await setRange(start, end)
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(error)
+    const button = [...host.querySelectorAll('button')].find(node => node.textContent === '生成数据')!
+    expect(button.disabled).toBe(true)
+    await act(async () => button.click())
+  }
+  expect(mocks.sync).not.toHaveBeenCalled()
+})
+
+it('keeps the weekly range after a generation failure and explains the week boundary', async () => {
+  const onStart = await render('1w', vi.fn(), false)
+  await setRange('2026-09-02', '2026-09-03')
+  expect(host.textContent).toContain('周一')
+  mocks.sync.mockRejectedValueOnce(new Error('选定区间没有可计算的本地日K'))
+  await act(async () => [...host.querySelectorAll('button')].find(node => node.textContent === '生成数据')!.click())
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)) })
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain('没有可计算的本地日K')
+  expect(host.querySelector<HTMLInputElement>('[aria-label="起始日期"]')?.value).toBe('2026-09-02')
+  expect(onStart).not.toHaveBeenCalled()
 })
 
 it.each(['1m', '1d'] as const)('uses date range controls and provider capability gating for %s', async period => {

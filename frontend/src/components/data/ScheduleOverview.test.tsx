@@ -27,6 +27,15 @@ const preferences = {
 } as const
 
 describe('buildDataScheduleItems', () => {
+  it('distinguishes the quote service waiting for market hours from active polling', () => {
+    const quote = buildDataScheduleItems({
+      quoteStatus: { running: true, is_trading_hours: false },
+      realtimeAvailable: true, financialAvailable: true, depthAvailable: true, extConfigs: [],
+    }).find(item => item.id === 'quotes')
+    expect(quote?.state).toBe('waiting')
+    expect(quote?.detail).toContain('等待交易时段')
+  })
+
   it('shows related maintenance at 20:30 and finance at 21:00 with the automatic switch', () => {
     for (const enabled of [true, false]) {
       const items = buildDataScheduleItems({

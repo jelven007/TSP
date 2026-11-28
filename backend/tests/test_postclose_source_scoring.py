@@ -34,6 +34,7 @@ def test_s02_postclose_applies_saved_atr_rank_as_score_when_generic_score_absent
     from test_s02_atr14_strategy import DAY, SOURCE, frames, prior
 
     from app.strategy import market_data
+
     monkeypatch.setattr(market_data, "previous_session", prior)
     engine = StrategyEngine([SOURCE.parent])
     strategy = engine.get("custom_mvxxcp88")

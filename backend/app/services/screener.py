@@ -47,7 +47,7 @@ def enriched_history_days(data_dir, asset_type: str = "stock", as_of: date | Non
 
 
 # ── 进程级历史数据缓存 (避免 run_all 每次重新扫描 parquet + 计算指标) ──
-_history_cache: dict[tuple[str, date, int], tuple[float, pl.DataFrame]] = {}
+_history_cache: dict[tuple[str, date, int, tuple[str, ...] | None], tuple[float, pl.DataFrame]] = {}
 _HISTORY_CACHE_TTL = 120.0  # 秒
 
 # load_prior_consecutive 最多回看多少个已存在的日分区 (缺列时继续往前找的上限)
@@ -260,7 +260,7 @@ class ScreenerService:
 
         return df_result
 
-    def _load_enriched_history(self, target_date: date, lookback_days: int) -> pl.DataFrame:
+    def _load_enriched_history(self, target_date: date, lookback_days: int, *, symbols=None) -> pl.DataFrame:
         """读取目标日期之前的基础行情数据, 供历史窗口策略使用。
 
         优先从 repo 内存缓存获取 (启动时已预计算), 命中时 0ms。
@@ -271,11 +271,12 @@ class ScreenerService:
         if self.asset_type == "stock":
             cached = self.repo.get_enriched_history(target_date, lookback_days)
             if cached is not None and not cached.is_empty():
+                if symbols is not None:
+                    cached = cached.filter(pl.col("symbol").is_in(symbols))
                 # JOIN instruments (repo 缓存不含 name 等列)
                 instruments = self.repo.get_instruments_asset(self.asset_type)
                 if instruments is not None and not instruments.is_empty() and "name" not in cached.columns:
-                    inst_cols = [c for c in ["symbol", "name", "total_shares", "float_shares"]
-                                 if c in instruments.columns]
+                    inst_cols = [c for c in ["symbol", "name", "total_shares", "float_shares"] if c in instruments.columns]
                     cached = cached.join(instruments.select(inst_cols), on="symbol", how="left")
                 elapsed = (time.perf_counter() - t0) * 1000
                 logger.info("_load_enriched_history(%s, %d): repo cache hit, %.1fms, %d rows",
@@ -283,7 +284,8 @@ class ScreenerService:
                 return cached
 
         # 优先级 2: 进程级 history_cache (之前的 TTL 缓存)
-        cache_key = (self.asset_type, target_date, lookback_days)
+        cache_key = (self.asset_type, target_date, lookback_days,
+                     tuple(sorted(set(symbols))) if symbols is not None else None)
         now = time.monotonic()
         ttl_cached = _history_cache.get(cache_key)
         if ttl_cached is not None:
@@ -318,6 +320,8 @@ class ScreenerService:
                 .filter((pl.col("date") >= start) & (pl.col("date") <= target_date))
                 .sort(["symbol", "date"])
             )
+            if symbols is not None:
+                lf = lf.filter(pl.col("symbol").is_in(symbols))
             available = [c for c in read_cols if c in lf.collect_schema().names()]
             df_hist = lf.select(available).collect()
         except Exception as e:  # noqa: BLE001
@@ -609,9 +613,14 @@ class ScreenerService:
         原样保留, 补标记不改变成员或改写归档。事件读取异常沿上述边界处理。
         engine须提供get读取当前策略META; 分钟/日线依赖仍由同一引擎声明解析。
         """
+        from app.services.selection_clock import S05_ID
         from app.strategy.basic_filter import previous_session
         from app.strategy.engine import StrategyDataContext
 
+        if strategy_id == S05_ID:
+            from app.services.s05_selection import nightly_entry_symbols
+
+            nightly_entry_symbols(selection, as_of)
         if (selection is None or selection.get("as_of") != str(as_of)
                 or selection.get("source_date") != str(previous_session(as_of))
                 or selection.get("strategy_id", strategy_id) != strategy_id
@@ -658,8 +667,11 @@ class ScreenerService:
             bars = engine.minute_entry_daily_history_bars(
                 [strategy_id], overrides_map={strategy_id: overrides})
             if bars:
-                context.daily_history = self._load_enriched_history(as_of, bars).filter(
-                    pl.col("symbol").is_in(symbols))
+                if strategy_id == S05_ID:
+                    context.daily_history = self._load_enriched_history(as_of, bars, symbols=symbols)
+                else:
+                    context.daily_history = self._load_enriched_history(as_of, bars).filter(
+                        pl.col("symbol").is_in(symbols))
         except (ValueError, OSError, pl.exceptions.PolarsError) as exc:
             context.input_errors.append(str(exc))
         return context
@@ -676,15 +688,40 @@ class ScreenerService:
         current: pl.DataFrame | None = None,
         market=None,
         cache_key: str | None = None,
+        selection_snapshots: dict | None = None,
     ):
         """按调用方要求装配标准策略数据上下文，不解释策略公式。"""
         from app.strategy.engine import StrategyDataContext
 
         if getattr(engine, "remote_context", False):
             return StrategyDataContext(self.asset_type, timeframe, as_of)
+        from app.market_time import cn_now, cn_today
+        from app.services.selection_clock import S05_ID
+
+        if strategy_ids == [S05_ID] and timeframe == "1m" and as_of == cn_today():
+            from app.services.s05_selection import nightly_entry_symbols
+            from app.strategy.s02_173004552 import frozen_daily_branch
+
+            loader = getattr(engine, "_selection_loader", None)
+            selected = ((selection_snapshots or {}).get(S05_ID) if selection_snapshots is not None
+                        else loader(S05_ID, as_of) if callable(loader) else None)
+            observed = cn_now()
+            context = StrategyDataContext(self.asset_type, timeframe, as_of, current=current,
+                                          observed_at=observed, realtime=True)
+            try:
+                nightly_entry_symbols(selected, as_of)
+                context.selection_snapshots = {S05_ID: selected}
+                if frozen_daily_branch(selected, as_of) is not None:
+                    context = self.build_selected_stock_context(
+                        engine, as_of, S05_ID, selected, current=current,
+                        overrides=(overrides_map or {}).get(S05_ID) or {}, observed_at=observed)
+            except ValueError as exc:
+                context.input_errors = [str(exc)]
+            context.holding_history_loader = getattr(self.repo, "get_minute_by_dates", None)
+            context.suspension_history = getattr(self.repo, "get_suspension_history", lambda: None)()
+            return context
         if current is None:
             current = self._load_enriched_for_date(as_of)
-        from app.market_time import cn_now, cn_today
         from app.strategy.late_session_strength import pool_cutoff
         observed_at = (cn_now().replace(tzinfo=None) if as_of == cn_today()
                        else datetime.combine(as_of, clock_time(15)))

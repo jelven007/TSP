@@ -49,6 +49,7 @@ def settlement(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline_jobs, "run_with_capacity", lambda jid, fn: store.start(jid) or fn())
     monkeypatch.setattr(post_close_sync, "publish_data_release", lambda *a, **kw: {"release_id": "release"})
     monkeypatch.setattr(post_close_sync, "run_repair_daily", lambda *a, **kw: {"rows": 0})
+    monkeypatch.setattr("app.services.kline_periods.finalize_minute_day", lambda *a, **kw: {"rows": 0})
     monkeypatch.setattr("app.services.kline_sync.sync_and_persist_daily_batch",
                         lambda *a, **kw: pytest.fail("valid daily rows must not be refetched"))
     monkeypatch.setattr("app.indicators.pipeline.run_pipeline",

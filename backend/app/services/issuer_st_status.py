@@ -44,6 +44,28 @@ def parse_issuer_st_events(title, text, symbol, announced):
             "treatment_type": title, "other": clause,
             "is_risk_warning_after": state, "classification": classification,
         })
+    # An issuer can put the effective date in a labelled field separate from
+    # the resume date and from old warning dates recounted in the body.
+    if state is False:
+        labelled = {}
+        for match in re.finditer(
+            r"撤销(?:退市风险警示及其他|退市|其他)风险警示的起始日[:\uff1a]"
+            r"(\d{4})年(\d{1,2})月(\d{1,2})日", compact,
+        ):
+            effective = date(*(int(x) for x in match.groups()))
+            if effective >= announced:
+                labelled[effective] = match[0]
+        if labelled:
+            dates = labelled.keys() | {row["effective_date"] for row in events
+                                       if row["effective_date"] >= announced}
+            if len(dates) != 1:
+                raise ValueError("ST 公告撤销生效日期冲突")
+            effective, clause = next(iter(labelled.items()))
+            events = [{
+                "symbol": symbol, "announcement_date": announced, "effective_date": effective,
+                "treatment_type": title, "other": clause,
+                "is_risk_warning_after": state, "classification": classification,
+            }]
     if not events:
         raise ValueError("ST 公告没有明确日期的股票状态证据")
     return events

@@ -31,6 +31,9 @@ def env(tmp_path, monkeypatch):
         return {"rows": 10}
 
     monkeypatch.setattr(correction, "run_repair_daily", repair)
+    # These tests isolate scheduling/missing-only stages; the real finalizer has
+    # source, partition and derived-period regressions in its integration file.
+    monkeypatch.setattr("app.services.kline_periods.finalize_minute_day", lambda *a, **kw: {"rows": 0})
     monkeypatch.setattr(correction, "finalize_daily_settlement", lambda *a: None)
     monkeypatch.setattr(correction, "publish_data_release", lambda *a, **kw: {"release_id": "release"})
     yield SimpleNamespace(repo=repo, clock=clock, store=store, calls=calls)
@@ -256,7 +259,7 @@ def test_one_period_failure_still_checks_other_periods_and_retains_diagnostics(e
 
 
 @pytest.mark.parametrize("trigger", ["scheduled", "startup"])
-def test_complete_five_period_day_never_resolves_provider_or_changes_files(env, monkeypatch, trigger):
+def test_missing_stage_preserves_completed_files_after_separate_finalization(env, monkeypatch, trigger):
     import polars as pl
 
     from app.services import kline_periods

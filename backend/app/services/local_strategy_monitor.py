@@ -60,7 +60,7 @@ def run(engine, service, storage, *, repair=None):
         if not frozen.has(sid) or frozen.get(sid).source not in ("custom", "ai"):
             continue
         strategy = frozen.get(sid)
-        selected = DailySelections(storage).read(sid, now.date())
+        selected = DailySelections(storage).read(sid, now.date(), live_entry=True)
         roster = sell_roster(storage, sid, now.date())
         from app.strategy.s02_173004552 import SID as S05_ID
         if sid == S05_ID:

@@ -1,11 +1,13 @@
 # 工程目录、构建与协作参考
 
-核对日期：2026-11-15。当前文档归属见[文档中心](../README.md)，
+当前文档归属见[文档中心](../README.md)，
 源码、发布和运行身份见[版本基线](../version-baseline.md)。
 
 <a id="layout"></a>
 <a id="layout-项目目录与工程边界"></a>
 ## 1. 仓库布局与文件归属
+
+根目录保留安装、开发、版本和贡献入口。正式源码按真实运行单元组织；交付、审计、计划和一次性工作目录分开。展开工作树、缓存或临时产物放在工作区外。
 
 <a id="layout-1-完整目录"></a>
 ```text
@@ -34,11 +36,13 @@ TSP/
   tests/tooling/          仓库工具与文档契约
   examples/               可运行数据源、策略和开放 API 示例
   brand/                  当前品牌源文件和平台图标
-  docs/                   六类主文档、专题参考、需求基准和当前计划
-  deliverables/
-    research/             用户 Excel、冻结输入和详细账本
-    audit/                当前发布、数据、恢复及必要历史证据
-  data/                   应用运行数据；不提交
+  docs/                   生命周期主手册、现行事实源
+    reference/            专题与领域协议（含 rustdx）
+    planning/             当前待验收、未来阶段
+    planning/archive/     有历史价值的冻结方案
+  reports/                按领域和专题日期归档诊断与验收证据；不入版本库
+  deliverables/           用户最终交付；同专题保留附件与账本
+  data/                   运行数据；不提交、不随目录整理迁移
 ```
 
 <a id="layout-2-文件归属与依赖方向"></a>
@@ -48,6 +52,8 @@ API／页面调用业务服务，业务服务调用领域计算、仓库及 Prov
 两处 scripts 包的导入与执行目录分别按[仓库工具](../../scripts/README.md)和
 [后端工具](../../backend/scripts/README.md)说明，不合并 Python 包。
 后端平铺测试与前端就近测试保持可发现，不按名字盲目移动。
+
+Full 由 `backend/app/main.py` 依 `SERVICE_ROLE` 分派；普通网页和 API 由 API 角色服务，数据管理请求沿现有权限转发到 Platform；Gateway 负责 SSE 和票据，调度等后台进程沿 `deploy/full/compose.yml` 各自启动，Compute 由 Broker 从冻结输入启动。`backend/`、`frontend/`、`deploy/`、`.github/workflows/` 和 `packaging/` 的构建入口保持稳定，避免移动时改动运行契约。
 
 <a id="layout-4-开发与检查入口"></a>
 ```bash
@@ -69,7 +75,7 @@ make build-frontend
 <a id="layout-6-兼容与维护"></a>
 移动目录同步导入、CLI、CI、构建清单、Markdown 和动态加载路径。
 公开锚点继续保留，旧路径的冻结证据不改写；
-本次只将必要材料按哈希迁移，应用数据与未提交源码保持。
+必要材料按迁移清单复核 SHA-256，应用数据与未提交源码保持。文档迁移先更新当前引用；已公布路径需要保留时用短导航页。
 
 <a id="layout-7-当前内容保留规则"></a>
 保留判据、职责与复核周期统一见[工程维护](../maintenance.md)。
@@ -102,7 +108,7 @@ make build-frontend
 
 <a id="engineering-5-目录文档与ci门禁"></a>
 需求编号基准为[requirement-ids.json](../requirement-ids.json)，
-保留164个FR、42个NFR与八模块边界。目录、文档、版本及空白检查在根 Makefile。
+保留基准内全部 FR/NFR 与八模块边界。目录、文档、版本及空白检查在根 Makefile。
 CI定义见[ci.yml](../../.github/workflows/ci.yml)；生产认证按同一固定身份。
 
 <a id="engineering-6-发布恢复与增量保护"></a>

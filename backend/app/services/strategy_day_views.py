@@ -223,6 +223,17 @@ def publish(store, conn, strategy_id, day, asset_type="stock", timeframe="1m", *
             **original_buy, "sections": {"buy": result["sections"]["buy"]},
         }, selected)
     if strategy_id == "custom_mvxxcp88":
+        # Old minute-only runs omitted names. Materialize display fields from
+        # their own frozen selection; the archived computation remains intact.
+        snapshot = result.get("selection_snapshot") or {}
+        if (snapshot.get("as_of") == str(day)
+                and snapshot.get("strategy_id", strategy_id) == strategy_id):
+            names = {row["symbol"]: row["name"] for row in snapshot.get("rows", [])
+                     if row.get("name")}
+            for rows in (result.get("rows", []), (result.get("sections") or {}).get("buy", [])):
+                for row in rows:
+                    if not row.get("name") and row.get("symbol") in names:
+                        row["name"] = names[row["symbol"]]
         from app.services.s02_run_evidence import annotate_diagnostic
         annotate_diagnostic(result)
         result["operational_state"] = _get(store, conn, "strategy_operational_state",

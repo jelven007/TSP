@@ -20,6 +20,8 @@ CONTRACT = "s02_input_manifest_v1"
 S01_ID = "custom_mvxxcs01"
 S02_ID = "custom_mvxxcp88"
 SIGNALS = {S01_ID: "late_session_strength_s01", S02_ID: "late_session_strength"}
+ENTRY_NULL_DEFAULTS = frozenset({"gap_max_pct", "position_min_pct", "return_5m_min_pct", "return_15m_min_pct"})
+S01_PRIORITY_MAX_SYMBOLS = 256
 SEMANTIC_FIELDS = ("input", "phase", "coverage", "state", "usable_symbols", "invalid_symbols")
 # 传输只包含公开计算依赖; 租户业务状态、账号及真实执行时钟不混入预选行。
 SELECTION_FIELDS = frozenset({
@@ -38,7 +40,7 @@ STATUS_FIELDS = frozenset({
 def normalize_request(value):
     """校验S02请求身份、日期、窗口和集合, 裁掉无关业务字段。
 
-    显式null原样保留; 只允许精确的请求字段, 预选必须无重复且属于完整池。
+    只合并默认关闭的新选项; 仍区分其他参数的缺省继承与显式关闭。
     返回深拷贝, 避免随后调用者修改已校验的嵌套输入。
     """
     required = {"strategy_id", "as_of", "reference_date", "bar_at", "definition_sha256",
@@ -68,6 +70,11 @@ def normalize_request(value):
             "entry_groups", "turnover_min_pct", "volume_ratio_min")):
         raise ValueError("S01权威输入不支持另需股本、日均量或分组的信号")
     request["signal"] = {"id": signal["id"], "params": deepcopy(signal["params"])}
+    if request["strategy_id"] in (S01_ID, S02_ID):
+        params = request["signal"]["params"]
+        for key in ENTRY_NULL_DEFAULTS:
+            if params.get(key) is None:
+                params.pop(key, None)
     for key in ("ma5_1m_count", "ma5_5m_count"):
         count = signal["params"].get(key)
         if count is not None and (type(count) is not int or not 1 <= count <= 120):
@@ -169,6 +176,11 @@ def minute_bounds(request, phase):
     start = (required[-1].replace(hour=9, minute=31)
              if phase == "stocks" and request["strategy_id"] == S01_ID else required[0])
     return start, required[-1]
+
+
+def s01_seal_target(request):
+    """Beijing time: finish sealing before the next minute after the target bar."""
+    return as_cn_datetime(datetime.fromisoformat(request["bar_at"])) + timedelta(minutes=1)
 
 
 def common_identity(request):
@@ -303,7 +315,7 @@ def build_manifest(request, *, phase, minutes, references, reference_errors,
                 not row["low"] <= row["close"] <= row["high"] for row in values.values()
                 if all(_number(row.get(field), positive=True) for field in ("low", "close", "high"))):
             bad = bad or "必需分钟高低价不一致"
-        if not columns <= set(frame.columns) and members:
+        if (rows or (request["strategy_id"] != S01_ID and members)) and not columns <= set(frame.columns):
             bad = bad or "启用条件缺少必需分钟字段"
         proof = coverage.get(symbol, {})
         missing_daily = source_evidence.get("dependencies", {}).get(symbol, {}).get("missing_daily_dates", [])

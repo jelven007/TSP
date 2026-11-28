@@ -152,6 +152,8 @@ class MinuteReplayHit:
     raw_entry_price: float | None = None
     entry_window_end: datetime | None = None
     entry_branch: str | None = None
+    signal_score: float | None = None
+    selection_rank: int | None = None
 
 
 @dataclass
@@ -246,6 +248,7 @@ class MinuteSignalReplayer:
         progress_cb: Callable[[dict], None] | None = None,
         cancel_event=None,
         strict_research: bool = False,
+        s05_selection_archive: dict | None = None,
     ) -> MinuteReplayResult:
         t0 = time.perf_counter()
         result = MinuteReplayResult()
@@ -254,10 +257,11 @@ class MinuteSignalReplayer:
         from app.strategy.s01_signals import stored_definitions
         routed_s02 = routed.enabled(strategy)
         s05_scoring = strategy.meta.get("id") == routed.SID
+        archived_s05 = s05_scoring and not routed_s02 and s05_selection_archive is not None
         requested_entries = set(overrides.get("entry_signals", strategy.entry_signals) or [])
         definitions = stored_definitions(self.strategy_engine)
         market_thresholds = (routed.market_thresholds(definitions, configured_only=routed_s02)
-                             if s05_scoring else None)
+                             if s05_scoring and not archived_s05 else None)
         deadline_signals = {"csgi_" + sig["id"]: sig for sig in definitions
                             if sig.get("template") == "late_session_strength"
                             and "csgi_" + sig["id"] in requested_entries}
@@ -403,7 +407,24 @@ class MinuteSignalReplayer:
                     repo, source_day, rows=panel.filter(pl.col("date") == source_day),
                     check_closing_minute=False, **({"isolate_symbols": True} if routed_s02 else {}),
                 ) or {}
-                if signal_sections:
+                if archived_s05:
+                    archived_day = s05_selection_archive.get(str(day))
+                    if archived_day is None:
+                        raise ValueError("缺少S05冻结预选归档")
+                    selection = archived_day["snapshot"]
+                    routed.frozen_daily_branch(selection, day)
+                    result.selection_provenance.append({
+                        "as_of": str(day), "source_date": str(source_day),
+                        "entry_branch": selection["entry_branch"], "branch_code": selection["branch_code"],
+                        "coverage": selection.get("score_coverage") or {},
+                        "scoring_provenance": selection.get("score_provenance") or {},
+                        "archive": archived_day["evidence"], "signal_symbols": [],
+                        "warnings": [*selection.get("warnings", []), *(
+                            ["S05使用历史补算预选, 不代表盘后原时点已执行"]
+                            if archived_day["evidence"].get("manual_replay") else [])],
+                    })
+                    context = replace(context, selection_snapshots={routed.SID: selection})
+                elif signal_sections:
                     from app.strategy.signal_sections import select_rows
                     from app.strategy.suspension import annotate
 
@@ -484,6 +505,9 @@ class MinuteSignalReplayer:
                         result.replayed_days += 1
                         continue
                     name = "csgi_" + routed.ENTRY_IDS[branch]
+                    if archived_s05 and (name not in requested_entries or name not in deadline_signals
+                                         or not deadline_signals[name].get("enabled")):
+                        raise ValueError("S05冻结分支缺少已启用的入场信号")
                     run_overrides = {**overrides, "entry_signals": [name] if name in requested_entries else []}
                 run_result = self.strategy_engine.run(
                     strategy.meta.get("id", ""),
@@ -517,7 +541,9 @@ class MinuteSignalReplayer:
 
                 if run_result.daily_stock_pool_error:
                     result.errors.append(f"{day}: {run_result.daily_stock_pool_error}")
-                requested = set(overrides.get("entry_signals", strategy.entry_signals) or []) | set(strategy.required_features)
+                diagnostic_overrides = run_overrides if archived_s05 else overrides
+                requested = (set(diagnostic_overrides.get("entry_signals", strategy.entry_signals) or [])
+                             | set(strategy.required_features))
                 for sig in custom_signals.load_intraday_all(self.strategy_engine._user_data_dir()):
                     if sig.get("template") == TEMPLATE and custom_signals.intraday_column_name(sig["id"]) in requested:
                         evaluated = evaluate(
@@ -537,10 +563,24 @@ class MinuteSignalReplayer:
                 run_result.rows = [row for row in run_result.rows if row.get("symbol") in triggered]
             if symbols:
                 run_result.rows = [row for row in run_result.rows if row.get("symbol") in symbols]
+            rankings = {}
+            if archived_s05:
+                from app.services.s05_signal_scores import buy_scores
+
+                ranks = {row["symbol"]: row.get("s02_rank") for row in selection["rows"]}
+                for row in buy_scores({"as_of": str(day), "rows": run_result.rows}, selection):
+                    symbol = row["symbol"]
+                    score, rank = row["signal_score"], ranks.get(symbol)
+                    if score is None or type(rank) is not int or rank < 1:
+                        result.errors.append(f"{day} {symbol} 缺少S05分支排序证据")
+                        continue
+                    rankings[symbol] = (score, rank)
+                result.selection_provenance[-1]["signal_symbols"] = sorted(rankings)
             for row in run_result.rows:
                 symbol = row.get("symbol")
                 close = row.get("close")
-                if not symbol or close is None or float(close) <= 0:
+                if (not symbol or close is None or float(close) <= 0
+                        or (archived_s05 and symbol not in rankings)):
                     continue
                 raw_close = float(close)
                 trigger = row.get("last_datetime")
@@ -611,6 +651,8 @@ class MinuteSignalReplayer:
                     entry_window_end=entry_window_end,
                     entry_branch=(row.get("entry_branch") if routed_s02 else selection["entry_branch"])
                     if s05_scoring else None,
+                    signal_score=rankings[symbol][0] if archived_s05 else None,
+                    selection_rank=rankings[symbol][1] if archived_s05 else None,
                 ))
 
         result.elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)

@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { afterEach, expect, it, vi } from 'vitest'
 import { Data } from './Data'
 import { QK } from '@/lib/queryKeys'
@@ -13,6 +13,67 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 afterEach(() => {
   vi.unstubAllGlobals()
   localStorage.clear()
+})
+
+it('keeps readiness distinct from the navigation summary and links to the related strategy task context', async () => {
+  const fetchMock = vi.fn(async (url: string) => new Response(JSON.stringify(
+    url === '/api/pipeline/jobs?limit=15&include_readiness=true' ? {
+      active_id: null, jobs: [],
+      schedule_readiness: {
+        automatic_enabled: true, observed_at: '2026-11-28T06:53:00+08:00',
+        stock_status: { target_date: '2026-11-30', status: 'failed', coverage: 'unverified',
+          scheduled_for: '2026-11-27T20:30:00+08:00', counts: { pending: 5224 } },
+        post_close: { trade_date: '2026-11-27', sync: { status: 'failed' },
+          daily: { status: 'succeeded' }, minute: { status: 'not_run' },
+          review: { status: 'succeeded', coverage: 'complete', valid: 5219, remaining: 0 } },
+        next_check: { kind: 'evening_status', due_at: '2026-11-28T20:30:00+08:00' },
+      },
+    } : url === '/api/pipeline/jobs?limit=1' ? { active_id: null, jobs: [] }
+      : url === '/api/settings/capability-matrix' ? { capabilities: [] }
+      : url === '/api/settings/data-sources' ? { builtin: [], plugins: [], custom: [] }
+        : url === '/api/data/status' ? { storage: {}, indicators_ready: true }
+          : url === '/api/regime/coverage' ? null
+            : url === '/api/ext-data' ? { items: [] }
+          : url === '/api/settings/kline-sync' ? Object.fromEntries(
+            ['1m', '5m', '10m', '15m', '1d', '1w'].map(period => [period, {
+              enabled: true, interval_seconds: 60, windows: [], time: '16:00',
+            }]),
+          ) : {})))
+  vi.stubGlobal('fetch', fetchMock)
+  function NavigationSummary() {
+    useQuery({
+      queryKey: QK.pipelineJobs, queryFn: async () => (await fetch('/api/pipeline/jobs?limit=1')).json(),
+    })
+    return null
+  }
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const host = document.createElement('div')
+  const root = createRoot(host)
+  document.body.append(host)
+  try {
+    await act(async () => root.render(
+      <QueryClientProvider client={client}><MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <NavigationSummary />
+        <Data />
+      </MemoryRouter></QueryClientProvider>,
+    ))
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 40)) })
+    const panel = host.querySelector('[aria-label="交易数据就绪"]')
+    expect(panel).not.toBeNull()
+    expect(panel?.textContent).toContain('覆盖未核实')
+    expect(panel?.textContent).toContain('待核 5,224 只')
+    expect(panel?.textContent).toContain('15:35 补缺失败')
+    expect(panel?.textContent).toContain('日线已定版')
+    expect(panel?.textContent).toContain('15:45 复核完成')
+    const link = [...panel!.querySelectorAll('a')].find(a => a.textContent?.includes('查看相关策略任务'))
+    expect(link?.getAttribute('href')).toBe('/monitor?task_context=stock-status&data_date=2026-11-30#strategy-tasks')
+    expect(fetchMock).toHaveBeenCalledWith('/api/pipeline/jobs?limit=1')
+    expect(fetchMock).toHaveBeenCalledWith('/api/pipeline/jobs?limit=15&include_readiness=true', expect.anything())
+  } finally {
+    await act(async () => root.unmount())
+    host.remove()
+    client.clear()
+  }
 })
 
 it.each(['success', 'failure', 'preferences-error'] as const)('places quotes in the portrait and handles the %s auto-sync switch', async outcome => {
@@ -157,7 +218,13 @@ it.each(['succeeded', 'failed'] as const)('refreshes cached charts after a %s re
   }
 })
 
-it('opens daily profile acquisition and submits its selected closed date range', async () => {
+it.each([
+  ['1d', '日 K', '日K', '获取全量数据'],
+  ['5m', '5分K', '5分K', '生成数据'],
+  ['10m', '10分K', '10分K', '生成数据'],
+  ['15m', '15分K', '15分K', '生成数据'],
+  ['1w', '周K', '周K', '生成数据'],
+] as const)('opens %s profile settings and submits its date range', async (period, cardTitle, dialogTitle, action) => {
   const fetchMock = vi.fn(async (path: string, _init?: RequestInit) => {
     let value: unknown = {}
     if (path === '/api/settings/preferences') value = { data_sync_auto_enabled: true }
@@ -195,26 +262,28 @@ it('opens daily profile acquisition and submits its selected closed date range',
       <QueryClientProvider client={client}><MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Data /></MemoryRouter></QueryClientProvider>,
     ))
     await flush()
-    const card = [...host.querySelectorAll('h3')].find(heading => heading.textContent === '日 K')!.closest('.rounded-card')!
+    const card = [...host.querySelectorAll('h3')].find(heading => heading.textContent === cardTitle)!.closest('.rounded-card')!
     const settings = card.querySelector<HTMLButtonElement>('button[title="设置"]')!
     expect(settings).not.toBeNull()
     await act(async () => settings.click())
     await flush()
     const dialog = document.querySelector('[role="dialog"]')!
-    expect(dialog.textContent).toContain('日K · 同步设置')
-    expect(dialog.textContent).toContain('获取日K后继续同步除权因子并重算指标')
+    expect(dialog.textContent).toContain(`${dialogTitle} · 同步设置`)
+    if (period === '1d') expect(dialog.textContent).toContain('获取日K后继续同步除权因子并重算指标')
     expect(dialog.querySelector('[aria-label="历史扩展数量"]')).toBeNull()
     expect(dialog.querySelector('[aria-label="起始日期"]')).not.toBeNull()
     expect(dialog.querySelector('[aria-label="结束日期"]')).not.toBeNull()
-    expect(dialog.querySelector('[aria-label="交易日同步时间"]')?.textContent).toContain('15:35（固定）')
-    expect(dialog.textContent).toContain('2025-10-27')
-    const acquire = [...dialog.querySelectorAll('button')].find(button => button.textContent === '获取全量数据')!
+    if (period === '1d') {
+      expect(dialog.querySelector('[aria-label="交易日同步时间"]')?.textContent).toContain('15:35（固定）')
+      expect(dialog.textContent).toContain('2025-10-27')
+    }
+    const acquire = [...dialog.querySelectorAll('button')].find(button => button.textContent === action)!
     await act(async () => acquire.click())
     await flush()
     const request = fetchMock.mock.calls.find(call => call[0] === '/api/kline/sync_period')!
     expect(request[1]).toEqual(expect.objectContaining({ method: 'POST' }))
     expect(JSON.parse(String(request[1]?.body))).toEqual({
-      period: '1d',
+      period,
       start_date: expect.any(String),
       end_date: expect.any(String),
       mode: 'full',

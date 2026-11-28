@@ -1026,7 +1026,9 @@ def run_monitored(engine, strategy, loader, storage, day, current, overrides, wi
     context = independent
     if any(a["kind"] == "buy" and a["phase"] == "stocks" for a in actions):
         try:
+            from app.services.selection_clock import S05_ID
             from app.strategy.late_session_strength import optional_definition
+            sid = strategy.meta["id"]
             due_ids = {a["signal_id"] for a in actions if a["kind"] == "buy" and a["phase"] == "stocks"}
             selected_only = all(w["signal"].get("template") == "late_session_strength"
                                 and optional_definition(w["signal"])
@@ -1036,13 +1038,13 @@ def run_monitored(engine, strategy, loader, storage, day, current, overrides, wi
             frozen = frozen_loader(strategy.meta["id"]) if callable(frozen_loader) else None
             if frozen is not None:
                 context = frozen
-            elif selected_only:
+            elif selected_only or sid == S05_ID:
                 selection_loader = getattr(engine, "_selection_loader", None)
                 if callable(selection_loader):
                     selected = selection_loader(strategy.meta["id"], day)
                 else:
                     from app.services.daily_selections import DailySelections
-                    selected = DailySelections(storage).read(strategy.meta["id"], day)
+                    selected = DailySelections(storage).read(sid, day, live_entry=True)
                 context = loader.__self__.build_selected_stock_context(
                     engine, day, strategy.meta["id"], selected, current=current,
                     overrides=overrides, observed_at=now)

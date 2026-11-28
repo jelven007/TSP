@@ -213,6 +213,30 @@ def test_unpublished_year_remains_unknown(tmp_path, monkeypatch):
     assert result["calendar_coverage"] == "unknown"
 
 
+@pytest.mark.parametrize(("day", "band"), [
+    (date(2026, 11, 28), "normal"),
+    (date(2026, 12, 2), "30_days"),
+    (date(2026, 12, 18), "14_days"),
+    (date(2026, 12, 25), "7_days"),
+    (date(2027, 1, 1), "expired"),
+])
+def test_official_calendar_forecast_is_independent_of_cached_provider(tmp_path, monkeypatch, day, band):
+    from app.market_time import published_trading_day, trading_calendar_provenance
+
+    _freshness_files(tmp_path, "2026-11-27")
+    monkeypatch.setattr(health, "cached_trading_calendar",
+                        lambda: {date(2026, 11, 27), date(2027, 1, 15)})
+    monkeypatch.setattr(health, "cn_now", lambda: datetime.combine(day, datetime.min.time(), CN_TZ))
+    result = health._check_data_freshness(tmp_path)["official_calendar"]
+    assert result["warning_band"] == band
+    assert result["first_uncovered_date"] == "2027-01-01"
+    assert result["remaining_natural_days"] == max(0, (date(2027, 1, 1) - day).days)
+    assert result["remaining_trading_days"] >= 0
+    assert result["calendar_sha256"] == trading_calendar_provenance()["sha256"]
+    assert published_trading_day(date(2027, 1, 4)) is None
+    assert published_trading_day(date(2027, 1, 2)) is False
+
+
 def test_platform_probes_do_not_queue_behind_busy_request_threads(tmp_path, monkeypatch):
     import asyncio
     import threading

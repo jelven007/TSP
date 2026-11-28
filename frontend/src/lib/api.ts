@@ -4078,9 +4078,10 @@ export const api = {
   /** 手动停止一个 queued/running 的同步任务 (协作式: 当前分块完成后进入 cancelled) */
   pipelineJobCancel: (id: string) =>
     request<{ cancelled: string }>(`/api/pipeline/jobs/${id}/cancel`, { method: 'POST' }),
-  pipelineJobs: (limit = 20) =>
-    request<{ active_id: string | null; jobs: PipelineJobSummary[]; post_close_integrity?: PostCloseIntegrityStatus }>(
-      `/api/pipeline/jobs?limit=${limit}`,
+  pipelineJobs: (limit = 20, includeReadiness = false) =>
+    request<{ active_id: string | null; jobs: PipelineJobSummary[]; post_close_integrity?: PostCloseIntegrityStatus;
+      schedule_readiness?: ScheduleReadiness }>(
+      `/api/pipeline/jobs?limit=${limit}${includeReadiness ? '&include_readiness=true' : ''}`,
     ),
 
   dataStatus: () => request<DataStatus>(
@@ -5065,6 +5066,40 @@ export const api = {
 }
 
 // ===== Pipeline =====
+export interface ScheduleReadiness {
+  observed_at: string
+  automatic_enabled: boolean
+  stock_status: {
+    target_date: string | null
+    status: string
+    coverage: 'unverified' | 'partial' | 'complete' | 'pending_publication'
+    scheduled_for?: string | null
+    observed_at?: string | null
+    cutoff?: string | null
+    deadline_elapsed?: boolean
+    next_retry_at?: string | null
+    counts?: { universe?: number | null; covered?: number | null; pending?: number | null;
+      unscanned?: number | null; unresolved?: number | null }
+  }
+  post_close: {
+    trade_date: string | null
+    sync: { status: string; updated_at?: string | null; minute_gaps_at_check?: number | null }
+    daily: { status: string; release_id?: string | null }
+    minute: { status: string }
+    review: {
+      status: string
+      coverage: 'unverified' | 'partial' | 'complete'
+      valid?: number | null
+      invalid?: number | null
+      remaining?: number | null
+      suspended?: number | null
+      finished_at?: string | null
+      next_retry_at?: string | null
+    }
+  }
+  next_check: { kind: 'morning_status' | 'close_sync' | 'close_review' | 'evening_status'; due_at: string } | null
+}
+
 export interface DailyCloseReview {
   before?: { checked_count: number; valid_count: number; invalid_count: number; error?: string }
   after?: { checked_count: number; valid_count: number; invalid_count: number; error?: string }
