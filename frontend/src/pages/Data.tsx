@@ -54,6 +54,7 @@ import { QuoteConfigCard } from '@/components/data/QuoteConfigCard'
 import { EnrichedSchemaModal } from '@/components/data/SchemaModal'
 import { Skeleton } from '@/components/data/Skeleton'
 import { DataReadiness } from '@/components/data/DataReadiness'
+import { TradingReadiness } from '@/components/data/TradingReadiness'
 import { ExtDataStatCard } from '@/components/ext-data/ExtDataStatCard'
 import { CreateExtDialog } from '@/components/ext-data/CreateExtDialog'
 import { EditExtDialog } from '@/components/ext-data/EditExtDialog'
@@ -106,8 +107,9 @@ export function Data() {
   })
 
   const history = useQuery({
-    queryKey: QK.pipelineJobs,
-    queryFn: () => api.pipelineJobs(15),
+    queryKey: [...QK.pipelineJobs, 'readiness'],
+    queryFn: () => api.pipelineJobs(15, true),
+    refetchOnMount: 'always',
     refetchInterval: activeJobId ? false : 60_000,
   })
 
@@ -221,6 +223,7 @@ export function Data() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QK.preferences })
       qc.invalidateQueries({ queryKey: QK.dataStatus })
+      qc.invalidateQueries({ queryKey: QK.pipelineJobs })
     },
     onError: (error: Error) => toast(error.message),
   })
@@ -690,6 +693,7 @@ export function Data() {
       />
 
       <div className="page-content space-y-4">
+        <TradingReadiness value={history.data?.schedule_readiness} loading={history.isLoading} unavailable={history.isError} />
         <DataReadiness quality={s?.quality} initialization={s?.initialization} />
         {/* 无 Key 提示 —— 非阻断: 历史日K走免费通道, 实时等能力取决于所选数据源 */}
         {isNoKey && (

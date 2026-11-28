@@ -192,6 +192,7 @@ def execute(payload: dict, private_root: Path) -> dict:
                           else factors.run(FactorConfig(**values)))
         if kind == "strategy":
             from app.services.screener import ScreenerService
+            from app.services.selection_clock import S05_ID
 
             as_of = date.fromisoformat(payload["as_of"])
             svc = ScreenerService(repo, asset_type=payload.get("asset_type", "stock"))
@@ -202,6 +203,7 @@ def execute(payload: dict, private_root: Path) -> dict:
             context = svc.build_strategy_context(
                 engine, as_of, ids, timeframe=payload.get("timeframe", "1d"),
                 params_map=payload.get("params_map"), overrides_map=payload.get("overrides_map"),
+                selection_snapshots=payload.get("selection_snapshots", {}),
             )
             context.previous_states = payload.get("previous_states")
             context.selection_snapshots = payload.get("selection_snapshots", {})
@@ -215,7 +217,8 @@ def execute(payload: dict, private_root: Path) -> dict:
                 context = historical_context(context, payload["historical_replay"], ids)
                 return replay_strategy(engine, svc, context, payload)
             positions = payload.get("positions", {})
-            if context.current is not None and context.current.is_empty() and not positions:
+            if (context.current is not None and context.current.is_empty() and not positions
+                    and not (ids == [S05_ID] and context.realtime)):
                 raise ValueError("无可用行情数据，请稍后重试")
             if positions:
                 from app.market_time import cn_now, cn_today
@@ -227,6 +230,15 @@ def execute(payload: dict, private_root: Path) -> dict:
                 results = {}
                 for sid in ids:
                     scoped = replace(context, positions=positions.get(sid), observed_at=observed_at)
+                    if sid == S05_ID and scoped.realtime and scoped.positions:
+                        from app.services.strategy_monitor_tasks import sell_context
+
+                        symbols = sorted({position["symbol"] for position in scoped.positions})
+                        quotes = svc._load_enriched_for_date(as_of)
+                        if "symbol" in quotes.columns:
+                            quotes = quotes.filter(pl.col("symbol").is_in(symbols))
+                        scoped.holding_context = sell_context(
+                            svc, as_of, quotes, {"rows": scoped.positions}, observed_at)
                     results[sid] = asdict(engine.run(
                         sid, scoped, pool=payload.get("pool") if len(ids) == 1 else None,
                         params=payload.get("params_map", {}).get(sid),
@@ -251,7 +263,8 @@ def execute(payload: dict, private_root: Path) -> dict:
             _decode_walkforward_config,
         )
 
-        service = StrategyBacktestService(backtest_engine, engine)
+        service = StrategyBacktestService(
+            backtest_engine, engine, s05_selection_archive=payload.get("s05_selection_archive"))
         def progress(message):
             emit("progress", payload=message)
 

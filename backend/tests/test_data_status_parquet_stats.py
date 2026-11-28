@@ -83,3 +83,31 @@ def test_minute_status_reports_exact_rows_and_symbols(tmp_path):
         "symbols_covered": 3,
         "trading_days": 2,
     }
+
+
+def test_minute_status_excludes_lock_only_and_empty_partitions(tmp_path):
+    root = tmp_path / "kline_minute"
+    locked = root / "date=2026-03-27"
+    locked.mkdir(parents=True)
+    (locked / ".minute-write.lock").touch()
+    _write_partition(root, "2026-03-30", ["A", "B"], timestamp=True)
+    (root / "date=2026-03-31").mkdir()
+    _write_partition(root, "2026-04-01", ["B"], timestamp=True)
+    (root / "date=2026-04-02").mkdir()
+
+    assert data._safe_aggregate_minute(_repo(tmp_path)) == {
+        "rows": 3,
+        "earliest_date": "2026-03-30",
+        "latest_date": "2026-04-01",
+        "symbols_covered": 2,
+        "trading_days": 2,
+    }
+    assert (locked / ".minute-write.lock").is_file()
+
+
+def test_minute_status_with_only_write_locks_has_no_coverage(tmp_path):
+    locked = tmp_path / "kline_minute" / "date=2026-03-27"
+    locked.mkdir(parents=True)
+    (locked / ".minute-write.lock").touch()
+
+    assert data._safe_aggregate_minute(_repo(tmp_path)) is None

@@ -1,4 +1,4 @@
-"""启动及交易日15:35仅补当日五周期缺口, 两种触发独立记录。"""
+"""启动补当日缺口; 交易日15:35补缺并核验分钟定版, 独立记录触发。"""
 from __future__ import annotations
 
 import json
@@ -143,9 +143,11 @@ def retry_pending(repo, capset, quote_service=None) -> dict | None:
                 _save(repo, {**state, "status": "interrupted", "error": "等待请求已跨日, 未补齐原交易日"})
             state = _save(repo, {"day": now.date().isoformat(), "status": "pending"})
         if (state is not None and state["status"] == "failed"
-                and state.get("daily_settlement_status") == "failed"
+                and (state.get("daily_settlement_status") == "failed"
+                     or state.get("minute_finalization_status") == "failed")
                 and state["day"] == str(now.date()) and _allowed(now)
-                and now >= datetime.fromisoformat(state["daily_settlement_retry_at"])):
+                and now >= datetime.fromisoformat(state.get("minute_finalization_retry_at")
+                                                  or state["daily_settlement_retry_at"])):
             state = _save(repo, {**state, "status": "pending"})
         if state is None or state["status"] not in {"pending", "running"}:
             return state
@@ -242,6 +244,26 @@ def _dispatch(repo, capset, quote_service, state: dict, *, stop=None) -> dict:
                 except Exception as exc:
                     logger.exception("盘后%s补缺失败: %s", period, state["day"])
                     result = {"error": str(exc)}
+                if period == "1m" and cn_now().date() == target and cn_now().time().replace(tzinfo=None) >= SYNC_TIME:
+                    from app.services.kline_periods import finalize_minute_day
+                    attempts = state.get("minute_finalization_attempts", 0) + 1
+                    state.update(minute_finalization_status="running", minute_finalization_attempts=attempts)
+                    _save(repo, state)
+                    try:
+                        final = finalize_minute_day(repo, target, capset, on_progress=progress)
+                    except pipeline_jobs.JobCancelledError:
+                        raise
+                    except Exception as exc:
+                        final = {"error": str(exc)}
+                    result["finalization"] = final
+                    state["minute_finalization_status"] = "failed" if final.get("error") else "succeeded"
+                    if final.get("error"):
+                        state["minute_finalization_retry_at"] = (cn_now() + timedelta(
+                            seconds=min(300, 30 * 2 ** min(attempts, 4)))).isoformat()
+                        incomplete.append(f"1m定版: {final}")
+                    else:
+                        state.pop("minute_finalization_retry_at", None)
+                    _save(repo, state)
                 results[period] = result
                 # Preserve partial diagnostics even if no public release is possible.
                 state["periods"] = results

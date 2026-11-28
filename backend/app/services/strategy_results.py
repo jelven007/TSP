@@ -119,8 +119,10 @@ def execution_snapshot(engine, storage=None):
     snapshot = copy.copy(engine)
     if storage is not None:
         snapshot._daily_state_loader = lambda sid, day: previous_daily_state(storage, sid, day)
+        from app.market_time import cn_today
         from app.services.daily_selections import DailySelections
-        snapshot._selection_loader = lambda sid, day: DailySelections(storage).read(sid, day)
+        snapshot._selection_loader = lambda sid, day: DailySelections(storage).read(
+            sid, day, live_entry=day == cn_today())
         from functools import lru_cache
 
         from app.services.daily_stock_pools import DailyStockPools

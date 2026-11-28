@@ -32,6 +32,123 @@ def test_prepare_only_passes_current_day_results_to_phase_merge(owned):
     assert owned.documents.get("monitor_results", "default") == saved
 
 
+@pytest.fixture
+def active_s01(owned):
+    from datetime import datetime, time
+    from pathlib import Path
+
+    from app.market_time import CN_TZ, cn_today
+    from app.multitenancy.strategies import definition_payload
+    from app.services.daily_selections import DailySelections
+    from app.services.strategy_monitor_tasks import set_monitoring
+    from app.services.strategy_results import capture_identity
+    from app.strategy import custom_signals
+    from app.strategy.basic_filter import previous_session
+    from app.strategy.engine import StrategyEngine
+
+    examples = Path(__file__).resolve().parents[2] / "examples" / "strategies"
+    sid, signal_id = "custom_mvxxcs01", "late_session_strength_s01"
+    engine = StrategyEngine([examples])
+    owned.documents.put("strategy_sources", sid, {
+        "source": "custom", "code": (examples / "s01_signal_sections.py").read_text(),
+        "definition": definition_payload(engine.get(sid)),
+    })
+    custom_signals.save_one(owned.documents, {
+        "id": signal_id, "name": "S01", "kind": "entry", "timeframe": "intraday",
+        "template": "late_session_strength", "enabled": True, "conditions": [],
+        "params": {"time": "14:45:00", "end_time": "14:55:00",
+                   "evaluation_delay_minutes": 1, "pool_up_min_pct": 65},
+    })
+    day = cn_today()
+    owned.clock["now"] = datetime.combine(day, time(14, 46), CN_TZ).timestamp()
+    identity = capture_identity(engine, owned.documents, sid, timeframe="1m")
+    DailySelections(owned.documents).save(identity, {
+        "as_of": str(day), "source_date": str(previous_session(day)),
+        "rows": [{"symbol": "600000.SH", "reference_close": 9.0}],
+    }, started_at=1)
+    set_monitoring(owned.documents, sid, "s01", True)
+    return sid, signal_id, day, identity.runtime_identity
+
+
+@pytest.mark.parametrize(("restart", "published"), [(True, False), (False, True), (True, True)])
+def test_prepare_s01_ignores_cancelled_generation_without_replaying_published_buy(
+        owned, active_s01, restart, published):
+    from app.services.strategy_monitor_state import CONTRACT
+    from app.services.strategy_monitor_tasks import set_monitoring, task_receipt
+
+    sid, signal, day, identity = active_s01
+    buy = ({"state": "success", "terminal": True, "published": True, "signals": {signal: {
+        "state": "success", "terminal": True, "passed": True, "breadth_required": True,
+        "publication_state": "complete", "joined_at": f"{day}T14:46:00+08:00",
+        "breadth": {"state": "success"}, "stocks": {"state": "success"},
+    }}} if published else {"state": "waiting", "terminal": False, "signals": {signal: {
+        "breadth": {"state": "waiting_input", "attempts": 84},
+    }}})
+    previous = {"as_of": str(day), "runtime_identity": identity, "monitor_tasks": {"buy": buy},
+                "sections": {"buy": [{"symbol": "600000.SH"}] if published else [], "sell": []}}
+    task_receipt(owned.documents, sid, day, {
+        "as_of": str(day), "strategy_id": sid, "contract": CONTRACT, "generation": 1,
+        "runtime_identity": identity, "tasks": previous["monitor_tasks"],
+    })
+    owned.documents.put("monitor_results", "default", {"results": {sid: previous}})
+    if restart:
+        set_monitoring(owned.documents, sid, "s01", False)
+        set_monitoring(owned.documents, sid, "s01", True)
+    before = task_receipt(owned.documents, sid, day)
+    _, _, payload, _ = owned.worker.prepare(
+        owned.documents.context.tenant_id, owned.snapshot())
+    assert payload["strategy_task_generations"][sid] == (3 if restart else 1)
+    actions = {a["phase"] for a in payload["strategy_task_plans"][sid]["actions"] if a["kind"] == "buy"}
+    if published:
+        assert actions == set()
+        assert payload["strategy_task_receipts"][sid]["tasks"]["buy"] == buy
+        assert payload["strategy_task_results"][sid]["sections"]["buy"] == [{"symbol": "600000.SH"}]
+        assert not owned.worker.phase_inbox.unpublished(payload)[sid]
+    else:
+        assert before["tasks"]["buy"]["state"] == "cancelled"
+        assert actions == {"breadth", "stocks"}
+        assert "buy" not in payload["strategy_task_receipts"][sid]["tasks"]
+        assert sid not in payload["strategy_task_results"]
+        owned.clock["now"] += 9 * 60 + 1
+        _, _, late, _ = owned.worker.prepare(owned.documents.context.tenant_id, owned.snapshot())
+        assert not any(a["kind"] == "buy" for a in late["strategy_task_plans"][sid]["actions"])
+    assert task_receipt(owned.documents, sid, day) == before
+
+
+def test_prepare_s01_platform_io_does_not_hold_tenant_binding(owned, active_s01, monkeypatch):
+    from app.services import minute_priority
+    from app.services.strategy_monitor_state import CONTRACT
+    from app.services.strategy_monitor_tasks import task_receipt
+
+    sid, signal, day, identity = active_s01
+    task_receipt(owned.documents, sid, day, {
+        "as_of": str(day), "strategy_id": sid, "contract": CONTRACT, "generation": 1,
+        "runtime_identity": identity, "tasks": {"buy": {"signals": {signal: {
+            "breadth": {"state": "failed", "repair": {"state": "running", "request": {"id": "repair"}}}
+        }}}},
+    })
+    monkeypatch.setattr(minute_priority, "build_plan", lambda *_args, **_kwargs: {"symbols": ["600000.SH"]})
+    calls = []
+
+    def check_lock(kind):
+        admin = owned.env["data"]
+        with admin.transaction():
+            admin.execute("SELECT tenant_id FROM business.tenant_bindings WHERE tenant_id=%s FOR UPDATE NOWAIT",
+                          (owned.documents.context.tenant_id,))
+        calls.append(kind)
+
+    def repair(request):
+        assert request == {"id": "repair"}
+        check_lock("repair")
+        return {"state": "running"}
+
+    owned.worker.market = SimpleNamespace(
+        minute_priority=lambda *_: check_lock("priority"), monitor_repair=repair)
+    _, _, payload, _ = owned.worker.prepare(owned.documents.context.tenant_id, owned.snapshot())
+    assert calls == ["priority", "repair"]
+    assert {a["phase"] for a in payload["strategy_task_plans"][sid]["actions"] if a["kind"] == "buy"} == {"stocks"}
+
+
 def test_cancel_custom_disables_all_rules_recovery_and_changes_commit_fingerprint(owned, monkeypatch):
     sid = configure(owned)
     reconcile(owned.worker, owned.documents)

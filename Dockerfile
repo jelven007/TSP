@@ -178,10 +178,11 @@ LABEL org.opencontainers.image.revision=$SOURCE_COMMIT \
       io.tsp.source-tree=$SOURCE_TREE_SHA
 COPY VERSION /app/VERSION
 COPY scripts/build_manifest.py /app/build_manifest.py
+COPY scripts/release/package_transfer.py /app/scripts/release/package_transfer.py
 RUN python /app/build_manifest.py create --root /app \
     --include app --include static --include tiers.yaml --include VERSION \
     --include pyproject.toml --include uv.lock --include native-wheels \
-    --include build_manifest.py --version-file /app/VERSION \
+    --include build_manifest.py --include scripts/release/package_transfer.py --version-file /app/VERSION \
     --commit "$SOURCE_COMMIT" --output /app/build-manifest.json \
     && python /app/build_manifest.py verify --root /app --manifest /app/build-manifest.json
 

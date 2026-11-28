@@ -172,6 +172,15 @@ def sync_missing(repo, period: str, start: date, end: date, *, on_progress=None,
         halts = {day: suspended_symbols(repo, day, observed_at=min(
             now, datetime.combine(day, SELECTION_TIME))) for day in days}
         result["suspended_skipped"] = sum(len(set(symbols) & values) for values in halts.values())
+    elif period == "1m" or period in kline_periods.LOCAL_MINUTE_PERIODS:
+        # Match minute persistence: only pre-open published suspension evidence
+        # removes expected bars, never missing quotes or a later announcement.
+        from app.instrument_suspension import _dated_events, load_suspension_history
+        history = load_suspension_history(repo.store.data_dir)
+        for day in days:
+            status = _dated_events(history, day, observed_at=datetime.combine(day, time(9, 30)))
+            halts[day] = set(status.filter(pl.col("is_suspended"))["symbol"]) if not status.is_empty() else set()
+        result["suspended_skipped"] = sum(len(set(symbols) & values) for values in halts.values())
 
     def expected_for(selected, label, final_day):
         eligible = [symbol for symbol in selected if symbol not in halts.get(final_day, set())]

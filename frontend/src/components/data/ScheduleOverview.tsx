@@ -10,7 +10,7 @@ import {
 import type { PostCloseIntegrityStatus } from '@/lib/api'
 import { PostCloseIntegritySummary } from './PostCloseIntegritySummary'
 
-type ScheduleState = 'running' | 'enabled' | 'partial' | 'disabled' | 'unavailable'
+type ScheduleState = 'running' | 'waiting' | 'enabled' | 'partial' | 'disabled' | 'unavailable'
 export type ScheduleCategory = 'foundation' | 'market' | 'kline' | 'maintenance' | 'extension'
 
 const CATEGORY_ORDER: ScheduleCategory[] = [
@@ -172,7 +172,7 @@ export function buildDataScheduleItems({
         : !quoteEnabled
           ? 'disabled'
           : quoteStatus?.running
-            ? 'running'
+            ? quoteStatus.is_trading_hours ? 'running' : 'waiting'
             : 'enabled',
     },
     {
@@ -219,6 +219,7 @@ export function buildDataScheduleItems({
       label: '日K周期同步',
       detail: '由盘后数据管理补齐当日缺少的日K，受自动同步总开关控制。',
       schedule: `交易日 ${dailyTime}`,
+      scheduleLabel: '盘后补缺子项',
       state: stateForAuto(),
     },
     {
@@ -305,6 +306,7 @@ export function buildDataScheduleItems({
 
 const STATE_STYLE: Record<ScheduleState, { label: string; className: string }> = {
   running: { label: '运行中', className: 'border-accent/35 bg-accent/10 text-accent' },
+  waiting: { label: '在线 · 等待交易时段', className: 'border-border bg-elevated text-secondary' },
   enabled: { label: '已启用', className: 'border-border bg-elevated text-secondary' },
   partial: { label: '部分暂停', className: 'border-warning/30 bg-warning/10 text-warning' },
   disabled: { label: '已暂停', className: 'border-border bg-base text-muted' },
@@ -330,7 +332,7 @@ export function ScheduleOverview(props: Parameters<typeof buildDataScheduleItems
 }) {
   const items = buildDataScheduleItems(props)
   const autoSyncEnabled = props.preferences?.data_sync_auto_enabled ?? true
-  const enabledCount = items.filter(item => item.state === 'enabled' || item.state === 'running').length
+  const enabledCount = items.filter(item => ['enabled', 'running', 'waiting'].includes(item.state)).length
   const groupedItems = CATEGORY_ORDER
     .map(category => ({
       category,

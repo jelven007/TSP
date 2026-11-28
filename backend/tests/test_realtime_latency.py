@@ -217,7 +217,7 @@ def test_monitor_cold_start_does_not_import_backtest_engine(tmp_path, monkeypatc
     )
 
     monkeypatch.setattr(settings, "data_dir", settings.data_dir)
-    monkeypatch.setattr("app.strategy.engine.StrategyEngine", lambda *_args, **_kwargs:
+    monkeypatch.setattr("app.strategy.routed_engine.RoutedStrategyEngine", lambda *_args, **_kwargs:
                         SimpleNamespace(load_errors=lambda: []))
     monkeypatch.setattr("app.tickflow.repository.DataStore", lambda *_args, **_kwargs:
                         SimpleNamespace(db=SimpleNamespace(close=lambda: None)))

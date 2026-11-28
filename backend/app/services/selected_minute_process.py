@@ -12,7 +12,7 @@ from pathlib import Path
 DEFAULT_TIMEOUT_SECONDS = 180.0
 
 
-def _collect(job: dict, *, load_sources: bool = True) -> dict:
+def _collect(job: dict, *, load_sources: bool = True, send_live=None) -> dict:
     """子进程按目标日/预选成员取数落盘; 序号在网络调用前分配, 发布留给父进程。
 
     逐批记录实际覆盖和错误; 空数据、能力或源错误不能冒充采集成功。
@@ -40,6 +40,25 @@ def _collect(job: dict, *, load_sources: bool = True) -> dict:
     started = time.perf_counter()
     try:
         result["request_seq"] = begin_minute_request(minute_dir)
+        stream = {}
+        if send_live and job.get("live_handoff"):
+            from app.market_time import cn_now
+            from app.services.strategy_minute_live import live_candidates
+
+            def offer(frame):
+                try:
+                    recent = live_candidates(frame, cn_now())
+                    if not recent.is_empty():
+                        recent = recent.select(column for column in kline_sync.CANONICAL_MINUTE_COLS
+                                               if column in recent.columns)
+                        for part in recent.iter_slices(4000):
+                            send_live({"type": "verified_minutes", "sequence": result["request_seq"],
+                                       "frame": part})
+                except (OSError, ValueError, pl.exceptions.PolarsError):
+                    # The archive remains available even if the early handoff failed.
+                    pass
+
+            stream = {"on_verified": offer}
         if job["provider"] == "tickflow":
             caps = CapabilitySet({
                 Cap(name): CapabilityLimits(**limits)
@@ -50,6 +69,8 @@ def _collect(job: dict, *, load_sources: bool = True) -> dict:
             frame, requests = kline_sync.fetch_intraday_full_market_burst(
                 job["symbols"], caps, count=300 if job["mode"] == "full" else 3,
             )
+            if stream:
+                offer(frame.filter(pl.col("symbol").is_in(job["symbols"])) if not frame.is_empty() else frame)
         else:
             from app.data_providers import custom as custom_sources
             # spawn不会继承主进程注册表, 先从同一受控目录加载源及内置插件。
@@ -60,12 +81,12 @@ def _collect(job: dict, *, load_sources: bool = True) -> dict:
                 raise ValueError(error or "selected minute provider unavailable")
             fetched = (
                 kline_sync.fetch_intraday_custom_latest(
-                    provider, job["provider"], symbols=job["symbols"])
+                    provider, job["provider"], symbols=job["symbols"], **stream)
                 if job["mode"] == "increment" else None
             )
             frame, requests = (
                 fetched if fetched is not None else
-                kline_sync.fetch_intraday_custom_batch(provider, job["provider"], job["symbols"])
+                kline_sync.fetch_intraday_custom_batch(provider, job["provider"], job["symbols"], **stream)
             )
         result["requests"] = requests
         result["fetch_ms"] = (time.perf_counter() - started) * 1000
@@ -101,7 +122,7 @@ def _worker(connection) -> None:
                 job = connection.recv()
             except EOFError:
                 return
-            connection.send(_collect(job, load_sources=not sources_loaded))
+            connection.send(_collect(job, load_sources=not sources_loaded, send_live=connection.send))
             sources_loaded |= job["provider"] != "tickflow"
     finally:
         connection.close()
@@ -110,7 +131,7 @@ def _worker(connection) -> None:
 def _key(job: dict) -> tuple:
     # 相同成员的心跳/序号更新不能取消正在采集的同一批。
     return (job["data_dir"], job["day"], job["provider"], tuple(job["symbols"]),
-            repr(job["capabilities"]), job.get("source_generation"))
+            repr(job["capabilities"]), job.get("source_generation"), bool(job.get("live_handoff")))
 
 
 class SelectedMinuteProcess:
@@ -161,7 +182,7 @@ class SelectedMinuteProcess:
         self._job = self._started_mono = None
         return reply
 
-    def advance(self, job: dict | None) -> dict | None:
+    def advance(self, job: dict | None, *, on_verified=None) -> dict | None:
         """小步监督一个在途批次; 成员/源变化或取消回收进程, 超时/退出保存失败。
 
         同身份心跳不打断取数; 没有第二批待执行队列, 失败后由后续监督轮次重启。
@@ -180,11 +201,18 @@ class SelectedMinuteProcess:
                     reply = self._failure(f"selected minute request timed out after {self._timeout:g}s")
                     self._dispose()
                     return self._record(reply)
-                if self._connection.poll():
+                for _ in range(16):  # bounded per supervision step
+                    if not self._connection.poll():
+                        break
                     try:
-                        return self._record(self._connection.recv())
+                        message = self._connection.recv()
                     except (EOFError, OSError):
-                        pass
+                        break
+                    if message.get("type") == "verified_minutes":
+                        if on_verified:
+                            on_verified(message["frame"], message["sequence"])
+                        continue
+                    return self._record(message)
                 if not self._process.is_alive():
                     reply = self._failure(f"selected minute process exited ({self._process.exitcode})")
                     self._dispose()

@@ -130,7 +130,7 @@ def test_s05_policy_slot_rejects_legacy_and_wrong_weights():
 @pytest.mark.parametrize("clock,eligible", [
     ((21, 0, 0), False), ((21, 59, 59), False),
     ((22, 0, 0), True), ((22, 0, 1), True),
-    ((23, 0, 0), True), ((23, 0, 1), False),
+    ((22, 59, 59), True), ((23, 0, 0), False), ((23, 0, 1), False),
 ])
 def test_s05_natural_window_boundaries(clock, eligible):
     now = datetime(2026, 11, 26, *clock, tzinfo=CN_TZ)

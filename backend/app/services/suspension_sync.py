@@ -93,10 +93,13 @@ def _key(notice):
 
 def _fingerprint(notice):
     from app.data_providers import suspension_announcements
+    from app.services import issuer_st_status
+
     # A parser change or revised list metadata makes the pending evidence eligible
     # immediately. A bounded later retry also detects changed content at the same URL.
     return hashlib.sha256(
         Path(suspension_announcements.__file__).read_bytes()
+        + Path(issuer_st_status.__file__).read_bytes()
         + json.dumps(notice, sort_keys=True, ensure_ascii=False).encode()
     ).hexdigest()
 
@@ -139,7 +142,8 @@ def summary(repo):
         return {"status": "not_started", "coverage_complete": False}
     fields = ("day", "cutoff", "updated_at", "status", "attempts", "added",
               "errors", "next_retry_at", "publish_pending", "data_release_id", "public_release_id",
-              "failure_streak", "notice_retries", "evidence_policy")
+              "failure_streak", "notice_retries", "evidence_policy",
+              "budget_paused_phase", "market_attempts")
     return {**{key: state.get(key) for key in fields}, **_coverage(state),
             "feeds": state["feeds"],
             "partial_pages": {market: scan["page"] for market, scan in state["scans"].items()}}
@@ -166,7 +170,12 @@ def _publish(repo, publisher):
 
 def request_sync(repo, publisher=None, *, stop=None, lookup=None, max_notices=32, refresh=False):
     """Small tracked job; daily-price gaps and heavy pipeline slots are irrelevant."""
-    from app.data_providers.suspension_announcements import AnnouncementLookup
+    import httpx
+
+    from app.data_providers.suspension_announcements import (
+        AnnouncementBudgetError,
+        AnnouncementLookup,
+    )
     from app.services.announced_stock_status import merge_risk_events
     from app.services.instrument_sync import load_current_stock_pool
     from app.services.selection_suspension_repair import merge_events
@@ -224,11 +233,16 @@ def request_sync(repo, publisher=None, *, stop=None, lookup=None, max_notices=32
                          "failure_streak": 0,
                          "evidence_policy": "stock_status_v2",
                          "publish_pending": bool(previous.get("publish_pending"))}
-            elif now - datetime.fromisoformat(state["cutoff"]) >= timedelta(minutes=5):
+            elif (len(state["feeds"]) == 2
+                  and now - datetime.fromisoformat(state["cutoff"]) >= timedelta(minutes=5)):
                 # Old unresolved PDFs must not stop discovery of newer events.
-                state = {**state, "cutoff": now.isoformat(), "feeds": {}, "scans": {}}
+                # An unfinished sweep keeps its original window: the provider
+                # rechecks page 1 on resume and rejects a changed list.
+                state = {**state, "cutoff": now.isoformat(), "feeds": {}, "scans": {},
+                         "market_attempts": {}}
             state = {**state, "status": "running", "job_id": job_id,
-                     "attempts": state["attempts"] + 1, "next_retry_at": None, "error": None}
+                     "attempts": state["attempts"] + 1, "next_retry_at": None, "error": None,
+                     "market_attempts": state.get("market_attempts") or {}, "budget_paused_phase": None}
             state = _save(repo, state)
             lookup = lookup or AnnouncementLookup(check_cancelled=check)
             cutoff = datetime.fromisoformat(state["cutoff"])
@@ -240,6 +254,8 @@ def request_sync(repo, publisher=None, *, stop=None, lookup=None, max_notices=32
                 if exchange in state["feeds"]:
                     continue
                 store.progress(job_id, "scan_announcements", 5, f"{exchange}: 完整扫描停复牌公告")
+                resumed_from = (state["scans"].get(exchange) or {}).get("page")
+                market = {"started_at": cn_now().isoformat(), "resumed_after_page": resumed_from}
                 try:
                     def save_page(checkpoint, market=exchange):
                         nonlocal state
@@ -263,12 +279,31 @@ def request_sync(repo, publisher=None, *, stop=None, lookup=None, max_notices=32
                     state["feeds"][exchange] = {"pages": feed["pages"], "rows": feed["rows"]}
                     state["scans"].pop(exchange, None)
                     state["errors"].pop(exchange, None)
+                    state["market_attempts"][exchange] = {
+                        **market, "state": "complete", "last_page": feed["pages"],
+                        "finished_at": cn_now().isoformat(),
+                    }
                     state = _save(repo, state)
                 except (pipeline_jobs.JobCancelledError, SyncInterruptedError):
                     raise
                 except Exception as exc:
                     check()
-                    state["errors"][exchange] = str(exc)
+                    if isinstance(exc, AnnouncementBudgetError):
+                        reason = "attempt_budget"
+                        state["budget_paused_phase"] = f"scan_{exchange}"
+                        # This market is incomplete, not a transport failure.
+                        state["errors"].pop(exchange, None)
+                    else:
+                        reason = ("read_timeout" if isinstance(exc, httpx.ReadTimeout) else
+                                  "transport" if isinstance(exc, (httpx.RequestError, TimeoutError)) else
+                                  "http_status" if isinstance(exc, httpx.HTTPStatusError) else "invalid_evidence")
+                        state["errors"][exchange] = str(exc)
+                    state["market_attempts"][exchange] = {
+                        **market, "state": "incomplete", "reason": reason,
+                        "last_page": (state["scans"].get(exchange) or {}).get("page"),
+                        "finished_at": cn_now().isoformat(),
+                    }
+                    state = _save(repo, state)
 
             # Failed notices rotate behind unattempted ones so a broken PDF
             # cannot starve newly announced events later in the feed.
@@ -312,6 +347,9 @@ def request_sync(repo, publisher=None, *, stop=None, lookup=None, max_notices=32
                             state["verified"].append(key)
                 except (pipeline_jobs.JobCancelledError, SyncInterruptedError):
                     raise
+                except AnnouncementBudgetError:
+                    state["budget_paused_phase"] = "verify_notices"
+                    break
                 except Exception as exc:
                     check()
                     state["errors"][key] = str(exc)

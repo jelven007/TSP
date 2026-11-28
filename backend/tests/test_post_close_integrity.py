@@ -182,13 +182,14 @@ def test_orphaned_job_recovers_and_state_read_is_side_effect_free(integrity, mon
     assert state["status"] == "succeeded" and state["job_id"] != jid
 
 
-def test_pipeline_api_exposes_persistent_summary_and_storage_failure(integrity):
-    from app.api.pipeline import router
+def test_pipeline_api_exposes_persistent_summary_and_storage_failure(integrity, monkeypatch):
+    from app.api import pipeline
     e = integrity
+    monkeypatch.setattr(pipeline, "job_store", e.store)
     app = FastAPI()
     app.state.repo = e.repo
     app.state.scheduler = SimpleNamespace(get_job=lambda _: SimpleNamespace(next_run_time=e.clock[0]))
-    app.include_router(router)
+    app.include_router(pipeline.router)
     with TestClient(app) as client:
         payload = client.get("/api/pipeline/jobs").json()
         assert payload["post_close_integrity"]["status"] == "not_run"

@@ -157,6 +157,10 @@ def parse_announcement(symbol, text, *, announced_at, cutoff, source_url, collec
     return [events[day] for day in sorted(events)]
 
 
+class AnnouncementBudgetError(ValueError):
+    """The sweep used its budget; the next pending notice has not failed."""
+
+
 class AnnouncementLookup:
     """Reuse one HTTP pool, with hard request/elapsed/PDF/page bounds per attempt."""
     def __init__(self, *, check_cancelled, max_requests=96, seconds=60, client=None):
@@ -177,7 +181,7 @@ class AnnouncementLookup:
         self.check_cancelled()
         remaining = self.deadline - time.monotonic()
         if self.remaining <= 0 or remaining <= 0:
-            raise ValueError("停复牌查证请求/时间预算已耗尽, 下轮重试")
+            raise AnnouncementBudgetError("停复牌查证请求/时间预算已耗尽, 下轮重试")
         self.remaining -= 1
         with self.client.stream(method, url, timeout=min(8, remaining), **kwargs) as response:
             response.raise_for_status()
@@ -185,8 +189,10 @@ class AnnouncementLookup:
             for chunk in response.iter_bytes(chunk_size=64 * 1024):
                 self.check_cancelled()
                 total += len(chunk)
-                if total > 4 * 1024**2 or time.monotonic() > self.deadline:
-                    raise ValueError("公告响应超过4MB或查证时间预算")
+                if time.monotonic() > self.deadline:
+                    raise AnnouncementBudgetError("公告响应超过查证时间预算")
+                if total > 4 * 1024**2:
+                    raise ValueError("公告响应超过4MB")
                 parts.append(chunk)
             headers = {key: value for key, value in response.headers.items()
                        if key not in {"content-encoding", "content-length"}}
@@ -471,6 +477,8 @@ class AnnouncementLookup:
             try:
                 try:
                     text = self._pdf(url)
+                except AnnouncementBudgetError:
+                    raise
                 except (ValueError, httpx.HTTPError):
                     url = self._cninfo_alternative(code, notice, begin, end)
                     text = self._pdf(url)
@@ -497,6 +505,8 @@ class AnnouncementLookup:
                 )
                 if not parsed and not risk_parsed and not conversion_only:
                     diagnostics.append(f'{notice["title"]}: 正文未确认自身全天停复牌生效日')
+            except AnnouncementBudgetError:
+                raise
             except (ValueError, httpx.HTTPError) as exc:
                 diagnostics.append(f'{notice["title"]}: {exc}')
                 retry_category = "transport"

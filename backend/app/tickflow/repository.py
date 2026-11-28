@@ -1696,6 +1696,8 @@ class KlineRepository:
 
     def get_minute_inputs(self, symbols: list[str], start: datetime, end: datetime) -> pl.DataFrame:
         """Exact frozen window, with durable request ordering and no history fallback."""
+        from pyarrow.parquet import read_metadata
+
         from app.services.minute_write_order import VERSION_COLUMN, read_versions
 
         if start.date() != end.date() or start > end:
@@ -1710,16 +1712,18 @@ class KlineRepository:
                 raise ValueError("minute input partition lacks symbol/datetime/close")
             columns = [key for key in ("symbol", "datetime", "open", "high", "low", "close",
                                        "volume", "amount") if key in schema]
-            frame = pl.read_parquet(path, columns=columns)
-            versions = read_versions(path, frame.height)
-            frame = frame.with_columns(versions if versions is not None else
-                                       pl.lit(0, dtype=pl.UInt64).alias(VERSION_COLUMN))
             stamp = pl.col("datetime")
             if isinstance(schema["datetime"], pl.Datetime) and schema["datetime"].time_zone:
                 stamp = stamp.dt.convert_time_zone("Asia/Shanghai").dt.replace_time_zone(None)
-            frame = frame.with_columns(stamp).filter(
-                pl.col("symbol").is_in(symbols) & pl.col("datetime").is_between(start, end))
-            frames.append(frame)
+            index = "_minute_file_row"
+            frame = guarded_collect(pl.scan_parquet(path, row_index_name=index)
+                .select(index, *columns).with_columns(stamp).filter(
+                    pl.col("symbol").is_in(symbols) & pl.col("datetime").is_between(start, end)))
+            versions = read_versions(path, read_metadata(path).num_rows)
+            frames.append(frame.with_columns(
+                versions.gather(frame[index]) if versions is not None else
+                pl.lit(0, dtype=pl.UInt64).alias(VERSION_COLUMN)
+            ).drop(index))
         if not frames:
             return pl.DataFrame()
         return pl.concat(frames, how="diagonal_relaxed").sort(

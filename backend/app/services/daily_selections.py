@@ -43,8 +43,10 @@ def due_window(now=None, *, monitored_only=False, strategy_id=None):
         from app.strategy.overnight_runtime import next_market_day
 
         start, end = window_for(strategy_id)
+        clock = now.time().replace(tzinfo=None)
         if (published_trading_day(now.date()) is not True
-                or not start <= now.time().replace(tzinfo=None) <= end):
+                or not start <= clock <= end
+                or (strategy_id == S05_ID and clock == end)):
             return None
         return now.date(), next_market_day(now.date())
     days = sorted(day for year in (now.year - 1, now.year, now.year + 1)
@@ -176,10 +178,23 @@ class DailySelections:
     def __init__(self, storage):
         self.results = StrategyResults(storage)
 
-    def read(self, strategy_id, day, *, policy=None):
+    def read(self, strategy_id, day, *, policy=None, live_entry=False):
         """读取目标日有效冻结预选, 并沿既有状态证据刷新展示, 缺归档返回 None。"""
-        saved = selection_record(strategy_id, day, lambda key: self.results.detail(strategy_id, key),
-                                 policy=policy)
+        def load(key):
+            value = self.results.detail(strategy_id, key)
+            if live_entry and strategy_id == S05_ID and value:
+                from app.services.s05_selection import nightly_entry_symbols
+
+                try:
+                    archived_at = value["summary"]["computed_at"]
+                    if type(archived_at) is not int:
+                        return None
+                    nightly_entry_symbols(value["result"].get("selection_snapshot"), day, archived_at_ms=archived_at)
+                except (KeyError, ValueError):
+                    return None
+            return value
+
+        saved = selection_record(strategy_id, day, load, policy=policy)
         snapshot = (saved or {}).get("result", {}).get("selection_snapshot")
         from app.services.custom_status_refresh import selection
         return selection(self.results, strategy_id, snapshot) if valid_selection(

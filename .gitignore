@@ -4,7 +4,8 @@ __pycache__/
 *$py.class
 *.so
 .Python
-.venv/
+# 本地虚拟环境可以是目录或指向受控环境的符号链接。
+.venv
 venv/
 env/
 .python-version

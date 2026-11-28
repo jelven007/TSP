@@ -80,6 +80,8 @@ HTTP完成延迟使用`http_completion_v2`，SSE首字节和连接寿命独立�
 <a id="current"></a>
 ## 一、当前架构与运行契约
 
+Full 的 Nginx 普通路径指向 API 角色：API 提供 SPA 与普通请求，并将已授权数据管理请求转发到 Platform；SSE 与取票两个路径走 Gateway。定时写入、公告核验及公共行情发布属于 Platform，用户策略定时执行属于租户后台 Worker，隔离计算通过 Compute Broker。这决定了热补丁应核对的实际角色；角色健康不能替代浏览器获取当前静态产物。部署拓扑见[Full 部署](../deploy/full/README.md)。
+
 ### 策略参数作用域
 
 新建模板沿用账户浏览器storage，仅注入后续创建的META；现有策略由
@@ -107,7 +109,7 @@ HTTP完成延迟使用`http_completion_v2`，SSE首字节和连接寿命独立�
 
 自定义／AI策略由`strategy_monitor_state.plan`按保存信号时钟规划阶段，
 租户Worker及standalone的`local_strategy_monitor`共用计算和归档内核。
-自定义策略盘后“选”任务在交易日21:00～22:00按范围、数值过滤及评分保存精确下一交易日；
+普通自定义策略盘后“选”任务在交易日21:00～22:00按范围、数值过滤及评分保存精确下一交易日；
 S03及S05专属窗口均为22:00～23:00，流程分别引用
 [S03当前实现](reference/s03.md)与[S05独立四维评分](reference/s05.md)。
 盘后窗口先通过原`daily_stock_pools`Compute任务刷新所有自定义股票策略的次日范围池，
@@ -155,7 +157,7 @@ rustdx由`TaskRuntime`组合realtime/minute/history三组，每组8业务/1探�
 切站等待旧请求、排空TCP、增加世代并重载精度；历史窗口与本次完整参考逐键核验。
 仅`RustdxSourceChangedError`丢弃局部分页并从零重采一次，重复变化拒绝该证券结果。
 原生bars的60秒预算覆盖排队/资格/重连，入槽后另计用户传输超时。
-配置、来源身份与准确额度见[任务连接](rustdx-task-routing.md)。
+配置、来源身份与准确额度见[任务连接](reference/rustdx-task-routing.md)。
 
 `services/kline_periods.py`集中股票六周期配置、查询、落盘与调度。
 基础1m/1d走独立Provider路由；派生5m/10m/15m只读本地1m，1w只读本地1d。
@@ -163,10 +165,11 @@ rustdx由`TaskRuntime`组合realtime/minute/history三组，每组8业务/1探�
 聚合以09:30/13:00起算收盘标签，未知量额保持空值；常规同步允许盘中部分桶，
 遗漏仅补完整基础桶。`scan_parquet_compat/scan_daily_parquet`兼容渐进分区schema。
 
-数据总览基础离线获取沿
+数据总览六周期离线补齐沿
 `KlineSyncConfig→POST /api/kline/sync_period→_start_kline_range_job→run_repair_daily`，
 保存`period/start_date/end_date/mode`，严格校验起始≤结束≤北京今天。
-派生仅传`period`调用`generate_period`覆盖本地基础分区；旧无范围日K请求兼容重算Enriched，
+派生在所选日期范围内读取本地基础数据，不改写基础周期，周K从起始日所在周的周一聚合。
+旧版派生请求仅传`period`时继续调用`generate_period`；旧无范围日K请求兼容重算Enriched，
 旧`repair_daily/value/unit`保持读取与请求兼容，实际接口见[API参考](api.md)。
 日K全量统一股票/指数/因子窗口，仅清选定区间Enriched；复权与指标依赖可能更新区间外派生值。
 

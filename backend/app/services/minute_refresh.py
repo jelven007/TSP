@@ -52,6 +52,7 @@ import polars as pl
 
 from app.market_time import cn_now, cn_today
 from app.services import preferences
+from app.services.strategy_minute_live import LiveMinutes, live_mode, prepare_live_rows
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +110,7 @@ class MinuteRefreshService:
         self._provider_unavailable_log_key: tuple[str, str] | None = None
         self._priority_lock = threading.Lock()
         self._priority_plans: dict[str, tuple[float, dict]] = {}
+        self._live = LiveMinutes()
         from app.services.selected_minute_process import SelectedMinuteProcess
         self._selected_process = SelectedMinuteProcess()
         self._selected_thread: threading.Thread | None = None
@@ -141,14 +143,17 @@ class MinuteRefreshService:
             plans = [value[1] for value in self._priority_plans.values()]
         selected = sorted({symbol for plan in plans for symbol in plan["selected"]})
         scope = {symbol for plan in plans for symbol in plan["symbols"]}
-        return [*selected, *sorted(scope - set(selected))]
+        lead = sorted({symbol for plan in plans for symbol in plan.get("lead", [])})
+        breadth = sorted({symbol for plan in plans for symbol in plan.get("breadth", [])})
+        return list(dict.fromkeys([*lead, *breadth, *selected, *sorted(scope)]))
 
     def selected_symbols(self, now=None) -> list[str]:
         """采集只取冻结预选; 完整范围仍由原全市场轮次保障广度。"""
         self.priority_symbols(now)  # 统一清理过期/跨日计划
         with self._priority_lock:
-            return sorted({symbol for _, plan in self._priority_plans.values()
-                           for symbol in plan["selected"]})
+            plans = [plan for _, plan in self._priority_plans.values()]
+        lead = sorted({symbol for plan in plans for symbol in plan.get("lead", [])})
+        return list(dict.fromkeys([*lead, *sorted({s for plan in plans for s in plan["selected"]})]))
 
     # ------------------------------------------------------------------
     # 生命周期
@@ -156,6 +161,23 @@ class MinuteRefreshService:
 
     def set_repo(self, repo) -> None:
         self._repo = repo
+
+    def offer_live_minutes(self, frame, sequence, provider, minute_dir):
+        """Best-effort handoff has no effect on the collector or archive receipt."""
+        if live_mode() not in ("shadow", "active") or self._stop.is_set():
+            return
+        if minute_dir.parent != self._repo.store.data_dir or provider != self.active_provider():
+            return
+        try:
+            rows = prepare_live_rows(frame, minute_dir, cn_now())
+            self._live.offer((minute_dir.parent, provider), sequence, rows)
+        except (OSError, ValueError, pl.exceptions.PolarsError) as exc:
+            logger.warning("strategy minute handoff rejected: %s", type(exc).__name__)
+
+    def live_minutes(self, symbols, start, end):
+        if live_mode() not in ("shadow", "active"):
+            return pl.DataFrame()
+        return self._live.read((self._repo.store.data_dir, self.active_provider()), symbols, start, end)
 
     def set_app_state(self, app_state: Any) -> None:
         self._app_state = app_state
@@ -210,7 +232,13 @@ class MinuteRefreshService:
                    "source_generation": key[5],
                    "mode": "increment" if self._selected_success
                    and now - self._selected_success <= 180 else "full"}
-            reply = self._selected_process.advance(job)
+            if live_mode() in ("shadow", "active"):
+                job["live_handoff"] = True
+                reply = self._selected_process.advance(
+                    job, on_verified=lambda frame, seq: self.offer_live_minutes(
+                        frame, seq, provider, self._repo.store.data_dir / "kline_minute"))
+            else:
+                reply = self._selected_process.advance(job)
             if reply is not None:
                 self._selected_next = time.monotonic() + self._effective_interval()
                 if reply["error"] is None:
@@ -428,6 +456,12 @@ class MinuteRefreshService:
         try:
             minute_dir = self._repo.store.data_dir / "kline_minute"
             request_seq = begin_minute_request(minute_dir)
+            stream = {}
+            if live_mode() in ("shadow", "active"):
+                def offer(frame):
+                    self.offer_live_minutes(frame, request_seq, provider_name, minute_dir)
+
+                stream = {"on_verified": offer}
             if mode == "increment":
                 # fetch 计时只覆盖网络取数; full 分支的 universe 维表读取不计入
                 fetch_started = time.perf_counter()
@@ -438,7 +472,7 @@ class MinuteRefreshService:
                         return
                     else:
                         latest = kline_sync.fetch_intraday_custom_latest(
-                            custom, provider_name, symbols=symbols,
+                            custom, provider_name, symbols=symbols, **stream,
                         )
                         df, requests = latest if latest is not None else (pl.DataFrame(), 0)
                 else:
@@ -455,7 +489,7 @@ class MinuteRefreshService:
                 fetch_started = time.perf_counter()
                 if custom is not None and symbols:
                     df, requests = kline_sync.fetch_intraday_custom_batch(
-                        custom, provider_name, symbols,
+                        custom, provider_name, symbols, **stream,
                     )
                 elif custom is None:
                     capset = getattr(self._app_state, "capabilities", None) if self._app_state else None
@@ -471,6 +505,8 @@ class MinuteRefreshService:
                 )
                 return
             self._empty_rounds = 0
+            if stream and custom is None:
+                offer(df)
             write_started = time.perf_counter()
             written = kline_sync._write_minute_partition(
                 df, minute_dir, request_seq=request_seq,
@@ -512,7 +548,12 @@ class MinuteRefreshService:
         inst = self._repo.get_instruments()
         if inst.is_empty() or "symbol" not in inst.columns:
             return []
-        return inst["symbol"].cast(pl.Utf8).unique().sort().to_list()
+        universe = inst["symbol"].cast(pl.Utf8).unique().sort().to_list()
+        if live_mode() == "active":
+            members = set(universe)
+            return list(dict.fromkeys([*(symbol for symbol in self.priority_symbols() if symbol in members),
+                                       *universe]))
+        return universe
 
     # ------------------------------------------------------------------
     # 状态
@@ -571,6 +612,7 @@ class MinuteRefreshService:
             "last_mode": self._state.last_mode,
             "next_round_at": self._state.next_round_at,
             "last_error": self._state.last_error,
+            "live_minutes": {"mode": live_mode(), **self._live.status()},
             "priority": {
                 **self._selected_process.status(), "gate_reason": self._selected_gate,
                 "publication_pending": self._selected_publish_pending,

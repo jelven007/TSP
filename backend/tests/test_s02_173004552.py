@@ -28,6 +28,18 @@ def breadth(values):
     return list(reversed(rows))
 
 
+def nightly_archive(domain, snapshot):
+    from app.market_time import CN_TZ
+    from app.services.s05_selection import POLICY, WEIGHTS
+
+    observed = datetime.combine(previous_session(DAY), time(22, 10), CN_TZ)
+    return domain.freeze_market_route(
+        {**snapshot, "identity": "test-nightly", "generated_at": observed.isoformat(),
+         "scoring_policy": POLICY, "scoring_weights": WEIGHTS},
+        DAY, domain.MARKET_DEFAULTS, observed=observed,
+    )
+
+
 @pytest.mark.parametrize(("values", "expected"), [
     ([.51] * 16 + [.55] * 5, "tail"),
     ([.48] * 15 + [.60] + [.47] * 4 + [.25], "tail"),
@@ -175,7 +187,7 @@ def test_run_uses_only_frozen_trigger_and_preserves_branch_for_next_day():
                 "market_breadth": breadth([.55] * 21),
                 "rows": [{"symbol": symbol, "reference_close": 10., "s02_rank": 1, "s02_score": 82.}]}
     context = StrategyDataContext("stock", "1m", DAY, history=frame, realtime=True, positions=[],
-        observed_at=at + timedelta(seconds=30), selection_snapshots={domain.SID: snapshot},
+        observed_at=at + timedelta(seconds=30), selection_snapshots={domain.SID: nightly_archive(domain, snapshot)},
         independent_entry_phase="stocks")
     with private_signal_registry(book):
         windows = task_windows(engine, engine.get(domain.SID), {}, day=DAY, selection=snapshot)
@@ -331,6 +343,9 @@ def test_no_market_route_skips_minutes_and_keeps_the_previous_buy_sell_branch():
         assert [w["signal"]["id"] for w in windows["sell"]] == [domain.EXIT_IDS["low_gap"]]
         result = engine.run(domain.SID, StrategyDataContext(
             "stock", "1m", DAY, realtime=True, input_errors=["没有分钟行情"],
-            selection_snapshots={domain.SID: selected}))
+            selection_snapshots={domain.SID: nightly_archive(domain, prior)}))
         assert result.section_statuses["buy"] == "rejected"
         assert result.sections["buy"] == [] and not result.entry_filter_error
+        historical = engine.run(domain.SID, StrategyDataContext(
+            "stock", "1m", DAY, selection_snapshots={domain.SID: selected}))
+        assert historical.section_statuses["buy"] == "rejected"

@@ -6,8 +6,8 @@
 [![CI](https://github.com/jelven007/TSP/actions/workflows/ci.yml/badge.svg)](https://github.com/jelven007/TSP/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-本工作区源码基点的应用语义版本为 `0.4.75`。版本信息核对日期：2026-11-20。
-本轮处于统一发布候选阶段，两端运行身份以实际安装验收回执为准；
+本工作区源码基点的应用语义版本为 `0.4.75`。工程导航见[文档中心](docs/README.md)。
+源码版本、质量门、安装与运行环境分别核对；
 工作区、正式发布、安装补丁和运行状态见[版本基线](docs/version-baseline.md)。
 
 自定义分钟回测采用统一建仓／清仓布局，新运行逐分钟最高价买入、最低价卖出；

@@ -129,6 +129,41 @@ def test_daily_branch_four_is_valid_zero_with_no_positions(tmp_path, monkeypatch
     assert not result.fills
 
 
+def test_system_s05_replays_saved_symbols_and_carries_the_original_branch(tmp_path, monkeypatch):
+    service = fixture(tmp_path, monkeypatch, buy_code=1, sell_code=1)
+    # The reconstruction fixture would choose branch 1 and trade both days.
+    # The frozen job must ignore it and recompute branch 2 using only the archive.
+    service.s05_selection_archive = {
+        str(day): {
+            "snapshot": routed.freeze_market_route(
+                {"as_of": str(day), "source_date": str(routed.sessions_until(day)[-1]),
+                 "market_breadth": breadth(day, code), "entry_execution": "common_template_v1",
+                 "rows": [{"symbol": SYMBOL, "reference_close": 10., "s02_score": 82.,
+                           "s02_fund_score": 95., "s02_tech_score": 45., "s02_rank": 1}]},
+                day, routed.MARKET_DEFAULTS, observed=datetime.combine(
+                    routed.sessions_until(day)[-1], datetime.min.time().replace(hour=22))),
+            "evidence": {"record_id": f"saved:{day}", "source_sha256": "abc", "manual_replay": True},
+        }
+        for day, code in ((BUY, 2), (SELL, 4))
+    }
+    result = service.run(config(s05_exit_policy="carry_entry_branch_v2"))
+    assert not result.error, result.error
+    buy, = [hit for hit in result.signals if hit["side"] == "buy"]
+    assert buy["symbol"] == SYMBOL and buy["signal_time"] == f"{BUY} 14:15"
+    assert buy["signal_score"] == pytest.approx(80)
+    assert buy["selection_rank"] == 1
+    trade, = result.trades
+    assert trade["exit_signal_id"] == "csgi_low_gap_exit_s05"
+    assert [item["branch_code"] for item in result.provenance["s05_selection_replay"]] == [2, 4]
+    assert result.provenance["s05_selection_replay"][0]["archive"]["record_id"] == f"saved:{BUY}"
+
+    # Absence is a failed experiment, never a fresh S05-universe reconstruction.
+    service.s05_selection_archive.clear()
+    missing = service.run(config(s05_exit_policy="carry_entry_branch_v2"))
+    assert missing.error and "预选归档" in missing.error
+    assert not missing.fills
+
+
 @pytest.mark.parametrize("sell_code", [2, 4])
 def test_entry_branch_controls_t_plus_one_even_on_other_or_no_buy_branch(tmp_path, monkeypatch, sell_code):
     service = fixture(tmp_path, monkeypatch, buy_code=1, sell_code=sell_code)

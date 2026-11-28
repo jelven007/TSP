@@ -41,6 +41,10 @@ class RoutedStrategyEngine(StrategyEngine):
             return result
 
         try:
+            if context.realtime:
+                from app.services.s05_selection import nightly_entry_symbols
+
+                nightly_entry_symbols(stored, day)
             branch = routed.frozen_route(stored, day)
         except ValueError as exc:
             result.section_statuses["select"] = "waiting"
@@ -116,18 +120,26 @@ class RoutedStrategyEngine(StrategyEngine):
             selection = loader(sid, context.as_of)
         if selection is not None:
             context = replace(context, selection_snapshots={**snapshots, sid: selection})
-        if ((selection or {}).get("entry_route") or {}).get("schema") != routed.MARKET_ROUTE:
+        if (not context.realtime
+                and ((selection or {}).get("entry_route") or {}).get("schema") != routed.MARKET_ROUTE):
             # Historical definitions without the numeric routing contract are retained.
             return super().run(sid, context, pool, params, overrides)
 
         error = None
         try:
+            if context.realtime:
+                from app.services.s05_selection import nightly_entry_symbols
+
+                nightly_entry_symbols(selection, context.as_of)
             branch = routed.frozen_daily_branch(selection, context.as_of)
         except ValueError as exc:
             branch, error = None, str(exc)
         expected = "csgi_" + routed.ENTRY_IDS[branch] if branch else None
         requested = self._effective_signals(overrides or {}, "entry_signals", strategy.entry_signals)
         columns = [column for column in requested if column == expected]
+        empty_nightly = bool(context.realtime and columns and selection["rows"] == [])
+        if empty_nightly:
+            columns = []
         result = super().run(sid, context, pool, params, {**(overrides or {}), "entry_signals": columns})
         if columns or result.section_mode != "signals":
             return result
@@ -135,7 +147,11 @@ class RoutedStrategyEngine(StrategyEngine):
         result.scores, result.entry_signal_hits = {}, []
         result.section_statuses = dict(result.section_statuses or {})
         result.section_errors = dict(result.section_errors or {})
-        if error or branch:
+        if empty_nightly:
+            result.entry_filter_error = None
+            result.section_errors.pop("buy", None)
+            result.section_statuses["buy"] = "rejected"
+        elif error or branch:
             message = error or "当日分支未配置启用的入场信号"
             result.entry_filter_error = message
             result.section_statuses["buy"], result.section_errors["buy"] = "waiting", message

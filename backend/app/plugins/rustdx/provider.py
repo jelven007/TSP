@@ -1476,15 +1476,15 @@ class RustdxProvider:
         frame, _ = self._intraday_latest(symbols, count, asset_type, counted=False)
         return frame
 
-    def get_intraday_latest_with_count(self, symbols, count=3) -> tuple[pl.DataFrame, int]:
+    def get_intraday_latest_with_count(self, symbols, count=3, *, on_verified=None) -> tuple[pl.DataFrame, int]:
         """Return protocol request count, including retries, for this call only."""
-        return self._intraday_latest(symbols, count, "stock", counted=True)
+        return self._intraday_latest(symbols, count, "stock", counted=True, on_verified=on_verified)
 
-    def get_intraday_batch_with_count(self, symbols) -> tuple[pl.DataFrame, int]:
+    def get_intraday_batch_with_count(self, symbols, *, on_verified=None) -> tuple[pl.DataFrame, int]:
         # 800 bars cover today's full session; _minute_frame excludes prior days.
-        return self._intraday_latest(symbols, 800, "stock", counted=True)
+        return self._intraday_latest(symbols, 800, "stock", counted=True, on_verified=on_verified)
 
-    def _intraday_latest(self, symbols, count, asset_type, *, counted):
+    def _intraday_latest(self, symbols, count, asset_type, *, counted, on_verified=None):
         del asset_type
         if symbols is None:
             symbols = [row["symbol"] for row in self.get_instruments("stock")]
@@ -1555,6 +1555,7 @@ class RustdxProvider:
             # Submit bounded windows instead of queuing the entire stock universe.
             workers = self._workers(len(valid))
             for offset in range(0, len(valid), workers * 2):
+                before = len(frames)
                 failures = []
                 # Drain the submitted window so its successful and failed calls
                 # are all counted; do not submit another window after failure.
@@ -1569,6 +1570,8 @@ class RustdxProvider:
                         f"分钟K取数不完整, 拒绝提交: {failures[0]}",
                         requests=requests,
                     )
+                if on_verified is not None and len(frames) > before:
+                    on_verified(pl.concat(frames[before:], how="diagonal_relaxed"))
         return (
             pl.concat(frames, how="diagonal_relaxed").sort(["symbol", "datetime"])
             if frames

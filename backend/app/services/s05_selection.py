@@ -1,6 +1,8 @@
 """Freeze S02's source archive and run S05's independent four-dimension scorer."""
 from __future__ import annotations
 
+from datetime import date, datetime
+
 from app.market_time import as_cn_datetime
 from app.services import s05_scoring
 from app.services.s05_scoring import POLICY, WEIGHTS
@@ -12,6 +14,40 @@ ROUTED_POLICY = POLICY + "_route_v2"
 NUMERIC_POLICY = POLICY + "_branch_v3"
 COMMON_POLICY = POLICY + "_common_v1"
 COMMON_BRANCH_POLICY = POLICY + "_common_branch_v1"
+
+
+def nightly_entry_symbols(snapshot, target, *, archived_at_ms=None):
+    """Return only the live buy cohort from the previous session's evening archive."""
+    from app.services.daily_selections import valid_selection
+    from app.services.selection_clock import window_for
+
+    target = date.fromisoformat(str(target))
+    error = f"等待{target}的S05前一交易日23:00前正式盘后预选"
+    if not valid_selection(snapshot, target, strategy_id=S05_ID) or not snapshot.get("identity"):
+        raise ValueError(error)
+    dependency = snapshot.get("source_selection") or {}
+    if (snapshot.get("manual_replay") or not isinstance(dependency, dict)
+            or dependency.get("historical_replay")):
+        raise ValueError(error)
+    try:
+        source = date.fromisoformat(snapshot["source_date"])
+        generated = datetime.fromisoformat(snapshot["generated_at"])
+        if generated.tzinfo is None:
+            raise ValueError
+        generated = as_cn_datetime(generated)
+        start, stop = (datetime.combine(source, clock, generated.tzinfo) for clock in window_for(S05_ID))
+        if not start <= generated < stop:
+            raise ValueError
+        if archived_at_ms is not None:
+            saved_at = datetime.fromtimestamp(archived_at_ms / 1000, tz=generated.tzinfo)
+            if not generated <= saved_at < stop:
+                raise ValueError
+        symbols = [row["symbol"] for row in snapshot["rows"]]
+        if not all(isinstance(symbol, str) and symbol for symbol in symbols) or len(set(symbols)) != len(symbols):
+            raise ValueError
+    except (KeyError, TypeError, ValueError, OverflowError, OSError):
+        raise ValueError(error) from None
+    return symbols
 
 
 def freeze_source(snapshot, source, target, *, historical_replay=None):

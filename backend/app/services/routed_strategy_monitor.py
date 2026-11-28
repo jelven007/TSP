@@ -106,10 +106,11 @@ def strategy_windows(engine, strategy, storage, overrides, *, day):
         return base.strategy_windows(engine, strategy, storage, overrides)
     if not base.monitoring_state(storage, routed.SID).get("enabled"):
         return {"buy": [], "sell": []}
+    from app.market_time import cn_today
     from app.services.daily_selections import DailySelections
 
     return task_windows(engine, strategy, overrides, day=day,
-                        selection=DailySelections(storage).read(routed.SID, day),
+                        selection=DailySelections(storage).read(routed.SID, day, live_entry=day == cn_today()),
                         roster=base.sell_roster(storage, routed.SID, day), require_market_route=True)
 
 
@@ -156,7 +157,7 @@ def s05_monitoring_day(engine, storage, day, *, now=None):
     import json
 
     from app.market_time import as_cn_datetime, cn_now, published_trading_day
-    from app.services.daily_selections import selection_record
+    from app.services.daily_selections import DailySelections, selection_record
     from app.services.strategy_results import StrategyResults
     from app.strategy.basic_filter import previous_session
     from app.strategy.config import load_override
@@ -210,8 +211,11 @@ def s05_monitoring_day(engine, storage, day, *, now=None):
             continue
         task = tasks[kind]
         task["branch_date"] = str(branch_day)
-        saved = selection_record(sid, branch_day, lambda record_id: store.detail(sid, record_id))
-        selection = (saved or {}).get("result", {}).get("selection_snapshot")
+        if kind == "buy" and day == now.date():
+            selection = DailySelections(storage).read(sid, branch_day, live_entry=True)
+        else:
+            saved = selection_record(sid, branch_day, lambda record_id: store.detail(sid, record_id))
+            selection = (saved or {}).get("result", {}).get("selection_snapshot")
         try:
             branch = routed.frozen_daily_branch(selection, branch_day)
         except ValueError as exc:

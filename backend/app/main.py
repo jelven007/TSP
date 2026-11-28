@@ -296,9 +296,10 @@ async def _application_lifespan(app: FastAPI):
         override_loader=lambda sid: strategy_config.load_override(store.data_dir, sid),
     )
     app.state.strategy_engine = strategy_engine
-    from app.services.daily_selections import DailySelections
-    strategy_engine._selection_loader = lambda sid, day: DailySelections(store.data_dir).read(sid, day)
     from app.market_time import cn_now, cn_today
+    from app.services.daily_selections import DailySelections
+    strategy_engine._selection_loader = lambda sid, day: DailySelections(store.data_dir).read(
+        sid, day, live_entry=day == cn_today())
     from app.services.strategy_monitor_tasks import task_receipt
     strategy_engine._monitor_receipt_loader = lambda sid: task_receipt(store.data_dir, sid, cn_today())
     repair_service = getattr(app.state, "monitor_input_repair", None)

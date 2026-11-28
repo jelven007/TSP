@@ -59,7 +59,7 @@ export function KlineSyncConfig({ period, hasCap, isRunning, earliestDate, onJob
   })
   const sync = useMutation({
     mutationFn: (mode?: 'full' | 'missing') => {
-      if (generate) return api.syncKlinePeriod(period)
+      if (generate) return api.syncKlinePeriod(period, { startDate, endDate, mode: 'full' })
       if (!mode) throw new Error('请选择数据获取方式')
       return api.syncKlinePeriod(period, { startDate, endDate, mode })
     },
@@ -73,7 +73,7 @@ export function KlineSyncConfig({ period, hasCap, isRunning, earliestDate, onJob
   const intraday = period.endsWith('m')
   const local = isLocalDerivedPeriod(period)
   const localBase = period === '1w' || period === '1d' ? '本地日K' : '本地1分K'
-  const canSync = generate || (hasCap && !rangeError)
+  const canSync = (generate || hasCap) && !rangeError
   return <div className="space-y-5">
     <section className="rounded-card border border-border p-4 space-y-3">
       <h3 className="text-sm font-medium">周期同步</h3>
@@ -105,11 +105,12 @@ export function KlineSyncConfig({ period, hasCap, isRunning, earliestDate, onJob
     <section className="rounded-card border border-border p-4 space-y-3">
       <h3 className="text-sm font-medium">离线补齐</h3>
         <p className="text-xs text-muted">{generate
-          ? `由${localBase}计算后入库，覆盖本地基础数据已有日期，不请求上游。`
+          ? `按所选起始日期和结束日期，由${localBase}计算后入库，覆盖区间内同一记录，不请求上游。`
           : '按所选起始日期和结束日期获取闭区间数据。全量模式覆盖同一记录，遗漏模式先检查本地缺口再请求上游。'}</p>
         {period === '1d' && <p className="text-xs text-muted">获取日K后继续同步除权因子并重算指标。</p>}
         {generate && <p className="text-xs text-muted">缺少可计算的{localBase}时，任务会提示先补齐基础数据。</p>}
-        {!generate && <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {period === '1w' && <p className="text-xs text-muted">起始日期按所在周的周一计算，周K以周一标记；计算截止到所选结束日期。</p>}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="space-y-1 text-xs text-secondary">
             <span>起始日期</span>
             <DatePicker
@@ -140,8 +141,8 @@ export function KlineSyncConfig({ period, hasCap, isRunning, earliestDate, onJob
               buttonClassName="w-full justify-start"
             />
           </label>
-        </div>}
-        {!generate && rangeError && <p id={`kline-${period}-range-error`} role="alert" className="text-xs text-danger">{rangeError}</p>}
+        </div>
+        {rangeError && <p id={`kline-${period}-range-error`} role="alert" className="text-xs text-danger">{rangeError}</p>}
         <p className="text-xs text-muted">当前最早：{earliestDate ?? '暂无数据'}</p>
         {generate
           ? <button className={`${buttonClass} w-full`} onClick={() => sync.mutate(undefined)} disabled={!canSync || isRunning || sync.isPending}>

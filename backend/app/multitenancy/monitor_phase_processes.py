@@ -12,7 +12,7 @@ SCOPED_MAPS = (
     "strategy_task_results", "daily_pool_snapshots", "daily_identities",
     "late_task_scopes", "selection_snapshots", "sell_rosters", "previous_states",
     "positions", "overrides", "overrides_map", "params_map", "late_task_definitions",
-    "strategy_input_manifests", "s02_input_status",
+    "strategy_input_manifests", "s02_input_status", "strategy_minute_packets",
 )
 PAIR_STATE = ("last_fire", "strategy_pools", "strategy_signal_state",
               "strategy_signal_seen", "sector_condition_state", "abnormal_condition_state")
@@ -37,6 +37,7 @@ def scoped(payload, sid, phase):
         action for action in actions
         if (action["phase"] == "breadth") == (phase == "breadth")]
     if phase == "breadth":
+        task.pop("strategy_minute_packets", None)
         task.update(kind="monitor_breadth", sources=[], signals=[], factors=[], overrides={})
     return task
 

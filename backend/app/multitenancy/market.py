@@ -101,6 +101,18 @@ class PublicMarket:
         except (httpx.HTTPError, ValueError) as exc:
             raise AccessError(503, "平台输入修复暂不可用") from exc
 
+    def strategy_minute(self, release_id, scope):
+        try:
+            response = self.client.post("/internal/cell-market/strategy-minute",
+                                        json={"release_id": release_id, "scope": scope}, timeout=2)
+            response.raise_for_status()
+            value = response.json()
+            if not isinstance(value, dict):
+                raise ValueError("invalid strategy minute receipt")
+            return value
+        except (httpx.HTTPError, ValueError) as exc:
+            raise AccessError(503, "实时策略分钟数据暂不可用") from exc
+
     def s02_input(self, request, phase):
         try:
             response = self.client.post("/internal/cell-market/s02-input",

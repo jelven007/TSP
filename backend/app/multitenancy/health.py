@@ -68,6 +68,9 @@ class WorkerHealth:
 
 
 def readiness(state, data_dir):
+    from app.market_time import cn_today
+    from app.services.health import official_calendar_health
+
     checks = {}
     quotes = getattr(state, "quote_service", None)
     view = quotes.binding_snapshot() if quotes and hasattr(quotes, "binding_snapshot") else None
@@ -162,4 +165,5 @@ def readiness(state, data_dir):
         "status": "error" if not ready else "degraded" if degraded else "ok",
         "ready": ready, "checked_at": datetime.now(UTC).isoformat(),
         "checks": checks, "functions": functions,
+        "official_calendar": official_calendar_health(cn_today()),
     }

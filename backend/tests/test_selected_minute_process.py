@@ -45,14 +45,20 @@ def _fixture_worker(connection):
 
     kline_sync._resolve_minute_provider = lambda name: (Provider(), False, None)
     custom.load_all = lambda: None
+    if os.environ.get("TSP_SELECTED_TEST_MODE") == "live":
+        from app import market_time
+
+        market_time.cn_now = lambda: datetime(2026, 11, 2, 14, 30, 5)
     _worker(connection)
 
 def _loader_worker(connection):
     """真实注册表加载临时YAML; 仅取数函数用本地帧隔离网络。"""
+    from app.config import settings
     from app.data_providers.custom import loader
     from app.services import kline_sync
     from app.services.selected_minute_process import _worker
 
+    settings.platform_config_dir = None
     loader._load_builtin_plugins = lambda: None
     def fetch(provider, name, symbols):
         assert provider.config.name == name == "fixture"
@@ -103,6 +109,34 @@ def test_spawn_writes_only_selected_normalized_rows_and_reports_real_pid(tmp_pat
     finally:
         worker.close()
     assert worker.status()["pid"] is None
+
+
+def test_spawn_delivers_verified_slice_while_actual_partition_lock_is_held(tmp_path, monkeypatch):
+    from app.services.kline_sync import _minute_partition_lock
+
+    worker = _supervisor(tmp_path, monkeypatch, mode="live")
+    job = {**_job(tmp_path), "live_handoff": True}
+    partition = tmp_path / f"source/kline_minute/date={DAY}/part.parquet"
+    partition.parent.mkdir(parents=True)
+    observed = []
+
+    def receive():
+        return worker.advance(job, on_verified=lambda frame, seq: observed.append((frame, seq)))
+
+    try:
+        with _minute_partition_lock(partition):
+            def verify():
+                assert receive() is None
+                return bool(observed)
+
+            _until(verify)
+            frame, seq = observed[0]
+            assert frame["symbol"].unique().to_list() == job["symbols"] and seq == 1
+            assert not partition.exists() and worker.status()["inflight"]
+        reply = _until(receive)
+        assert reply["error"] is None and reply["written_rows"] == 1 and partition.exists()
+    finally:
+        worker.close()
 
 
 def test_spawn_loads_controlled_source_configuration_itself(tmp_path):

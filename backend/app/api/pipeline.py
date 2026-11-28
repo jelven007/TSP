@@ -3,9 +3,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
 
+from app.market_time import cn_now
 from app.services.pipeline_jobs import job_store
 from app.services.pipeline_runner import (
     stop_initial_sync_job as stop_initial_sync_job,
+)
+from app.services.pipeline_runner import (
     trigger_pipeline_job as trigger_pipeline_job,
 )
 
@@ -35,7 +38,7 @@ def get_job(job_id: str) -> dict:
 
 @router.post("/jobs/{job_id}/cancel")
 def cancel_job(job_id: str) -> dict:
-    """手动取消活跃任务；终态在执行体实际退出后发布。"""
+    """手动取消活跃任务; 终态在执行体实际退出后发布。"""
     j = job_store.get(job_id)
     if not j:
         raise HTTPException(status_code=404, detail="job not found")
@@ -46,14 +49,19 @@ def cancel_job(job_id: str) -> dict:
 
 
 @router.get("/jobs")
-def list_jobs(request: Request, limit: int = 20) -> dict:
+def list_jobs(request: Request, limit: int = 20, include_readiness: bool = False) -> dict:
     from app.services.post_close_integrity import summary
     from app.services.suspension_sync import summary as suspension_summary
-    return {
+    repo = request.app.state.repo
+    integrity = summary(repo, scheduler=getattr(request.app.state, "scheduler", None))
+    result = {
         "active_id": job_store.active_id(),
         "jobs": job_store.list_recent(limit=limit),
-        "suspension_sync": suspension_summary(request.app.state.repo),
-        "post_close_integrity": summary(
-            request.app.state.repo, scheduler=getattr(request.app.state, "scheduler", None),
-        ),
+        "suspension_sync": suspension_summary(repo),
+        "post_close_integrity": integrity,
     }
+    if include_readiness:
+        from app.services.schedule_readiness import summarize
+
+        result["schedule_readiness"] = summarize(repo.store.data_dir, integrity, now=cn_now())
+    return result

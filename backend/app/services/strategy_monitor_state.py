@@ -101,6 +101,9 @@ def plan(windows, tasks, now, *, trading, include_select=False, retry_seconds=3,
                        and window.get("phase_policy") == "independent_v1" and not breadth)
         if (finished(buy) or finished(saved)) and not observation:
             continue
+        if sig.get("template") == "s01_late_entry" and now < start < confirm:
+            # Frozen native signals retain their original start pulse.
+            wakes.append(start)
         # 空下限观测也用完整池, 但不作为买入必需阶段; 其截止不包含结束整秒。
         if breadth or observation:
             due("buy", signal, "breadth", start + timedelta(seconds=15), end,

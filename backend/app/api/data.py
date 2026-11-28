@@ -271,10 +271,13 @@ def _safe_aggregate_minute(repo, table: str = "kline_minute") -> dict | None:
     if not minute_dir.exists():
         return None
 
-    # 从 date=YYYY-MM-DD 目录名提取交易日
+    # 删除数据后仍保留分钟写锁, 仅有锁的分区不代表行情覆盖。
     dates: list[str] = []
     for d in minute_dir.iterdir():
-        if d.is_dir() and d.name.startswith("date="):
+        if (
+            d.is_dir() and d.name.startswith("date=")
+            and any(path.is_file() for path in d.rglob("*.parquet"))
+        ):
             dates.append(d.name[5:])
 
     if not dates:

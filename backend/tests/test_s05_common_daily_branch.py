@@ -365,7 +365,7 @@ def test_completed_sell_is_not_started_again_by_later_quotes(monkeypatch):
     assert second.exit_signal_hits == first.exit_signal_hits
 
 
-def test_monitor_summary_uses_code_four_without_overwriting_prior_task_evidence(tmp_path):
+def test_monitor_summary_uses_code_four_without_overwriting_prior_task_evidence(tmp_path, monkeypatch):
     from app.services.daily_selections import DailySelections
     from app.services.routed_strategy_monitor import monitoring_summary
     from app.services.s05_selection import POLICY, WEIGHTS
@@ -373,7 +373,10 @@ def test_monitor_summary_uses_code_four_without_overwriting_prior_task_evidence(
     from app.services.strategy_results import ResultIdentity
 
     set_monitoring(tmp_path, routed.SID, "s05", True)
-    saved = {**common_selection(4), "scoring_policy": POLICY, "scoring_weights": WEIGHTS}
+    archived = datetime(2026, 11, 26, 22, 16, tzinfo=CN_TZ)
+    monkeypatch.setattr("app.services.strategy_results.time.time", archived.timestamp)
+    saved = {**common_selection(4), "scoring_policy": POLICY, "scoring_weights": WEIGHTS,
+             "generated_at": archived.isoformat()}
     DailySelections(tmp_path).save(ResultIdentity(
         routed.SID, "s05", "saved", "{}", "{}", "null", "stock", "1m"), saved, started_at=1)
     prior = {"tasks": {kind: {"state": "expired", "count": 0, "terminal": True,

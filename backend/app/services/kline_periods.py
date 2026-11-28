@@ -299,6 +299,114 @@ def refresh_period(repo, period: str) -> None:
     invalidate_storage_cache()
 
 
+def finalize_minute_day(repo, day: date, capset, *, on_progress=None) -> dict:
+    """盘后按股核验两次新源值; 完整键不代表收盘量额已定版。"""
+    from app.instrument_suspension import _dated_events, load_suspension_history
+    from app.minute_clock import closed_minute_stamps
+    from app.price_limits import parse_listing_date
+    from app.services.instrument_sync import load_current_stock_pool
+    from app.services.minute_write_order import begin_minute_request
+    from app.services.pipeline_jobs import JobCancelledError
+
+    now = cn_now().replace(tzinfo=None)
+    if day != now.date() or now.time() < time(15, 35):
+        raise ValueError("分钟定版仅在当日15:35后执行")
+    provider, source = require_period_provider("1m", capset)
+    instruments = repo.get_instruments()
+    listings = dict(instruments.select("symbol", "listing_date").iter_rows()) if "listing_date" in instruments.columns else {}
+    halted = _dated_events(load_suspension_history(repo.store.data_dir), day,
+                           observed_at=datetime.combine(day, time(9, 30)))
+    excluded = set(halted.filter(pl.col("is_suspended"))["symbol"]) if not halted.is_empty() else set()
+    symbols = [s for s in load_current_stock_pool(repo.store.data_dir, require_complete=True).symbols
+               if s not in excluded and (parse_listing_date(listings.get(s)) or day) <= day]
+    result = {"source": source, "rows": 0, "verified_symbols": 0, "rejected": {},
+              "derived_rows": {p: 0 for p in LOCAL_MINUTE_PERIODS}}
+    keys = ["symbol", "datetime"]
+    clock = set(closed_minute_stamps(day))
+    start, end = datetime.combine(day, time(9, 31)), datetime.combine(day, time(15))
+
+    def changed(frame, period):
+        paths = list((repo.store.data_dir / TABLES[period] / f"date={day}").glob("*.parquet"))
+        if not paths:
+            return frame
+        prior = scan_parquet_compat(paths).filter(pl.col("symbol").is_in(frame["symbol"].unique().implode())).select(
+            *keys, *[pl.col(c).alias(f"_old_{c}") for c in _VALUES], pl.lit(True).alias("_present"),
+        ).collect()
+        joined = frame.join(prior, on=keys, how="left")
+        return joined.filter(pl.col("_present").is_null() | pl.any_horizontal(
+            [~pl.col(c).eq_missing(pl.col(f"_old_{c}")) for c in _VALUES],
+        )).select(frame.columns)
+
+    for offset in range(0, len(symbols), 100):
+        batch = symbols[offset:offset + 100]
+        if on_progress:
+            on_progress("minute_finalization", 5 + int(90 * offset / max(1, len(symbols))),
+                        f"收盘分钟定版: {offset}/{len(symbols)}")
+        sequence = begin_minute_request(repo.store.data_dir / TABLES["1m"])
+        # No cached response crosses the two calls; allocate ordering before either.
+        try:
+            frames = [fetch_period(provider, "1m", batch, start, end, minute_adjust="none") for _ in range(2)]
+        except JobCancelledError:
+            raise
+        except Exception as exc:
+            result["rejected"].update({s: f"源端读取失败: {type(exc).__name__}" for s in batch})
+            continue
+        if on_progress:
+            on_progress("minute_finalization", 5 + int(90 * offset / max(1, len(symbols))),
+                        f"收盘分钟定版: 核验并保存{len(batch)}只")
+        accepted = []
+        daily = _local_daily_frame(repo, day, day, batch)
+        daily_by_symbol = {r["symbol"]: r for r in daily.to_dicts()} if not daily.is_empty() else {}
+        for symbol in batch:
+            pair = [f.filter(pl.col("symbol") == symbol).select(*keys, *_VALUES).sort("datetime")
+                    if not f.is_empty() else pl.DataFrame() for f in frames]
+            if any(f.height != 240 or set(f["datetime"]) != clock for f in pair):
+                result["rejected"][symbol] = "源端分钟未完整返回240个唯一完成键"
+                continue
+            if not pair[0].equals(pair[1]):
+                result["rejected"][symbol] = "两次新源端分钟值不一致"
+                continue
+            frame = pair[1]
+            invalid = pl.any_horizontal([~pl.col(c).is_finite().fill_null(False) for c in _VALUES])
+            invalid |= pl.any_horizontal([pl.col(c) <= 0 for c in _VALUES[:4]])
+            invalid |= (pl.col("volume") < 0) | (pl.col("amount") < 0)
+            invalid |= (pl.col("low") > pl.min_horizontal("open", "close")) | (pl.col("high") < pl.max_horizontal("open", "close"))
+            if frame.filter(invalid).height:
+                result["rejected"][symbol] = "源端分钟含无效数值或OHLC结构"
+                continue
+            closing = frame.tail(1).row(0, named=True)
+            daily_row = daily_by_symbol.get(symbol, {})
+            if closing["volume"] == closing["amount"] == 0 and any(
+                isinstance(daily_row.get(c), (int, float))
+                and daily_row[c] - frame[c].sum() > tolerance
+                for c, tolerance in (("volume", 1.), ("amount", 100.))
+            ):
+                result["rejected"][symbol] = "源端收盘量额仍为0且日线合计存在缺额"
+                continue
+            accepted.append(frame)
+        if not accepted:
+            continue
+        final = pl.concat(accepted)
+        updates = changed(final, "1m")
+        if not updates.is_empty():
+            result["rows"] += persist_period(repo, "1m", updates, request_seq=sequence)
+        # A newer concurrent request wins; don't certify or derive a rejected old value.
+        unmatched = changed(final, "1m")["symbol"].unique().to_list()
+        for symbol in unmatched:
+            result["rejected"][symbol] = "并发更新后落盘值与本次源证据不一致"
+        final = final.filter(~pl.col("symbol").is_in(unmatched))
+        if final.is_empty():
+            continue
+        result["verified_symbols"] += final["symbol"].n_unique()
+        for period in LOCAL_MINUTE_PERIODS:
+            derived = changed(aggregate_minute_period(final, period, complete_only=True), period)
+            if not derived.is_empty():
+                result["derived_rows"][period] += persist_period(repo, period, derived)
+    if result["rejected"]:
+        result["error"] = f'{len(result["rejected"])}只股票分钟定版未完成'
+    return result
+
+
 def period_bounds(repo, period: str) -> tuple[date | None, date | None]:
     import pyarrow.parquet as pq
     days = set()

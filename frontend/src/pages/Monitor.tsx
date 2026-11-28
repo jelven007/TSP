@@ -130,6 +130,11 @@ export function Monitor() {
 
   // 深链: /monitor?new=abnormal (异动数据页「告警规则」入口) → 直接弹出预置类型的编辑器
   const [searchParams, setSearchParams] = useSearchParams()
+  const taskContext = searchParams.get('task_context')
+  const linkedDate = searchParams.get('data_date') ?? ''
+  const taskDate = /^\d{4}-\d{2}-\d{2}$/.test(linkedDate) ? linkedDate : null
+  const contextLabel = taskContext === 'stock-status' ? '停复牌 / ST 核验'
+    : taskContext === 'post-close' ? '盘后行情定版' : null
   const notificationsOpen = multitenancyEnabled() && searchParams.get('notifications') === '1'
   useEffect(() => {
     const kind = searchParams.get('new')
@@ -235,8 +240,11 @@ export function Monitor() {
         </div>
       )}
       <div className="page-content flex flex-col flex-1 min-h-0">
-        <section aria-label="当日策略任务" className="page-card mb-3 max-h-64 sm:max-h-96 overflow-auto px-4 py-3">
+        <section id="strategy-tasks" aria-label="当日策略任务" className="page-card mb-3 max-h-64 sm:max-h-96 overflow-auto px-4 py-3">
           <p className="text-xs font-medium">当日策略任务 · 每策略每交易日3项：选、买、卖</p>
+          {contextLabel && taskDate && <p className="mt-1 text-xs text-secondary">
+            来自数据总览：{taskDate} · {contextLabel}。下方仍按策略任务自身日期展示；请核对输入日、目标日和任务回执。
+          </p>}
           <p className="mt-1 text-[11px] text-muted">仅在对应北京时间窗口内执行；窗口外显示待执行或已结束。下方近7日历史通知不代表正在运行的任务。</p>
           {dailyTasks.isError ? <p role="alert" className="text-xs text-danger">当日任务加载失败</p>
             : dailyTasks.isLoading ? <p className="text-xs text-muted">加载当日任务…</p>

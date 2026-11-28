@@ -5,11 +5,12 @@ import hashlib
 import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 from app.market_time import as_cn_datetime, cn_now
 from app.services.fs_utils import atomic_write_text
+from app.services.strategy_input_manifest import S01_ID, S01_PRIORITY_MAX_SYMBOLS, s01_seal_target
 
 
 def merge_proof(previous, incoming):
@@ -34,12 +35,14 @@ class MonitorInputRepair:
         self.root = Path(state.repo.store.data_dir) / "monitor_input_repairs"
         self.lock = threading.RLock()
         self.pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="monitor-input-repair")
+        self.priority_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="monitor-minute-priority")
         self.active = set()
         self.stopped = False
 
     def close(self):
         self.stopped = True
         self.pool.shutdown(wait=False, cancel_futures=True)
+        self.priority_pool.shutdown(wait=False, cancel_futures=True)
 
     def _read(self, key):
         try:
@@ -105,21 +108,51 @@ class MonitorInputRepair:
                      "started_at": self.now().isoformat(), "retry_until": request["retry_until"]}
             self._save(key, value)
             self.active.add(key)
-            self.pool.submit(self._run, key, value)
+            target = self._priority_target(request)
+            if target:
+                self.priority_pool.submit(self._run, key, value, target)
+            else:
+                self.pool.submit(self._run, key, value)
             return value
 
-    def _run(self, key, value):
+    def request_if_available(self, request):
+        """Do not make a strategy's next input check wait for a repair writer."""
+        if not self.lock.acquire(blocking=False):
+            return None
+        try:
+            return self.request(request)
+        finally:
+            self.lock.release()
+
+    def _priority_target(self, request):
+        if (request["strategy_id"] != S01_ID or request["phase"] not in ("breadth", "stocks")
+                or not request.get("certify_coverage") or not request["owner"].startswith("s02-")
+                or request["daily_dates"] or len(request["symbols"]) > S01_PRIORITY_MAX_SYMBOLS
+                or not request.get("minute_start")
+                or request["minute_start"] != request.get("minute_end")):
+            return None
+        from app.services.preferences import get_data_sync_auto_enabled
+
+        target = s01_seal_target({"bar_at": f"{request['day']}T{request['minute_end']}"})
+        now = as_cn_datetime(self.now())
+        if target - timedelta(minutes=1) <= now < target and get_data_sync_auto_enabled():
+            return target
+        return None
+
+    def _run(self, key, value, target=None):
         from app.services import pipeline_jobs
         owner = "monitor-input-repair:" + key
         acquired = False
         try:
-            self.check(value["request"])
-            acquired = pipeline_jobs.try_acquire_run_slot(owner)
-            if not acquired:
-                raise ValueError("行情写入服务忙, 主任务在有效期限内重试")
+            request = value["request"]
+            self.check(request)
+            if target is None:
+                acquired = pipeline_jobs.try_acquire_run_slot(owner)
+                if not acquired:
+                    raise ValueError("行情写入服务忙, 主任务在有效期限内重试")
             self._save(key, {**value, "state": "running"})
-            result = self.repair(value["request"])
-            self.check(value["request"])
+            result = self._repair_target_minute(request, target) if target else self.repair(request)
+            self.check(request)
             result["proof"] = merge_proof(
                 value.get("result", {}).get("proof", {}), result.get("proof", {}))
             value["successes"] += 1
@@ -132,6 +165,52 @@ class MonitorInputRepair:
             with self.lock:
                 self._save(key, {**value, "completed_at": self.now().isoformat()})
                 self.active.discard(key)
+
+    def _repair_target_minute(self, request, target):
+        """One bounded scope, one ordered merge and minute-only publication."""
+        from collections import Counter
+
+        from app.services import kline_periods, kline_sync
+        from app.services.minute_write_order import begin_minute_request
+        from app.services.preferences import get_data_sync_auto_enabled
+
+        def check():
+            self.check(request)
+            if as_cn_datetime(self.now()) >= target:
+                raise ValueError("已超过目标分钟封存目标")
+            if not get_data_sync_auto_enabled():
+                raise ValueError("自动同步已关闭, 停止优先补数")
+
+        repo, symbols = self.state.repo, request["symbols"]
+        minute_dir = repo.store.data_dir / "kline_minute"
+        at = datetime.fromisoformat(f"{request['day']}T{request['minute_end']}")
+        check()
+        provider, source = kline_periods.require_period_provider("1m", getattr(self.state, "capabilities", None))
+        sequence = begin_minute_request(minute_dir)
+        frame = kline_periods.fetch_period(provider, "1m", symbols, at, at, minute_adjust="none")
+        check()
+        collector = getattr(self.state, "minute_refresh", None)
+        if collector is not None:
+            collector.offer_live_minutes(frame, sequence, source, minute_dir)
+        with self.lock:
+            check()
+            if frame.is_empty():
+                raise ValueError("优先补数未取得目标分钟")
+            written = kline_sync._write_minute_partition(
+                frame, minute_dir, request_seq=sequence, isolate_suspension_conflicts=True)
+        check()
+        publisher = getattr(self.state, "public_publisher", None)
+        completed = self.now()
+        release = publisher.publish_priority(completed) if publisher else None
+        # Some configured providers can return only a subset after per-symbol
+        # errors. This fast path certifies only rows actually returned.
+        proof = {symbol: {"minute": [{"symbol": symbol, "day": request["day"],
+                                      "state": "succeeded", "request_seq": sequence,
+                                      "required_from": at.isoformat(), "completed_through": at.isoformat(),
+                                      "collected_at": completed.isoformat(), "returned_rows": count}]}
+                 for symbol, count in Counter(frame["symbol"]).items()}
+        return {"written_rows": {f"1m:{at.date()}": written},
+                "release": {"id": release["id"]} if release else None, "proof": proof}
 
     def repair(self, request):
         """Provider IO and writes remain exclusively in this platform service."""
@@ -171,7 +250,7 @@ class MonitorInputRepair:
                 periods.append(minute)
         for period, source, end in periods:
             self.check(request)
-            provider, _ = kline_periods.require_period_provider(period, capset)
+            provider, provider_name = kline_periods.require_period_provider(period, capset)
             count = 0
             for offset in range(0, len(symbols), 100):
                 self.check(request)
@@ -182,6 +261,11 @@ class MonitorInputRepair:
                 frame = kline_periods.fetch_period(
                     provider, period, batch, datetime.combine(source, start),
                     datetime.combine(source, end), minute_adjust="none")
+                collector = getattr(self.state, "minute_refresh", None)
+                if sequence is not None and collector is not None:
+                    self.check(request)
+                    collector.offer_live_minutes(frame, sequence, provider_name,
+                                                 repo.store.data_dir / "kline_minute")
                 # A blocking provider returning after cancellation/deadline cannot write.
                 with self.lock, paused_quotes(quotes):
                     self.check(request)
