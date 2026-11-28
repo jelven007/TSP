@@ -6,7 +6,7 @@
 [![CI](https://github.com/jelven007/TSP/actions/workflows/ci.yml/badge.svg)](https://github.com/jelven007/TSP/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-本工作区源码基点的应用语义版本为 `0.4.76`。工程导航见[文档中心](docs/README.md)。
+本工作区源码基点的应用语义版本为 `0.4.77`。工程导航见[文档中心](docs/README.md)。
 源码版本、质量门、安装与运行环境分别核对；
 工作区、正式发布、安装补丁和运行状态见[版本基线](docs/version-baseline.md)。
 
